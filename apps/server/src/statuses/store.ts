@@ -1,10 +1,11 @@
 import type { Visibility } from "@pinstripe/core";
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt, type SQL, sql } from "drizzle-orm";
 import type { Db } from "../db/client.ts";
-import { accounts, favourites, follows, mediaAttachments, mentions, statuses } from "../db/schema.ts";
+import { accounts, blocks, favourites, follows, mediaAttachments, mentions, statuses } from "../db/schema.ts";
 import type { MediaRow } from "../media/store.ts";
 import { uuidv7 } from "../ids.ts";
 import { notify, unnotify } from "../notifications/store.ts";
+import { authorSuspended, blocksViewer, hiddenStatus } from "../safety/sql.ts";
 import { type AccountRow, isUniqueViolation, isUuid } from "../store.ts";
 
 export type StatusRow = typeof statuses.$inferSelect;
@@ -54,10 +55,19 @@ export interface NewStatus {
  * Who may see a status, as SQL over `statuses`: public and unlisted posts
  * are open; the author sees everything; accepted followers see
  * followers-only posts; mentioned accounts see the post whatever its
- * visibility.
+ * visibility. Nobody sees a suspended account's posts, and nobody sees the
+ * posts of someone who blocked them.
  */
 export function visibleTo(viewerId: string | null): SQL {
   const open = inArray(statuses.visibility, ["public", "unlisted"]);
+  // Suspended accounts' posts are gone for everyone; someone who blocked you is gone for you.
+  const allowed = viewerId
+    ? sql`not ${authorSuspended(statuses.accountId)} and not ${blocksViewer(statuses.accountId, viewerId)}`
+    : sql`not ${authorSuspended(statuses.accountId)}`;
+  return sql`(${allowed} and ${audience(open, viewerId)})`;
+}
+
+function audience(open: SQL, viewerId: string | null): SQL {
   if (!viewerId) return open;
   return sql`(${open}
     or ${statuses.accountId} = ${viewerId}
@@ -298,6 +308,8 @@ export class StatusStore {
         eq(statuses.accountId, accountId),
         options.media ? hasMedia(options.media) : undefined,
         visibleTo(options.viewerId),
+        // A profile you blocked shows no posts (as on Mastodon); muted ones still do.
+        options.viewerId ? sql`not exists (select 1 from ${blocks} where ${blocks.accountId} = ${options.viewerId} and ${blocks.targetAccountId} = ${statuses.accountId})` : undefined,
         options.excludeReblogs ? isNull(statuses.reblogOfId) : undefined,
         options.excludeReplies ? isNull(statuses.inReplyToId) : undefined,
       )!,
@@ -306,8 +318,10 @@ export class StatusStore {
   }
 
   /** Public posts, no boosts (as in Mastodon). `scope` picks Local (this server), remote only, or everything (Federated). */
-  publicTimeline(page: Page, scope: "local" | "remote" | "all", media?: MediaFilter) {
-    const where: SQL[] = [eq(statuses.visibility, "public"), isNull(statuses.reblogOfId)];
+  publicTimeline(page: Page, scope: "local" | "remote" | "all", media?: MediaFilter, viewerId: string | null = null) {
+    const where: SQL[] = [eq(statuses.visibility, "public"), isNull(statuses.reblogOfId), visibleTo(viewerId)];
+    const hidden = hiddenStatus(viewerId);
+    if (hidden) where.push(sql`not ${hidden}`);
     if (media) where.push(hasMedia(media));
     if (scope !== "all") {
       where.push(
@@ -326,6 +340,7 @@ export class StatusStore {
       and(
         sql`(${statuses.accountId} = ${accountId} or ${followedBy(accountId)})`,
         visibleTo(accountId),
+        sql`not ${hiddenStatus(accountId)!}`,
         media ? hasMedia(media, { throughBoosts: true }) : undefined,
       )!,
       page,
@@ -378,6 +393,7 @@ export class StatusStore {
               select s.id, thread.depth + 1 from ${statuses} s join thread on s.in_reply_to_id = thread.id where thread.depth < 40
             ) select id from thread)`,
           visibleTo(viewerId),
+          viewerId ? sql`not ${hiddenStatus(viewerId)!}` : undefined,
         ),
       )
       .orderBy(asc(statuses.id))

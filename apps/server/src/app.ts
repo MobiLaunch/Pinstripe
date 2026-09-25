@@ -9,10 +9,13 @@ import { authRoutes } from "./auth/routes.ts";
 import type { AuthStore } from "./auth/store.ts";
 import type { ContextData } from "./federation.ts";
 import { profileRoutes } from "./accounts/profile.ts";
-import { serializeAccount, toMastodonVisibility } from "./mastodon.ts";
+import { serializeAccount, serializeRelationship, toMastodonVisibility } from "./mastodon.ts";
 import { mediaRoutes } from "./media/routes.ts";
 import { notificationRoutes } from "./notifications/routes.ts";
 import { NotificationStore } from "./notifications/store.ts";
+import { safetyRoutes } from "./safety/routes.ts";
+import { hiddenNotification } from "./safety/sql.ts";
+import { type Role, SafetyStore } from "./safety/store.ts";
 import type { MediaService } from "./media/service.ts";
 import { actorUri } from "./statuses/activitypub.ts";
 import { statusRenderer } from "./statuses/render.ts";
@@ -30,6 +33,12 @@ export interface AppOptions {
   loginLimiter?: FailureLimiter;
 }
 
+/** Mastodon's Role entity. Permissions are Mastodon's bit flags: 1 administrator, 16 manage reports, 1024 manage users. */
+function roleJson(role: Role) {
+  const [id, permissions] = { user: ["-99", "0"], moderator: ["2", String(16 | 1024)], admin: ["3", "1"] }[role];
+  return { id, name: role === "user" ? "" : role[0]!.toUpperCase() + role.slice(1), permissions, color: "", highlighted: role !== "user" };
+}
+
 /**
  * HTTP entry point. Fedify answers ActivityPub, WebFinger and NodeInfo
  * requests first; everything else falls through to OAuth and the
@@ -38,7 +47,8 @@ export interface AppOptions {
 export function buildApp({ federation, store, statuses, media, auth, domain, loginLimiter }: AppOptions) {
   const app = new Hono<AuthEnv>();
 
-  const contextData = { store, statuses, media };
+  const safety = new SafetyStore(store.db, store);
+  const contextData = { store, statuses, media, safety };
   app.use(federationMiddleware(federation, () => contextData));
   const federationContext = (c: Context) => federation.createContext(c.req.raw, contextData);
 
@@ -93,7 +103,16 @@ export function buildApp({ federation, store, statuses, media, auth, domain, log
         fields: json.fields,
         follow_requests_count: (await store.followCounts(account.id)).requests,
       },
+      role: roleJson(await safety.role(account.id)),
     };
+  }
+
+  async function relationshipsJson(viewerId: string, ids: string[]) {
+    const [follows, targets] = await Promise.all([store.relationships(viewerId, ids), store.getAccounts(ids)]);
+    const blocking = await safety.relationships(viewerId, targets);
+    return targets
+      .filter((t) => follows.has(t.id))
+      .map((t) => serializeRelationship(t.id, follows.get(t.id)!, blocking.get(t.id)));
   }
 
   const render = statusRenderer({ statuses, media, renderAccount, federationContext });
@@ -113,13 +132,34 @@ export function buildApp({ federation, store, statuses, media, auth, domain, log
   app.route("/", mediaRoutes({ media }));
   app.route(
     "/",
-    notificationRoutes({ store, statuses, notifications: new NotificationStore(store.db), render, renderAccount }),
+    notificationRoutes({
+      store,
+      statuses,
+      notifications: new NotificationStore(store.db),
+      render,
+      renderAccount,
+      hiddenFor: hiddenNotification,
+    }),
   );
   app.route("/", statusRoutes({ store, statuses, media, domain, render, federationContext }));
   app.route(
     "/",
+    safetyRoutes({
+      store,
+      statuses,
+      safety,
+      renderAccount,
+      renderStatuses: (c, rows, viewerId) => render.rows(c, rows, viewerId),
+      relationship: async (viewerId, id) => (await relationshipsJson(viewerId, [id]))[0]!,
+      federationContext,
+    }),
+  );
+  app.route(
+    "/",
     accountRoutes({
       store,
+      safety,
+      relationshipsJson,
       domain,
       renderAccount,
       renderStatuses: (c, rows) => render.rows(c, rows, c.get("token")?.account?.id ?? null),

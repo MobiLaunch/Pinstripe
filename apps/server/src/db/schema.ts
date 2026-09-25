@@ -50,6 +50,8 @@ export const accounts = pgTable(
     followingCount: integer("following_count"),
     statusesCount: integer("statuses_count"),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }),
+    /** Set by a moderator: the account's posts are hidden, and a local one can't sign in. */
+    suspendedAt: timestamp("suspended_at", { withTimezone: true }),
   },
   (t) => [
     // Handles are case-insensitive: @Sam@x and @sam@x are the same person.
@@ -109,6 +111,8 @@ export const users = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     /** Null until email confirmation lands; unused for now. */
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    /** Moderators and admins see and act on reports. */
+    role: text("role").$type<"user" | "moderator" | "admin">().notNull().default("user"),
   },
   (t) => [uniqueIndex("users_email_lower_idx").on(sql`lower(${t.email})`)],
 );
@@ -315,4 +319,83 @@ export const markers = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.accountId, t.timeline] })],
+);
+
+/** `accountId` blocks `targetAccountId`. Either side may be remote (a remote Block of a local account is stored too). */
+export const blocks = pgTable(
+  "blocks",
+  {
+    /** UUIDv7, for paging the list. */
+    id: uuid("id").notNull().unique(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    targetAccountId: uuid("target_account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    /** The Block activity's id, so an Undo can be matched and sent. */
+    uri: text("uri"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.targetAccountId] }), index("blocks_target_idx").on(t.targetAccountId)],
+);
+
+/** Hides someone's posts (and, unless `hideNotifications` is off, their notifications) from a local account. Never federated. */
+export const mutes = pgTable(
+  "mutes",
+  {
+    id: uuid("id").notNull().unique(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    targetAccountId: uuid("target_account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    hideNotifications: boolean("hide_notifications").notNull().default(true),
+    /** Null: until unmuted. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.targetAccountId] })],
+);
+
+/** A local account hiding a whole server ("Blocked servers" in Settings). */
+export const domainBlocks = pgTable(
+  "domain_blocks",
+  {
+    id: uuid("id").notNull().unique(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.domain] })],
+);
+
+export type ReportCategory = "spam" | "legal" | "violation" | "other";
+
+/** A report to this server's moderators, from a local account or (as a Flag) from another server. */
+export const reports = pgTable(
+  "reports",
+  {
+    id: uuid("id").primaryKey(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    targetAccountId: uuid("target_account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    statusIds: uuid("status_ids").array().notNull().default(sql`'{}'::uuid[]`),
+    comment: text("comment").notNull().default(""),
+    category: text("category").$type<ReportCategory>().notNull().default("other"),
+    /** Asked to be passed on to the target's server. */
+    forward: boolean("forward").notNull().default(false),
+    /** The Flag activity's id, for reports from elsewhere. */
+    uri: text("uri"),
+    actionTakenAt: timestamp("action_taken_at", { withTimezone: true }),
+    actionTakenByAccountId: uuid("action_taken_by_account_id").references(() => accounts.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("reports_open_idx").on(t.id).where(sql`${t.actionTakenAt} is null`), uniqueIndex("reports_uri_idx").on(t.uri)],
 );

@@ -65,6 +65,9 @@ function appResponse(app: OAuthApp) {
   };
 }
 
+const WRONG_LOGIN = "That username or password isn't right.";
+export const SUSPENDED = "This account has been suspended by the server's moderators.";
+
 const oauthError = (c: Context, error: string, description: string, status: 400 | 401 = 400) =>
   c.json({ error, error_description: description }, status);
 
@@ -74,12 +77,16 @@ export function authRoutes({ auth, renderCredentialAccount, loginLimiter = new F
   /** Checks a login, counting failures per username/email. */
   async function login(loginName: string, password: string) {
     const key = loginName.trim().replace(/^@/, "").toLowerCase();
-    if (!key || !password) return { account: null, blocked: false };
-    if (loginLimiter.isBlocked(key)) return { account: null, blocked: true };
+    if (!key || !password) return { account: null, error: WRONG_LOGIN };
+    if (loginLimiter.isBlocked(key)) return { account: null, error: "Too many failed attempts. Try again in a few minutes." };
     const account = await auth.verifyLogin(key, password);
-    if (account) loginLimiter.reset(key);
-    else loginLimiter.recordFailure(key);
-    return { account, blocked: false };
+    if (!account) {
+      loginLimiter.recordFailure(key);
+      return { account: null, error: WRONG_LOGIN };
+    }
+    loginLimiter.reset(key);
+    if (account.suspendedAt) return { account: null, error: SUSPENDED };
+    return { account, error: null };
   }
 
   app.get("/.well-known/oauth-authorization-server", (c) => {
@@ -186,11 +193,8 @@ export function authRoutes({ auth, renderCredentialAccount, loginLimiter = new F
     }
 
     const loginName = p.login ?? "";
-    const { account, blocked } = await login(loginName, p.password ?? "");
+    const { account, error } = await login(loginName, p.password ?? "");
     if (!account) {
-      const error = blocked
-        ? "Too many failed attempts. Try again in a few minutes."
-        : "That username or password isn't right.";
       return c.html(authorizePage({ appName: client.name, scopes, params, login: loginName, error }), 401, htmlHeaders);
     }
 
@@ -243,14 +247,8 @@ export function authRoutes({ auth, renderCredentialAccount, loginLimiter = new F
         if (!scopes || !scopesAllowed(scopes, client.scopes)) {
           return oauthError(c, "invalid_scope", "The requested scope is invalid or not registered.");
         }
-        const { account, blocked } = await login(p.username ?? "", p.password ?? "");
-        if (!account) {
-          return oauthError(
-            c,
-            "invalid_grant",
-            blocked ? "Too many failed attempts. Try again in a few minutes." : "That username or password isn't right.",
-          );
-        }
+        const { account, error } = await login(p.username ?? "", p.password ?? "");
+        if (!account) return oauthError(c, "invalid_grant", error);
         const { token, createdAt } = await auth.createToken({ appId: client.id, accountId: account.id, scopes });
         return c.json(tokenResponse(token, scopes, createdAt));
       }

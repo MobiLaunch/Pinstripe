@@ -190,6 +190,31 @@ describe("notifications across servers", () => {
   });
 });
 
+describe("blocks across servers", () => {
+  it("tells the other server, which ends the follows and hides the blocker", async () => {
+    const { a, b } = servers;
+    const alice = await a.user("alice");
+    const bob = await b.user("bob");
+    const remoteBob = await discover(a, alice, bob.actor);
+    const remoteAlice = await discover(b, bob, alice.actor);
+    await a.post(`/api/v1/accounts/${remoteBob.id}/follow`, {}, alice.headers);
+    await b.post(`/api/v1/accounts/${remoteAlice.id}/follow`, {}, bob.headers);
+    await b.post("/api/v1/statuses", { status: "before the block" }, bob.headers);
+    expect(await a.get("/api/v1/timelines/home", alice.headers)).toHaveLength(1);
+
+    expect(await b.post(`/api/v1/accounts/${remoteAlice.id}/block`, {}, bob.headers)).toMatchObject({ blocking: true, following: false });
+    const [onA] = await a.get(`/api/v1/accounts/relationships?id[]=${remoteBob.id}`, alice.headers);
+    expect(onA).toMatchObject({ blocked_by: true, following: false, followed_by: false });
+    // Bob's posts are hidden from Alice on her own server, and she can't follow again.
+    expect(await a.get("/api/v1/timelines/home", alice.headers)).toEqual([]);
+    await expect(a.post(`/api/v1/accounts/${remoteBob.id}/follow`, {}, alice.headers)).rejects.toThrow(/403/);
+
+    await b.post(`/api/v1/accounts/${remoteAlice.id}/unblock`, {}, bob.headers);
+    const [after] = await a.get(`/api/v1/accounts/relationships?id[]=${remoteBob.id}`, alice.headers);
+    expect(after.blocked_by).toBe(false);
+  });
+});
+
 describe("profiles across servers", () => {
   it("sends profile edits to followers' servers", async () => {
     const { a, b } = servers;

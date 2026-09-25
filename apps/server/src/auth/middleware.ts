@@ -19,6 +19,8 @@ export function bearerAuth(auth: AuthStore): MiddlewareHandler<AuthEnv> {
     const match = /^Bearer\s+(\S+)$/i.exec(header);
     const token = match ? await auth.findToken(match[1]!) : null;
     if (!token) return c.json({ error: "The access token is invalid" }, 401);
+    // Mastodon's answer for a suspended account's tokens.
+    if (token.account?.suspendedAt) return c.json({ error: "Your login is currently disabled" }, 403);
     c.set("token", token);
     return next();
   };

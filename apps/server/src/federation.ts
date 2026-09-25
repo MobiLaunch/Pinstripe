@@ -2,9 +2,11 @@ import { type Context, createFederation, type Federation, type KvStore, type Mes
 import {
   Accept,
   Announce,
+  Block,
   Create,
   Delete,
   Endpoints,
+  Flag,
   Follow,
   Image,
   isActor,
@@ -25,6 +27,7 @@ import { deliver } from "./remote/deliver.ts";
 import { persistNote, statusByUri } from "./remote/notes.ts";
 import { activityFor, buildFollowResponse, buildNote, noteUri } from "./statuses/activitypub.ts";
 import { DEFAULT_LIMIT, type StatusRow, type StatusStore } from "./statuses/store.ts";
+import type { SafetyStore } from "./safety/store.ts";
 import type { AccountRow, Store } from "./store.ts";
 
 /** Passed to every Fedify callback; gives them the stores without globals. */
@@ -32,6 +35,7 @@ export interface ContextData {
   store: Store;
   statuses: StatusStore;
   media: MediaService;
+  safety: SafetyStore;
 }
 
 export interface FederationOptions {
@@ -164,6 +168,13 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
       const follower = isActor(actor) ? await persistActor(ctx, actor) : null;
       if (!account || !follower || follower.domain === null) return;
 
+      // Someone the account blocks, or on a server it blocks, is turned away.
+      if ((await ctx.data.safety.blockedEitherWay(account.id, follower.id)) || (await ctx.data.safety.blocksDomain(account.id, follower.domain))) {
+        const refused = { id: "", followerId: follower.id, followingId: account.id, state: "pending" as const, uri: follow.id.href, createdAt: new Date() };
+        await deliver(ctx, account.id, buildFollowResponse(ctx, "reject", refused, follower), { to: [follower] });
+        return;
+      }
+
       const existing = await ctx.data.store.getFollow(follower.id, account.id);
       const state = existing?.state === "accepted" || !account.settings.approveFollowers ? "accepted" : "pending";
       const row = await ctx.data.store.follow({ followerId: follower.id, followingId: account.id, state, uri: follow.id.href });
@@ -193,6 +204,9 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
       } else if (object instanceof Like && object.objectId) {
         const status = await statusByUri(ctx, object.objectId);
         if (status) await ctx.data.statuses.unfavourite(actor.id, status.id);
+      } else if (object instanceof Block && object.id) {
+        const block = await ctx.data.safety.getBlockByUri(object.id.href);
+        if (block?.accountId === actor.id) await ctx.data.safety.unblock(actor.id, block.targetAccountId);
       }
     })
     .on(Create, async (ctx, create) => {
@@ -241,6 +255,40 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
       const status = await statusByUri(ctx, like.objectId);
       // Only likes of our own posts count; other servers track theirs.
       if (status && status.uri === null) await ctx.data.statuses.favourite(actor.id, status.id);
+    })
+    .on(Block, async (ctx, block) => {
+      // Stored so the blocked person here stops seeing them and can't follow again.
+      const actor = await sender(ctx, block);
+      if (!actor || !block.id || !block.objectId) return;
+      const target = ctx.parseUri(block.objectId);
+      if (target?.type !== "actor" || !(await ctx.data.store.getLocalAccount(target.identifier))) return;
+      await ctx.data.safety.block(actor.id, target.identifier, block.id.href);
+    })
+    .on(Flag, async (ctx, flag) => {
+      // A report from another server, usually sent by its instance actor.
+      const reporter = await sender(ctx, flag);
+      if (!reporter || !flag.id) return;
+      let target: AccountRow | null = null;
+      const posts: StatusRow[] = [];
+      for (const id of flag.objectIds) {
+        const parsed = ctx.parseUri(id);
+        if (parsed?.type === "actor") target ??= await ctx.data.store.getLocalAccount(parsed.identifier);
+        else {
+          const status = await statusByUri(ctx, id);
+          if (status && status.uri === null) posts.push(status);
+        }
+      }
+      target ??= posts[0] ? await ctx.data.store.getAccount(posts[0].accountId) : null;
+      if (!target) return;
+      await ctx.data.safety.report({
+        accountId: reporter.id,
+        targetAccountId: target.id,
+        statusIds: posts.filter((p) => p.accountId === target.id).map((p) => p.id),
+        comment: (flag.content?.toString() ?? "").slice(0, 1000),
+        category: "other",
+        forward: false,
+        uri: flag.id.href,
+      });
     })
     .onError((_ctx, error) => {
       console.error("Inbox error", error);

@@ -260,7 +260,7 @@ export function statusRoutes({ store, statuses, media, domain, render, federatio
 
   app.get("/api/v1/timelines/public", async (c) => {
     const scope = truthy(c.req.query("local")) ? "local" : truthy(c.req.query("remote")) ? "remote" : "all";
-    return respondWithPage(c, await statuses.publicTimeline(readPage(c), scope, readMediaFilter(c)));
+    return respondWithPage(c, await statuses.publicTimeline(readPage(c), scope, readMediaFilter(c), viewerId(c)));
   });
 
   async function respondWithPage(c: Context<AuthEnv>, rows: StatusRow[]) {

@@ -6,6 +6,7 @@
 import type { Visibility } from "@pinstripe/core";
 import type { MastodonMedia } from "./media/serialize.ts";
 import type { AccountRow, Relationship } from "./store.ts";
+import type { SafetyRelationship } from "./safety/store.ts";
 
 /** Mastodon calls followers-only posts "private". */
 export function toMastodonVisibility(v: Visibility): "public" | "unlisted" | "private" | "direct" {
@@ -220,7 +221,7 @@ export interface MastodonRelationship {
   note: string;
 }
 
-export function serializeRelationship(id: string, r: Relationship): MastodonRelationship {
+export function serializeRelationship(id: string, r: Relationship, safety?: SafetyRelationship): MastodonRelationship {
   return {
     id,
     following: r.following,
@@ -228,13 +229,13 @@ export function serializeRelationship(id: string, r: Relationship): MastodonRela
     notifying: false,
     languages: null,
     followed_by: r.followedBy,
-    blocking: false,
-    blocked_by: false,
-    muting: false,
-    muting_notifications: false,
+    blocking: safety?.blocking ?? false,
+    blocked_by: safety?.blockedBy ?? false,
+    muting: safety?.muting ?? false,
+    muting_notifications: safety?.mutingNotifications ?? false,
     requested: r.requested,
     requested_by: r.requestedBy,
-    domain_blocking: false,
+    domain_blocking: safety?.domainBlocking ?? false,
     endorsed: false,
     note: "",
   };

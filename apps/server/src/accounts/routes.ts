@@ -20,16 +20,20 @@ import { type Context, Hono } from "hono";
 import { type AuthEnv, requireUser } from "../auth/middleware.ts";
 import type { ContextData } from "../federation.ts";
 import { notFound, readLimit, setLinkHeader, truthy } from "../http.ts";
-import { type MastodonAccount, type MastodonStatus, serializeRelationship } from "../mastodon.ts";
+import type { MastodonAccount, MastodonRelationship, MastodonStatus } from "../mastodon.ts";
 import { persistActor, resolveHandle } from "../remote/actors.ts";
 import { deliver } from "../remote/deliver.ts";
 import { persistNote } from "../remote/notes.ts";
 import { buildFollow, buildFollowResponse, buildUndo, followActivityUri } from "../statuses/activitypub.ts";
 import type { StatusRow } from "../statuses/store.ts";
+import type { SafetyStore } from "../safety/store.ts";
 import { type AccountRow, isLocal, type Store } from "../store.ts";
 
 export interface AccountRoutesOptions {
   store: Store;
+  safety: SafetyStore;
+  /** Mastodon Relationships between the viewer and each of `ids` that exists. */
+  relationshipsJson: (viewerId: string, ids: string[]) => Promise<MastodonRelationship[]>;
   domain: string;
   renderAccount: (c: Context, account: AccountRow) => Promise<MastodonAccount>;
   renderStatuses: (c: Context, rows: StatusRow[]) => Promise<MastodonStatus[]>;
@@ -38,15 +42,12 @@ export interface AccountRoutesOptions {
 
 const SEARCH_LIMIT = 40;
 
-export function accountRoutes({ store, domain, renderAccount, renderStatuses, federationContext }: AccountRoutesOptions) {
+export function accountRoutes({ store, safety, relationshipsJson, domain, renderAccount, renderStatuses, federationContext }: AccountRoutesOptions) {
   const app = new Hono<AuthEnv>();
   const viewerId = (c: Context<AuthEnv>) => c.get("token")?.account?.id ?? null;
   const renderAll = (c: Context, rows: AccountRow[]) => Promise.all(rows.map((a) => renderAccount(c, a)));
 
-  async function relationshipJson(viewer: string, id: string) {
-    const r = (await store.relationships(viewer, [id])).get(id)!;
-    return serializeRelationship(id, r);
-  }
+  const relationshipJson = async (viewer: string, id: string) => (await relationshipsJson(viewer, [id]))[0]!;
 
   app.get("/api/v1/accounts/lookup", async (c) => {
     const handle = parseHandle(c.req.query("acct") ?? "", domain);
@@ -118,8 +119,9 @@ export function accountRoutes({ store, domain, renderAccount, renderStatuses, fe
     if (!auth.ok) return auth.response;
     const url = new URL(c.req.url);
     const ids = [...url.searchParams.getAll("id[]"), ...url.searchParams.getAll("id")];
-    const map = await store.relationships(auth.value.account.id, ids);
-    return c.json(ids.filter((id) => map.has(id)).map((id) => serializeRelationship(id, map.get(id)!)));
+    const found = new Map((await relationshipsJson(auth.value.account.id, ids)).map((r) => [r.id, r]));
+    // In the order asked for.
+    return c.json(ids.filter((id) => found.has(id)).map((id) => found.get(id)!));
   });
 
   app.get("/api/v1/follow_requests", async (c) => {
@@ -165,6 +167,9 @@ export function accountRoutes({ store, domain, renderAccount, renderStatuses, fe
     const target = await store.getAccount(c.req.param("id"));
     if (!target) return notFound(c);
     if (target.id === me) return c.json({ error: "You can't follow yourself" }, 403);
+    if ((await safety.blockedEitherWay(me, target.id)) || (await safety.blocksDomain(me, target.domain))) {
+      return c.json({ error: "You can't follow this account" }, 403);
+    }
 
     const existing = await store.getFollow(me, target.id);
     if (!existing) {

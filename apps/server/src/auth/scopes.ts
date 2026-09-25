@@ -25,12 +25,22 @@ const GRANULAR: Record<string, readonly string[]> = {
   ],
 };
 
+/** Moderation scopes, as in Mastodon. They only work for moderators and admins. */
+const ADMIN = new Set([
+  "admin:read",
+  "admin:write",
+  "admin:read:accounts",
+  "admin:write:accounts",
+  "admin:read:reports",
+  "admin:write:reports",
+]);
+
 export const DEFAULT_SCOPES = "read";
 
 export function isValidScope(scope: string): boolean {
-  if (TOP_LEVEL.has(scope)) return true;
-  const [parent, child] = scope.split(":");
-  return !!parent && !!child && (GRANULAR[parent]?.includes(child) ?? false);
+  if (TOP_LEVEL.has(scope) || ADMIN.has(scope)) return true;
+  const [parent, child, extra] = scope.split(":");
+  return !!parent && !!child && extra === undefined && (GRANULAR[parent]?.includes(child) ?? false);
 }
 
 /** Splits a space-separated scope string; null if any scope is unknown. */
@@ -39,11 +49,15 @@ export function parseScopes(input: string | undefined | null, fallback = DEFAULT
   return scopes.every(isValidScope) ? scopes : null;
 }
 
-/** Does `granted` include `required`, directly or via its top-level parent? */
+/** Does `granted` include `required`, directly or via a broader scope (`read` ⊇ `read:statuses`, `admin:read` ⊇ `admin:read:reports`)? */
 export function hasScope(granted: readonly string[], required: string): boolean {
-  if (granted.includes(required)) return true;
-  const parent = required.split(":")[0]!;
-  return parent !== required && granted.includes(parent);
+  const parts = required.split(":");
+  for (let n = parts.length; n > 0; n--) {
+    const scope = parts.slice(0, n).join(":");
+    // "admin" alone isn't a scope.
+    if (scope !== "admin" && granted.includes(scope)) return true;
+  }
+  return false;
 }
 
 /** Every requested scope must be covered by what the app registered for. */

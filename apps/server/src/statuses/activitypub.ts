@@ -7,6 +7,7 @@ import type { Context } from "@fedify/fedify";
 import {
   Accept,
   Announce,
+  type Block,
   Create,
   Delete,
   Document,
@@ -123,7 +124,7 @@ export function buildAnnounce(ctx: Context<unknown>, reblog: StatusRow, original
   });
 }
 
-export function buildUndo(ctx: Context<unknown>, accountId: string, object: Announce | Like | Follow): Undo {
+export function buildUndo(ctx: Context<unknown>, accountId: string, object: Announce | Like | Follow | Block): Undo {
   return new Undo({
     id: new URL(`${object.id!.href}#undo`),
     actor: ctx.getActorUri(accountId),
