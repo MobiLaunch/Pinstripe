@@ -325,6 +325,22 @@ then `new-video`, which uploads while the caption is written.
   videos as a 3-column grid of posters with view counts, and tapping one
   opens a full-screen player of that account's videos.
 
+### Web pages
+
+People following a Pinstripe link from elsewhere get a readable page
+(`web/`), server-rendered with no scripts and built from the same
+Mastodon JSON a signed-out client sees:
+
+- `/`: the server's latest public posts.
+- `/@user`: profile and public posts. Link fields carry `rel="me"`, so
+  other sites can verify links back.
+- `/@user/:id`: a post and its replies, with Open Graph tags for link
+  previews (the video too).
+- `/tags/:name`: public posts with a hashtag.
+
+ActivityPub clients asking for `/@user` or `/@user/:id` are redirected to
+the actor or Note, and browsers opening `/users/…` are sent to the page.
+
 ### Appearance
 
 Blue and Graphite differ only in the accent, as in Mac OS X: gel buttons,

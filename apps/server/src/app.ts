@@ -14,6 +14,7 @@ import { LinkVerifier } from "./accounts/verify-links.ts";
 import { serializeAccount, serializeRelationship, toMastodonVisibility } from "./mastodon.ts";
 import { ConsoleMailer, type Mailer } from "./mail/mailer.ts";
 import { mediaRoutes } from "./media/routes.ts";
+import { webRoutes } from "./web/routes.ts";
 import { notificationRoutes } from "./notifications/routes.ts";
 import { NotificationStore } from "./notifications/store.ts";
 import { safetyRoutes } from "./safety/routes.ts";
@@ -179,6 +180,11 @@ export function buildApp({ federation, store, statuses, media, auth, domain, log
       renderStatuses: (c, rows) => render.rows(c, rows, c.get("token")?.account?.id ?? null),
       federationContext,
     }),
+  );
+  // Last, so the API and ActivityPub routes win.
+  app.route(
+    "/",
+    webRoutes({ store, statuses, domain, renderAccount, renderStatuses: (c, rows) => render.rows(c, rows, null), federationContext }),
   );
 
   return app;
