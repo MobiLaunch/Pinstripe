@@ -20,6 +20,8 @@ export interface Source {
   note: string;
   defaultVisibility: Visibility;
   followRequests: number;
+  /** Can see and act on reports (a moderator or admin). */
+  moderator?: boolean;
 }
 
 type State =
@@ -32,6 +34,7 @@ function sourceOf(json: MastodonCredentialAccount): Source {
     note: json.source?.note ?? '',
     defaultVisibility: fromMastodonVisibility(json.source?.privacy ?? 'public'),
     followRequests: json.source?.follow_requests_count ?? 0,
+    moderator: !!json.role?.name && /moderator|admin|owner/i.test(json.role.name),
   };
 }
 

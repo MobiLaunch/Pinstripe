@@ -29,6 +29,8 @@ export function ProfileView({
   action,
   onRefresh,
   onDeleted,
+  notice,
+  postsKey = '',
 }: {
   account: Account;
   viewerId: string;
@@ -38,11 +40,15 @@ export function ProfileView({
   action: ReactNode;
   onRefresh?: () => void;
   onDeleted?: () => void;
+  /** A line under the bio: "You've blocked this account", an error… */
+  notice?: string | null;
+  /** Changing it reloads the posts (after blocking, say). */
+  postsKey?: string;
 }) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<(typeof TABS)[number]['value']>('posts');
   // One list of the account's posts and boosts; each tab shows its share.
-  const list = usePostList((client, maxId) => client.accountStatuses(account.id, { maxId }), account.id, {
+  const list = usePostList((client, maxId) => client.accountStatuses(account.id, { maxId }), `${account.id}:${postsKey}`, {
     accepts: (post) => post.account.id === account.id,
   });
   const shown = list.posts.filter((p) => (tab === 'boosts' ? !!p.reblog : !p.reblog && (tab === 'posts' || isVideoPost(p))));
@@ -72,6 +78,11 @@ export function ProfileView({
         </Text>
         <Text style={aquaText.handle}>{formatHandle(account)}</Text>
         {account.bio ? <Text style={[aquaText.body, styles.bio]}>{account.bio}</Text> : null}
+        {notice ? (
+          <Text style={[aquaText.body, styles.notice]} accessibilityLiveRegion="polite">
+            {notice}
+          </Text>
+        ) : null}
         {account.fields.map((f) => (
           <View key={f.name} style={styles.field}>
             <Text style={styles.fieldName}>{f.name}</Text>
@@ -153,6 +164,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingTop: 10, gap: 2 },
   name: { fontFamily, fontSize: 20, fontWeight: '700', color: colors.text },
   bio: { marginTop: 8 },
+  notice: { marginTop: 10, padding: 10, borderRadius: 6, backgroundColor: '#fff4d6', borderWidth: 1, borderColor: '#d8b24a' },
   field: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
   fieldName: { fontFamily, width: 70, fontSize: 12, fontWeight: '700', color: colors.textSubtle },
   fieldValue: { fontFamily, fontSize: 12, color: colors.text, flexShrink: 1 },

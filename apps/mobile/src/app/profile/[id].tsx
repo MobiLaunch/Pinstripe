@@ -1,14 +1,17 @@
-import type { Account } from '@pinstripe/core';
+import { type Account, formatHandle } from '@pinstripe/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { type MastodonRelationship, toAccount } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
+import { ActionMenu, type MenuAction } from '@/components/action-menu';
 import { GelButton, Orb, Pinstripes } from '@/components/aqua';
+import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { ProfileView } from '@/components/profile-view';
+import { PINSTRIPE_DOMAIN } from '@/config';
 
 /** Someone's profile, with Follow / Unfollow / Requested. */
 export default function ProfileScreen() {
@@ -59,6 +62,59 @@ export default function ProfileScreen() {
     }
   };
 
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  /** Runs a menu action that returns the new relationship. */
+  const act = async (work: () => Promise<MastodonRelationship | object>) => {
+    setError(null);
+    try {
+      const next = await work();
+      if ('id' in next && 'following' in next) setRelationship(next as MastodonRelationship);
+      else await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'That didn’t work. Please try again.');
+    }
+  };
+
+  const menu = (): MenuAction[] => {
+    if (!client || !account || !relationship) return [];
+    const name = account.displayName;
+    const actions: MenuAction[] = [
+      relationship.muting
+        ? { label: `Unmute ${name}`, onPress: () => act(() => client.unmute(id)) }
+        : { label: `Mute ${name}`, onPress: () => act(() => client.mute(id)) },
+      relationship.blocking
+        ? { label: `Unblock ${name}`, onPress: () => act(() => client.block(id, 'unblock')) }
+        : {
+            label: `Block ${name}`,
+            destructive: true,
+            onPress: async () => {
+              if (await confirm(`Block ${name}?`, 'They won’t be able to follow you or see your posts, and you won’t see theirs.', 'Block')) {
+                act(() => client.block(id, 'block'));
+              }
+            },
+          },
+      { label: `Report ${name}`, destructive: true, onPress: () => router.push(`/report/${id}`) },
+    ];
+    if (account.domain && account.domain !== PINSTRIPE_DOMAIN) {
+      const domain = account.domain;
+      actions.push(
+        relationship.domain_blocking
+          ? { label: `Unblock ${domain}`, onPress: () => act(() => client.blockDomain(domain, 'unblock')) }
+          : {
+              label: `Block everything from ${domain}`,
+              destructive: true,
+              onPress: async () => {
+                if (await confirm(`Block ${domain}?`, 'You won’t see posts or notifications from anyone there, and followers from there are removed.', 'Block')) {
+                  act(() => client.blockDomain(domain, 'block'));
+                }
+              },
+            },
+      );
+    }
+    return actions;
+  };
+
   const back = (
     <Orb size={44} accessibilityLabel="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
       <Icon name="chevronLeft" color="#fff" />
@@ -78,29 +134,59 @@ export default function ProfileScreen() {
 
   const isMe = account.id === viewerId;
   const label = relationship?.following ? 'Following' : relationship?.requested ? 'Requested' : relationship?.followed_by ? 'Follow Back' : 'Follow';
+  const cantFollow = relationship?.blocked_by || relationship?.domain_blocking;
   return (
-    <ProfileView
-      account={account}
-      viewerId={viewerId}
-      onRefresh={load}
-      corner={back}
-      action={
-        isMe ? null : (
-          <GelButton
-            small
-            tone={relationship?.following || relationship?.requested ? 'gray' : 'blue'}
-            title={busy ? '…' : label}
-            accessibilityLabel={relationship?.following ? `Unfollow ${account.displayName}` : `${label} ${account.displayName}`}
-            disabled={busy || !relationship}
-            onPress={toggleFollow}
-          />
-        )
-      }
-    />
+    <>
+      <ProfileView
+        account={account}
+        viewerId={viewerId}
+        onRefresh={load}
+        corner={back}
+        postsKey={[relationship?.blocking, relationship?.blocked_by].join()}
+        notice={
+          error ??
+          (relationship?.blocking
+            ? 'You’ve blocked this account.'
+            : relationship?.blocked_by
+              ? 'This account has blocked you.'
+              : relationship?.muting
+                ? 'You’ve muted this account. Their posts won’t show in your feeds.'
+                : null)
+        }
+        action={
+          isMe ? null : (
+            <View style={styles.actions}>
+              {relationship?.blocking ? (
+                <GelButton small tone="red" title="Unblock" accessibilityLabel={`Unblock ${account.displayName}`} onPress={() => act(() => client!.block(id, 'unblock'))} />
+              ) : cantFollow ? null : (
+                <GelButton
+                  small
+                  tone={relationship?.following || relationship?.requested ? 'gray' : 'blue'}
+                  title={busy ? '…' : label}
+                  accessibilityLabel={relationship?.following ? `Unfollow ${account.displayName}` : `${label} ${account.displayName}`}
+                  disabled={busy || !relationship}
+                  onPress={toggleFollow}
+                />
+              )}
+              <GelButton
+                small
+                tone="gray"
+                accessibilityLabel="More"
+                disabled={!relationship}
+                onPress={() => setMenuOpen(true)}
+                icon={<Icon name="more" size={18} color="#1a1a1a" />}
+              />
+            </View>
+          )
+        }
+      />
+      <ActionMenu visible={menuOpen} title={formatHandle(account)} actions={menuOpen ? menu() : []} onClose={() => setMenuOpen(false)} />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  actions: { flexDirection: 'row', gap: 8 },
   state: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
   back: { position: 'absolute', top: 48, left: 14 },
 });

@@ -24,6 +24,10 @@ function RootStack() {
         <Stack.Screen name="search" />
         <Stack.Screen name="follow-requests" />
         <Stack.Screen name="notifications" />
+        <Stack.Screen name="report/[id]" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="blocked-accounts" />
+        <Stack.Screen name="blocked-servers" />
+        <Stack.Screen name="moderation" />
         <Stack.Screen name="new-video" options={{ presentation: 'modal' }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>

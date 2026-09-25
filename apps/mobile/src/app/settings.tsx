@@ -131,10 +131,25 @@ export default function SettingsScreen() {
           {row('listInDirectory', 'List me in the server directory', 'Helps people on other servers find you')}
           {row('allowVideoDownloads', 'Allow video downloads', 'Others can save your videos')}
           {row('hideFollowerCounts', 'Hide follower counts')}
+          <Link href={{ pathname: '/blocked-accounts', params: { kind: 'mutes' } }} asChild>
+            <NavRow title="Muted accounts" divider />
+          </Link>
+          <Link href={{ pathname: '/blocked-accounts', params: { kind: 'blocks' } }} asChild>
+            <NavRow title="Blocked accounts" divider />
+          </Link>
         </Group>
         <Group title="Federation">
-          <NavRow title="Blocked servers" sub="Hide everything from domains you choose" />
+          <Link href="/blocked-servers" asChild>
+            <NavRow title="Blocked servers" sub="Hide everything from domains you choose" />
+          </Link>
         </Group>
+        {source.moderator ? (
+          <Group title="Moderation">
+            <Link href="/moderation" asChild>
+              <NavRow title="Reports" sub="Review what people have reported" />
+            </Link>
+          </Group>
+        ) : null}
         <Group title="Playback">
           {row('autoplayVideos', 'Autoplay videos')}
           {row('startMuted', 'Start videos muted')}

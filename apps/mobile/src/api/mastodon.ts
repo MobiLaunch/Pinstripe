@@ -80,9 +80,30 @@ export interface MastodonRelationship {
   followed_by: boolean;
   requested: boolean;
   requested_by: boolean;
+  blocking?: boolean;
+  blocked_by?: boolean;
+  muting?: boolean;
+  muting_notifications?: boolean;
+  domain_blocking?: boolean;
+}
+
+export type ReportCategory = 'spam' | 'legal' | 'violation' | 'other';
+
+/** Mastodon's Admin::Report, as far as the moderation screen uses it. */
+export interface MastodonAdminReport {
+  id: string;
+  action_taken: boolean;
+  category: ReportCategory;
+  comment: string;
+  created_at: string;
+  account: { id: string; account: MastodonAccount } | null;
+  target_account: { id: string; suspended: boolean; account: MastodonAccount } | null;
+  statuses: MastodonStatus[];
 }
 
 export interface MastodonCredentialAccount extends MastodonAccount {
+  /** Mastodon 4+: moderators and admins have a named role. */
+  role?: { name: string; permissions: string } | null;
   source: { privacy: MastodonVisibility; note: string; fields: { name: string; value: string }[]; follow_requests_count: number };
 }
 
@@ -161,11 +182,11 @@ export class MastodonClient {
     return json as T;
   }
 
-  registerApp(redirectUri: string) {
+  registerApp(redirectUri: string, scopes = SCOPES) {
     return this.request<MastodonApp>('POST', '/api/v1/apps', {
       client_name: 'Pinstripe',
       redirect_uris: redirectUri,
-      scopes: SCOPES,
+      scopes,
       website: 'https://pinstripe.social',
     });
   }
@@ -235,6 +256,52 @@ export class MastodonClient {
 
   answerFollowRequest(id: string, action: 'authorize' | 'reject') {
     return this.request<MastodonRelationship>('POST', `/api/v1/follow_requests/${encodeURIComponent(id)}/${action}`);
+  }
+
+  block(id: string, action: 'block' | 'unblock') {
+    return this.request<MastodonRelationship>('POST', `/api/v1/accounts/${encodeURIComponent(id)}/${action}`);
+  }
+
+  /** Mutes posts, and notifications too unless `notifications` is false. */
+  mute(id: string, options: { notifications?: boolean; durationSeconds?: number } = {}) {
+    return this.request<MastodonRelationship>('POST', `/api/v1/accounts/${encodeURIComponent(id)}/mute`, {
+      notifications: options.notifications ?? true,
+      duration: options.durationSeconds ?? 0,
+    });
+  }
+
+  unmute(id: string) {
+    return this.request<MastodonRelationship>('POST', `/api/v1/accounts/${encodeURIComponent(id)}/unmute`);
+  }
+
+  /** Blocked or muted accounts. */
+  blockedAccounts(kind: 'blocks' | 'mutes') {
+    return this.request<MastodonAccount[]>('GET', `/api/v1/${kind}?limit=80`);
+  }
+
+  domainBlocks() {
+    return this.request<string[]>('GET', '/api/v1/domain_blocks?limit=200');
+  }
+
+  blockDomain(domain: string, action: 'block' | 'unblock') {
+    return this.request<object>(action === 'block' ? 'POST' : 'DELETE', '/api/v1/domain_blocks', { domain });
+  }
+
+  report(input: { account_id: string; status_ids: string[]; comment: string; category: ReportCategory; forward: boolean }) {
+    return this.request<{ id: string }>('POST', '/api/v1/reports', input);
+  }
+
+  /** Moderators only. */
+  adminReports(options: { resolved?: boolean } = {}) {
+    return this.request<MastodonAdminReport[]>('GET', `/api/v1/admin/reports${query({ resolved: options.resolved ? 'true' : undefined })}`);
+  }
+
+  resolveReport(id: string) {
+    return this.request<MastodonAdminReport>('POST', `/api/v1/admin/reports/${encodeURIComponent(id)}/resolve`);
+  }
+
+  suspendAccount(accountId: string, reportId: string) {
+    return this.request<object>('POST', `/api/v1/admin/accounts/${encodeURIComponent(accountId)}/action`, { type: 'suspend', report_id: reportId });
   }
 
   /** Accounts matching `q`; full handles and URLs are looked up on their servers. */

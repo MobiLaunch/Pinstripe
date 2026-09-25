@@ -31,6 +31,8 @@ const ICONS = {
   bell: <Path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0" />,
   person: <Path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0" />,
   at: <Path d="M16 12a4 4 0 1 1-1.2-2.8M16 8v5a2.5 2.5 0 0 0 5 0v-1a9 9 0 1 0-3.5 7.1" />,
+  more: <Path d="M6 12h.01M12 12h.01M18 12h.01" strokeWidth={3.5} />,
+  flag: <Path d="M5 21V4M5 4h11l-2 4 2 4H5" />,
   plus: <Path d="M12 5v14M5 12h14" />,
   check: <Path d="M5 12l5 5 9-10" />,
   search: (

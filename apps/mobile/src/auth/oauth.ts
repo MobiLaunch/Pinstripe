@@ -4,6 +4,8 @@ import * as WebBrowser from 'expo-web-browser';
 
 import { ApiError, MastodonClient, type MastodonApp, SCOPES } from '@/api/mastodon';
 
+import { PINSTRIPE_SERVER } from '@/config';
+
 import { getJson, setJson } from './storage';
 
 /** Where servers send the user back after signing in: pinstripe://oauth, or /oauth on web. */
@@ -11,20 +13,30 @@ export function redirectUri(): string {
   return Linking.createURL('oauth');
 }
 
-type AppCache = Record<string, MastodonApp & { redirect_uri: string }>;
+type AppCache = Record<string, MastodonApp & { redirect_uri: string; scopes?: string }>;
 const APPS_KEY = 'pinstripe.apps';
 
 /**
+ * What to ask a server for. On Pinstripe's own server that includes the
+ * moderation scopes (they only work for moderators); other servers would
+ * show everyone an alarming "administer your server" prompt.
+ */
+export function scopesFor(server: string): string {
+  return server === PINSTRIPE_SERVER ? `${SCOPES} admin:read admin:write` : SCOPES;
+}
+
+/**
  * Registers the app with a server once and remembers the credentials.
- * Re-registers if the redirect URI changed (e.g. a new dev URL on web).
+ * Re-registers if the redirect URI or scopes changed (e.g. a new dev URL on web).
  */
 export async function appFor(server: string): Promise<MastodonApp> {
   const redirect = redirectUri();
+  const scopes = scopesFor(server);
   const cache = (await getJson<AppCache>(APPS_KEY)) ?? {};
   const cached = cache[server];
-  if (cached && cached.redirect_uri === redirect) return cached;
-  const app = await new MastodonClient(server).registerApp(redirect);
-  cache[server] = { client_id: app.client_id, client_secret: app.client_secret, redirect_uri: redirect };
+  if (cached && cached.redirect_uri === redirect && (cached.scopes ?? SCOPES) === scopes) return cached;
+  const app = await new MastodonClient(server).registerApp(redirect, scopes);
+  cache[server] = { client_id: app.client_id, client_secret: app.client_secret, redirect_uri: redirect, scopes };
   await setJson(APPS_KEY, cache);
   return app;
 }
@@ -35,7 +47,7 @@ export async function passwordSignIn(server: string, login: string, password: st
     grant_type: 'password',
     username: login,
     password,
-    scope: SCOPES,
+    scope: scopesFor(server),
   });
   return token.access_token;
 }
@@ -46,7 +58,7 @@ export async function signUp(
 ) {
   const app = await appFor(server);
   const client = new MastodonClient(server);
-  const appToken = await client.token(app, { grant_type: 'client_credentials', scope: SCOPES });
+  const appToken = await client.token(app, { grant_type: 'client_credentials', scope: scopesFor(server) });
   const token = await client.withToken(appToken.access_token).register({ ...input, agreement: true });
   return token.access_token;
 }
@@ -77,7 +89,7 @@ export async function browserSignIn(server: string): Promise<string> {
     response_type: 'code',
     client_id: app.client_id,
     redirect_uri: redirect,
-    scope: SCOPES,
+    scope: scopesFor(server),
     state,
     code_challenge: challenge,
     code_challenge_method: 'S256',

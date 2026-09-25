@@ -201,6 +201,41 @@ and would otherwise show stale copies.
   every minute) for the badge on Feed's bell. Push notifications are still
   to come.
 
+### Safety and moderation
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/v1/accounts/:id/{block,unblock,mute,unmute}` | Mute takes `notifications` and `duration`. |
+| `GET /api/v1/blocks`, `GET /api/v1/mutes` | |
+| `GET / POST / DELETE /api/v1/domain_blocks` | "Blocked servers", per account. |
+| `POST /api/v1/reports` | To this server's moderators. |
+| `GET /api/v1/admin/reports`, `…/:id`, `…/:id/{resolve,reopen}` | Moderators and admins, with `admin:*` scopes. |
+| `POST /api/v1/admin/accounts/:id/action` (`suspend`), `…/unsuspend` | |
+
+- What's hidden is decided in one place, `safety/sql.ts`, used by every
+  timeline, thread and notification query:
+  - **Block:** follows end both ways, and neither side can follow again.
+    Each is hidden from the other's timelines and notifications. The
+    blocked person can't open, favourite or reply to the blocker's posts.
+  - **Mute:** posts are hidden from timelines and threads but still show
+    on the profile. Notifications are hidden unless
+    `notifications=false`. Mutes can expire.
+  - **Server block:** everyone on that server is hidden, follows with them
+    end both ways, and new follows from there are rejected.
+  - **Suspension:** the account's posts are hidden from everyone, and its
+    login and tokens stop working.
+- Federation: blocking a remote account sends `Block` (and `Undo` to lift
+  it), plus an `Undo(Follow)` or `Reject(Follow)` for any follows it
+  ended. Incoming `Block`s are stored, so the blocker disappears for the
+  blocked person here. Incoming `Flag`s become reports.
+- Roles live on `users.role` (`user`, `moderator`, `admin`). Set them with
+  `pnpm --filter @pinstripe/server role <username> <role>`. The app asks
+  Pinstripe's own server (and only it) for the admin scopes, and shows
+  Settings → Reports to moderators.
+- Not yet: forwarding reports to the reported account's server (`Flag`
+  needs an instance actor), server-wide domain blocks, and more moderator
+  actions (silence, sensitive) with an audit log.
+
 ### Media
 
 | Endpoint | Purpose |
@@ -272,8 +307,9 @@ then `new-video`, which uploads while the caption is written.
 6. **Profile:** ~~`update_credentials`, avatar/banner upload~~ (done);
    `rel="me"` verification.
 7. **Settings & safety:** ~~settings endpoint, follow requests~~ (done);
-   ~~notifications~~ (done; push still to do); blocks and mutes, domain
-   blocks, reporting, moderation.
+   ~~notifications, blocks and mutes, domain blocks, reporting, basic
+   moderation~~ (done). Still to do: push notifications, report forwarding,
+   server-wide blocks.
 8. **Polish:** Graphite theme, barber-pole progress, gel pulse animation,
    sound credits, share sheet.
 

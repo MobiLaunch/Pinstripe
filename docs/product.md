@@ -86,7 +86,8 @@ the app checks them before uploading.
 - Video delivery: when to add an HLS ladder (e.g. 1080p/720p/480p), and
   which S3-compatible provider and CDN to use in production (the server
   works with any of them; local disk in development).
-- Moderation tooling and reporting flows (not on the canvas yet).
+- Moderation: the report queue and suspensions exist (Settings → Reports
+  for moderators) but aren't on the canvas, and there's no web admin yet.
 - Notifications and the record/upload screen aren't on the canvas; they
   reuse the Aqua primitives until they get a design. Push notifications
   need an Expo push setup (and APNs/FCM keys).
