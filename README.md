@@ -39,6 +39,16 @@ pnpm dev:server
 pnpm dev:mobile
 ```
 
+On Windows (PowerShell), set the variables with `$env:` instead of `export`:
+
+```powershell
+$env:DATABASE_URL = "postgres://pinstripe:pinstripe@localhost:5432/pinstripe"
+$env:TEST_DATABASE_URL = "postgres://pinstripe:pinstripe@localhost:5432/pinstripe_test"
+```
+
+They last until the window closes; `setx DATABASE_URL "…"` keeps them for new
+windows. Docker Desktop must be running for `docker compose up -d`.
+
 In development, emails (confirmation and password-reset links) are printed
 in the server's output. To make yourself a moderator:
 `pnpm --filter @pinstripe/server role <username> moderator`, then sign in again.
