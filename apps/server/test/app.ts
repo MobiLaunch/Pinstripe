@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { MemoryKvStore } from "@fedify/fedify";
 import { afterAll } from "vitest";
+import { LinkVerifier } from "../src/accounts/verify-links.ts";
 import { buildApp } from "../src/app.ts";
 import { FailureLimiter } from "../src/auth/rate-limit.ts";
 import { AuthStore } from "../src/auth/store.ts";
@@ -39,7 +40,9 @@ export function testApp() {
   // addresses are allowed so a local server can stand in for a remote inbox.
   const federation = buildFederation({ kv: new MemoryKvStore(), origin: ORIGIN, version: "0.0.0", allowPrivateAddress: true });
   const mailer = new MemoryMailer();
-  const app = buildApp({ federation, store, statuses, media, auth, domain: "pinstripe.test", loginLimiter, mailer, emailLimiter });
+  // Tests serve the pages being linked to from 127.0.0.1.
+  const linkVerifier = new LinkVerifier(store, { allowPrivateAddress: true });
+  const app = buildApp({ federation, store, statuses, media, auth, domain: "pinstripe.test", loginLimiter, mailer, emailLimiter, linkVerifier });
 
   const request = (path: string, init: RequestInit = {}) => app.request(new URL(path, ORIGIN), init);
   const get = (path: string, accept = "application/activity+json", headers: Record<string, string> = {}) =>
@@ -86,5 +89,5 @@ export function testApp() {
 
   const del = (path: string, headers: Record<string, string> = {}) => request(path, { method: "DELETE", headers });
 
-  return { app, db, store, statuses, media, auth, mailer, reset, signedInUser, remoteFollower, del, request, get, postJson, postForm };
+  return { app, db, store, statuses, media, auth, mailer, linkVerifier, reset, signedInUser, remoteFollower, del, request, get, postJson, postForm };
 }

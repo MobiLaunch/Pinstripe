@@ -24,6 +24,8 @@ export interface MastodonAccount {
   following_count: number;
   statuses_count: number;
   fields: { name: string; value: string; verified_at: string | null }[];
+  /** Pinstripe servers only. */
+  pinstripe?: { allow_video_downloads?: boolean };
 }
 
 export type MastodonVisibility = 'public' | 'unlisted' | 'private' | 'direct';
@@ -60,6 +62,8 @@ export interface MastodonStatus {
   media_attachments: MastodonMedia[];
   tags: { name: string }[];
   mentions: { id: string; username: string; acct: string }[];
+  /** Pinstripe servers only. */
+  pinstripe?: { views_count?: number };
 }
 
 export type TimelineKind = 'home' | 'local' | 'federated';
@@ -378,6 +382,11 @@ export class MastodonClient {
     );
   }
 
+  /** Pinstripe: counts this person's view of a video (once each). */
+  view(id: string) {
+    return this.request<{ views_count: number }>('POST', `/api/v1/pinstripe/statuses/${encodeURIComponent(id)}/view`);
+  }
+
   /** Newest first; `maxId` for older pages. Types the app doesn't show are left out. */
   notifications(options: { maxId?: string; limit?: number } = {}) {
     return this.request<MastodonNotification[]>(
@@ -417,11 +426,17 @@ export class MastodonClient {
     return this.request<MastodonMedia>('GET', `/api/v1/media/${encodeURIComponent(id)}`);
   }
 
-  accountStatuses(accountId: string, options: { maxId?: string; excludeReblogs?: boolean; limit?: number } = {}) {
+  accountStatuses(accountId: string, options: { maxId?: string; excludeReblogs?: boolean; limit?: number; onlyVideo?: boolean } = {}) {
     return this.request<MastodonStatus[]>(
       'GET',
       `/api/v1/accounts/${encodeURIComponent(accountId)}/statuses` +
-        query({ max_id: options.maxId, exclude_reblogs: options.excludeReblogs ? 'true' : undefined, limit: options.limit }),
+        query({
+          max_id: options.maxId,
+          exclude_reblogs: options.excludeReblogs ? 'true' : undefined,
+          limit: options.limit,
+          only_media: options.onlyVideo ? 'true' : undefined,
+          only_video: options.onlyVideo ? 'true' : undefined,
+        }),
     );
   }
 }
@@ -474,6 +489,7 @@ export function toPost(json: MastodonStatus, server: string): Post {
     inReplyToId: json.in_reply_to_id,
     reblog: json.reblog ? toPost(json.reblog, server) : null,
     counts: { replies: json.replies_count, boosts: json.reblogs_count, favourites: json.favourites_count },
+    views: json.pinstripe?.views_count ?? null,
     viewer:
       json.favourited === undefined ? null : { favourited: !!json.favourited, boosted: !!json.reblogged },
     createdAt: json.created_at,
@@ -497,6 +513,7 @@ export function toAccount(json: MastodonAccount, server: string): Account {
     bot: json.bot,
     locked: json.locked,
     discoverable: json.discoverable ?? false,
+    allowsVideoDownloads: json.pinstripe?.allow_video_downloads ?? false,
     createdAt: json.created_at,
     counts: { posts: json.statuses_count, following: json.following_count, followers: json.followers_count },
   };

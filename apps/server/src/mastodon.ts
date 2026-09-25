@@ -37,6 +37,8 @@ export interface MastodonAccount {
   last_status_at: string | null;
   emojis: [];
   fields: { name: string; value: string; verified_at: string | null }[];
+  /** Pinstripe's own fields, where Mastodon has none. Other clients ignore it. */
+  pinstripe: { allow_video_downloads: boolean };
 }
 
 export const escapeHtml = (s: string) =>
@@ -84,6 +86,8 @@ export function serializeAccount(
     last_status_at: null,
     emojis: [],
     fields: account.fields.map((f) => ({ name: f.name, value: f.value, verified_at: f.verifiedAt })),
+    // Remote accounts' wishes aren't known; don't offer to save their videos.
+    pinstripe: { allow_video_downloads: local && account.settings.allowVideoDownloads },
   };
 }
 
@@ -140,6 +144,8 @@ export interface MastodonStatus {
   poll: null;
   application: null;
   filtered: [];
+  /** Pinstripe's own fields. `views_count`: people who watched it here. */
+  pinstripe: { views_count: number };
 }
 
 export interface StatusUrls {
@@ -161,6 +167,7 @@ export function serializeStatus(
       inReplyToId: string | null;
       inReplyToAccountId: string | null;
       tags: string[];
+      viewsCount: number;
       createdAt: Date;
     };
     counts: { replies: number; reblogs: number; favourites: number };
@@ -198,6 +205,7 @@ export function serializeStatus(
     emojis: [],
     card: null,
     poll: null,
+    pinstripe: { views_count: status.viewsCount },
     application: null,
     filtered: [],
   };

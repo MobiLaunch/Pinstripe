@@ -23,6 +23,7 @@ import { describeProblem, MediaRejected } from "../media/process.ts";
 import type { MediaService } from "../media/service.ts";
 import { deliver } from "../remote/deliver.ts";
 import type { AccountRow, Store } from "../store.ts";
+import type { LinkVerifier } from "./verify-links.ts";
 
 export const DISPLAY_NAME_MAX = 30;
 const FIELD_NAME_MAX = 255;
@@ -33,6 +34,8 @@ export interface ProfileRoutesOptions {
   media: MediaService;
   renderCredentialAccount: (c: Context, account: AccountRow) => Promise<MastodonAccount & { source: unknown }>;
   federationContext: (c: Context) => FedifyContext<ContextData>;
+  /** Checks rel="me" links after profile fields change. */
+  linkVerifier?: LinkVerifier;
 }
 
 type Body = Record<string, unknown>;
@@ -81,7 +84,7 @@ async function toTempFile(file: File): Promise<string> {
   return target;
 }
 
-export function profileRoutes({ store, media, renderCredentialAccount, federationContext }: ProfileRoutesOptions) {
+export function profileRoutes({ store, media, renderCredentialAccount, federationContext, linkVerifier }: ProfileRoutesOptions) {
   const app = new Hono<AuthEnv>();
 
   /** Tells followers' servers the profile changed. */
@@ -121,8 +124,8 @@ export function profileRoutes({ store, media, renderCredentialAccount, federatio
     if (fields) {
       if (fields.length > PROFILE_FIELDS_MAX) errors.push(`Fields can't be more than ${PROFILE_FIELDS_MAX}`);
       if (fields.some((f) => f.name.length > FIELD_NAME_MAX || f.value.length > FIELD_VALUE_MAX)) errors.push("Fields are too long");
-      // Verification (rel="me") is re-checked when links are verified; editing clears it.
-      patch.fields = fields.map((f) => ({ ...f, verifiedAt: null }));
+      // A link that didn't change keeps its check; new ones are verified after saving.
+      patch.fields = fields.map((f) => ({ ...f, verifiedAt: account.fields.find((old) => old.value === f.value)?.verifiedAt ?? null }));
     }
     const bot = bool(body.bot);
     if (bot !== undefined) patch.bot = bot;
@@ -163,6 +166,10 @@ export function profileRoutes({ store, media, renderCredentialAccount, federatio
     const updated = await store.updateAccount(account.id, { ...patch, settings });
     await media.storage.delete(replaced).catch(() => {});
     await announceProfile(c, updated);
+    if (patch.fields) {
+      const ctx = federationContext(c);
+      linkVerifier?.verifyLater(updated, [new URL(`/@${updated.username}`, ctx.canonicalOrigin).href, ctx.getActorUri(updated.id).href]);
+    }
     return c.json(await renderCredentialAccount(c, updated));
   };
   // Avatars and banners are at most 15 MB each; refuse anything bigger before reading it.

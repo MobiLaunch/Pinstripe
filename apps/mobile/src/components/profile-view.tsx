@@ -1,7 +1,9 @@
 import { type Account, formatHandle, isVideoPost, type Post } from '@pinstripe/core';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { type ReactNode, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { aquaText, Avatar, Group, Pinstripes, Segmented } from '@/components/aqua';
@@ -106,9 +108,14 @@ export function ProfileView({
     </>
   );
 
+  const grid = tab === 'videos';
   return (
     <Pinstripes>
       <FlatList
+        // Switching between the grid and the list needs a fresh list (numColumns can't change in place).
+        key={grid ? 'grid' : 'list'}
+        numColumns={grid ? 3 : 1}
+        columnWrapperStyle={grid ? styles.gridRow : undefined}
         data={shown}
         keyExtractor={(p) => p.id}
         ListHeaderComponent={header}
@@ -133,7 +140,10 @@ export function ProfileView({
             </Text>
           )
         }
-        renderItem={({ item }) => (
+        renderItem={({ item }) =>
+          grid ? (
+            <VideoTile post={item} onPress={() => router.push({ pathname: '/videos/[accountId]', params: { accountId: account.id, start: item.id } })} />
+          ) : (
           <View style={styles.item}>
             <PostCard
               post={item}
@@ -143,10 +153,43 @@ export function ProfileView({
               onDelete={remove}
             />
           </View>
-        )}
+          )
+        }
       />
     </Pinstripes>
   );
+}
+
+/** A video in the profile grid: its poster and how many have watched it. */
+function VideoTile({ post, onPress }: { post: Post; onPress: () => void }) {
+  const video = post.media[0]!;
+  return (
+    <Pressable
+      style={styles.tile}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${post.content || 'Video'}${post.views !== null ? `, ${post.views} views` : ''}`}>
+      <Image
+        source={video.previewUrl ? { uri: video.previewUrl } : undefined}
+        placeholder={video.blurhash ? { blurhash: video.blurhash } : undefined}
+        contentFit="cover"
+        style={StyleSheet.absoluteFill}
+      />
+      {post.views !== null ? (
+        <View style={styles.views} pointerEvents="none">
+          <Icon name="play" size={11} color="#fff" filled />
+          <Text style={styles.viewsText}>{formatCount(post.views)}</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
+/** 1234 → "1.2K", as on video apps. */
+function formatCount(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0).replace(/\.0$/, '')}K`;
+  return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
 }
 
 function Stat({ n, label, divider = false }: { n: number; label: string; divider?: boolean }) {
@@ -178,5 +221,9 @@ const styles = StyleSheet.create({
   statLabel: { fontFamily, fontSize: 12, color: colors.textSubtle },
   list: { paddingBottom: 24 },
   item: { paddingHorizontal: 12, marginBottom: 12 },
+  gridRow: { gap: 2, paddingHorizontal: 2, marginBottom: 2 },
+  tile: { flex: 1 / 3, aspectRatio: 9 / 16, backgroundColor: '#1d2a3a', overflow: 'hidden' },
+  views: { position: 'absolute', left: 6, bottom: 6, flexDirection: 'row', alignItems: 'center', gap: 3 },
+  viewsText: { fontFamily, fontSize: 12, fontWeight: '700', color: '#fff', textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
   empty: { textAlign: 'center', marginTop: 24 },
 });

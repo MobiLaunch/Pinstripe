@@ -1,6 +1,7 @@
 import path from "node:path";
 import { PostgresKvStore, PostgresMessageQueue } from "@fedify/postgres";
 import { serve } from "@hono/node-server";
+import { LinkVerifier } from "./accounts/verify-links.ts";
 import { buildApp } from "./app.ts";
 import { AuthStore } from "./auth/store.ts";
 import { loadConfig } from "./config.ts";
@@ -42,7 +43,8 @@ if (config.allowPrivateAddress) {
 const mailer = config.smtpUrl ? new SmtpMailer(config.smtpUrl, config.mailFrom) : new ConsoleMailer();
 if (!config.smtpUrl) console.warn("SMTP_URL is not set: emails (confirmations, password resets) are printed here instead of sent.");
 
-const app = buildApp({ federation, store, statuses, media, auth, mailer, domain: new URL(config.origin).host });
+const linkVerifier = new LinkVerifier(store, { allowPrivateAddress: config.allowPrivateAddress });
+const app = buildApp({ federation, store, statuses, media, auth, mailer, linkVerifier, domain: new URL(config.origin).host });
 
 serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
   console.log(`Pinstripe listening on :${port} as ${config.origin}`);

@@ -189,6 +189,8 @@ export const statuses = pgTable(
     spoilerText: text("spoiler_text").notNull().default(""),
     language: text("language"),
     tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+    /** Pinstripe: how many signed-in people have watched it here (videos only). */
+    viewsCount: integer("views_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     /** Remote posts only: the Note's (or Announce's) ActivityPub id, and its web page. */
     uri: text("uri"),
@@ -418,4 +420,19 @@ export const emailTokens = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("email_tokens_account_idx").on(t.accountId, t.kind)],
+);
+
+/** Who has watched which video, so each person counts once. */
+export const statusViews = pgTable(
+  "status_views",
+  {
+    statusId: uuid("status_id")
+      .notNull()
+      .references(() => statuses.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.statusId, t.accountId] })],
 );

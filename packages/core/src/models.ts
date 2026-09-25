@@ -31,6 +31,8 @@ export interface Account {
   bot: boolean;
   locked: boolean;
   discoverable: boolean;
+  /** The author lets people save their videos (Pinstripe accounts only). */
+  allowsVideoDownloads: boolean;
   createdAt: string;
   counts: { posts: number; following: number; followers: number } | null;
 }
@@ -68,6 +70,8 @@ export interface Post {
   /** When this is a boost, the boosted post. */
   reblog: Post | null;
   counts: { replies: number; boosts: number; favourites: number };
+  /** People who watched it on the server answering; null where the server doesn't count. */
+  views: number | null;
   viewer: { favourited: boolean; boosted: boolean } | null;
   createdAt: string;
 }

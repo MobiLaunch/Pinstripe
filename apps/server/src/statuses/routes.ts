@@ -81,6 +81,15 @@ export function statusRoutes({ store, statuses, media, domain, render, federatio
     return original ?? null;
   }
 
+  // Pinstripe: the app calls this after a video has played for a couple of seconds.
+  app.post("/api/v1/pinstripe/statuses/:id/view", async (c) => {
+    const auth = requireUser(c, "write:statuses");
+    if (!auth.ok) return auth.response;
+    const status = await target(c, c.req.param("id"));
+    if (!status) return notFound(c);
+    return c.json({ views_count: await statuses.view(status.id, auth.value.account.id) });
+  });
+
   app.post("/api/v1/statuses", async (c) => {
     const auth = requireUser(c, "write:statuses");
     if (!auth.ok) return auth.response;

@@ -302,13 +302,35 @@ start-muted settings), the rest pause, and everything pauses when another
 tab is showing. The record orb opens the camera or library (60 s max) and
 then `new-video`, which uploads while the caption is written.
 
+### Profiles and playback
+
+- **Link verification:** after profile fields change, each `http(s)` field
+  is fetched in the background (`accounts/verify-links.ts`). If the page
+  has an `<a>` or `<link>` with `rel="me"` pointing at the profile (or the
+  actor), the field gets `verified_at`, which shows as the green check.
+  Fetching is limited to public addresses (unless
+  `PINSTRIPE_ALLOW_PRIVATE_ADDRESS`), three redirects each re-checked,
+  5 s and 1 MB. A link that doesn't change keeps its check.
+- **Views:** `POST /api/v1/pinstripe/statuses/:id/view` counts a
+  signed-in person once per video. The app sends it after 2 s of
+  playback. Statuses carry `pinstripe.views_count`, which other clients
+  ignore.
+- **Downloads:** accounts carry `pinstripe.allow_video_downloads` from
+  Settings. The app offers Save only when it's on (or for your own
+  videos). The files are public either way, so this is a courtesy, as on
+  other video apps, not access control.
+- **Save data on cellular:** stops autoplay while on mobile data
+  (expo-network). Videos still play when tapped.
+- The Videos rail offers Follow (+) on the author's avatar. Profiles show
+  videos as a 3-column grid of posters with view counts, and tapping one
+  opens a full-screen player of that account's videos.
+
 ## What's intentionally temporary
 
 - Login lockouts live in process memory.
 - Video is served as one progressive MP4. An HLS ladder
   (1080p/720p/480p) is the next step once there's real traffic; the
   storage interface doesn't need to change for it.
-- `rel="me"` link verification isn't done yet.
 
 ## Roadmap
 
@@ -324,8 +346,8 @@ then `new-video`, which uploads while the caption is written.
 5. ~~**Video pipeline:** `/api/v2/media` upload enforcing the limits,
    transcode, thumbnails, blurhash, object storage; player in the Videos
    tab.~~ Done. Still to do: HLS ladder, CDN in front of the bucket.
-6. **Profile:** ~~`update_credentials`, avatar/banner upload~~ (done);
-   `rel="me"` verification.
+6. ~~**Profile:** `update_credentials`, avatar/banner upload, `rel="me"`
+   verification, video grid with views~~ Done.
 7. **Settings & safety:** ~~settings endpoint, follow requests~~ (done);
    ~~notifications, blocks and mutes, domain blocks, reporting, basic
    moderation~~ (done). Still to do: push notifications, report forwarding,

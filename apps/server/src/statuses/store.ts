@@ -1,7 +1,7 @@
 import type { Visibility } from "@pinstripe/core";
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt, type SQL, sql } from "drizzle-orm";
 import type { Db } from "../db/client.ts";
-import { accounts, blocks, favourites, follows, mediaAttachments, mentions, statuses } from "../db/schema.ts";
+import { accounts, blocks, favourites, follows, mediaAttachments, mentions, statuses, statusViews } from "../db/schema.ts";
 import type { MediaRow } from "../media/store.ts";
 import { uuidv7 } from "../ids.ts";
 import { notify, unnotify } from "../notifications/store.ts";
@@ -273,6 +273,21 @@ export class StatusStore {
     await this.db.delete(favourites).where(and(eq(favourites.accountId, accountId), eq(favourites.statusId, statusId)));
     const author = await this.#authorOf(statusId);
     if (author) await unnotify(this.db, { to: author, from: accountId, type: "favourite", statusId });
+  }
+
+  /** Counts a signed-in person's view, once per person. Returns the new count. */
+  async view(statusId: string, accountId: string): Promise<number> {
+    return this.db.transaction(async (tx) => {
+      const inserted = await tx.insert(statusViews).values({ statusId, accountId }).onConflictDoNothing().returning();
+      const [row] = inserted.length
+        ? await tx
+            .update(statuses)
+            .set({ viewsCount: sql`${statuses.viewsCount} + 1` })
+            .where(eq(statuses.id, statusId))
+            .returning({ n: statuses.viewsCount })
+        : await tx.select({ n: statuses.viewsCount }).from(statuses).where(eq(statuses.id, statusId));
+      return row?.n ?? 0;
+    });
   }
 
   async #authorOf(statusId: string): Promise<string | null> {

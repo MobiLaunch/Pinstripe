@@ -10,6 +10,7 @@ import { authRoutes } from "./auth/routes.ts";
 import type { AuthStore } from "./auth/store.ts";
 import type { ContextData } from "./federation.ts";
 import { profileRoutes } from "./accounts/profile.ts";
+import { LinkVerifier } from "./accounts/verify-links.ts";
 import { serializeAccount, serializeRelationship, toMastodonVisibility } from "./mastodon.ts";
 import { ConsoleMailer, type Mailer } from "./mail/mailer.ts";
 import { mediaRoutes } from "./media/routes.ts";
@@ -37,6 +38,8 @@ export interface AppOptions {
   mailer?: Mailer;
   /** Emails per address per hour. */
   emailLimiter?: FailureLimiter;
+  /** Checks profile links (rel="me"); by default one that only fetches public addresses. */
+  linkVerifier?: LinkVerifier;
 }
 
 /** Mastodon's Role entity. Permissions are Mastodon's bit flags: 1 administrator, 16 manage reports, 1024 manage users. */
@@ -50,7 +53,7 @@ function roleJson(role: Role) {
  * requests first; everything else falls through to OAuth and the
  * Mastodon-compatible client API.
  */
-export function buildApp({ federation, store, statuses, media, auth, domain, loginLimiter, mailer = new ConsoleMailer(), emailLimiter }: AppOptions) {
+export function buildApp({ federation, store, statuses, media, auth, domain, loginLimiter, mailer = new ConsoleMailer(), emailLimiter, linkVerifier = new LinkVerifier(store) }: AppOptions) {
   const app = new Hono<AuthEnv>();
 
   const safety = new SafetyStore(store.db, store);
@@ -139,7 +142,7 @@ export function buildApp({ federation, store, statuses, media, auth, domain, log
     authRoutes({ auth, renderCredentialAccount, loginLimiter, onRegistered: (c, account, email) => security.sendConfirmation(c, account.id, email) }),
   );
   app.route("/", security.app);
-  app.route("/", profileRoutes({ store, media, renderCredentialAccount, federationContext }));
+  app.route("/", profileRoutes({ store, media, renderCredentialAccount, federationContext, linkVerifier }));
   app.route("/", mediaRoutes({ media }));
   app.route(
     "/",

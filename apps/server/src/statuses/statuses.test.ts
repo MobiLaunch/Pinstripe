@@ -299,3 +299,23 @@ describe("ActivityPub", () => {
     });
   });
 });
+
+describe("views", () => {
+  it("counts each signed-in viewer once", async () => {
+    const sam = await signedInUser("sam");
+    const mira = await signedInUser("mira");
+    const kai = await signedInUser("kai");
+    const status = await json(await post(sam.headers, { status: "watch this" }));
+    expect(status.pinstripe).toEqual({ views_count: 0 });
+
+    const view = async (headers: Record<string, string>) => json(await postJson(`/api/v1/pinstripe/statuses/${status.id}/view`, {}, headers));
+    expect(await view(mira.headers)).toEqual({ views_count: 1 });
+    expect(await view(mira.headers)).toEqual({ views_count: 1 });
+    expect(await view(kai.headers)).toEqual({ views_count: 2 });
+    expect((await postJson(`/api/v1/pinstripe/statuses/${status.id}/view`, {})).status).toBe(401);
+    expect((await json(await get(`/api/v1/statuses/${status.id}`, api))).pinstripe).toEqual({ views_count: 2 });
+    // The author's download preference rides along on the account.
+    expect((await json(await get(`/api/v1/statuses/${status.id}`, api))).account.pinstripe).toEqual({ allow_video_downloads: false });
+  });
+});
+
