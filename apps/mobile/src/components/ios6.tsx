@@ -23,7 +23,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, G, LinearGradient as SvgGradient, Path, Pattern, Rect, Stop } from 'react-native-svg';
 
+import { FitGloss } from '@/components/glass';
 import { Icon } from '@/components/icon';
+import { Texture } from '@/components/texture';
 import { fontFamily, type Gradient } from '@/theme/aqua';
 import { useAccent } from '@/theme/theme';
 
@@ -376,27 +378,30 @@ export function Spinner({
  * soft shadow falling from the top.
  */
 export function Linen({ children, style, ...rest }: ViewProps) {
-  const id = useId().replace(/[^a-zA-Z0-9]/g, '');
   return (
     <View style={[styles.linenBase, style]} {...rest}>
-      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Defs>
-          <Pattern id={`a${id}`} width={6} height={6} patternUnits="userSpaceOnUse">
-            <Rect width={6} height={1} fill="rgba(255,255,255,0.045)" />
-            <Rect y={3} width={6} height={1} fill="rgba(0,0,0,0.16)" />
-            <Rect x={1} width={1} height={6} fill="rgba(255,255,255,0.03)" />
-            <Rect x={4} width={1} height={6} fill="rgba(0,0,0,0.12)" />
-          </Pattern>
-          <Pattern id={`b${id}`} width={11} height={13} patternUnits="userSpaceOnUse">
-            <Rect y={5} width={11} height={1} fill="rgba(255,255,255,0.03)" />
-            <Rect x={7} width={1} height={13} fill="rgba(0,0,0,0.08)" />
-            <Rect x={2} y={9} width={3} height={1} fill="rgba(255,255,255,0.05)" />
-          </Pattern>
-        </Defs>
-        <Rect width="100%" height="100%" fill={`url(#a${id})`} />
-        <Rect width="100%" height="100%" fill={`url(#b${id})`} />
-      </Svg>
+      <Texture source={LINEN} tile={{ width: 256, height: 256 }} />
       <LinearGradient colors={['rgba(0,0,0,0.45)', 'rgba(0,0,0,0)']} style={styles.linenShade} pointerEvents="none" />
+      {children}
+    </View>
+  );
+}
+
+const LINEN = require('../../assets/textures/linen.png');
+const METAL = require('../../assets/textures/metal.png');
+
+/** Brushed aluminium, for toolbars and trays; `children` sit on the metal. */
+export function BrushedMetal({ children, style, ...rest }: ViewProps) {
+  return (
+    <View style={[styles.metal, style]} {...rest}>
+      <Texture source={METAL} tile={{ width: 512, height: 128 }} />
+      {/* Light falls from above: brighter at the top, a little shadow below. */}
+      <LinearGradient
+        colors={['rgba(255,255,255,0.45)', 'rgba(255,255,255,0.08)', 'rgba(0,0,0,0.05)', 'rgba(0,0,0,0.22)']}
+        locations={[0, 0.1, 0.6, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
       {children}
     </View>
   );
@@ -445,7 +450,7 @@ export function Badge({ count, style }: { count: number; style?: StyleProp<ViewS
   return (
     <View style={[styles.badge, style]} pointerEvents="none">
       <Fill gradient={BADGE} style={styles.badgeFace} />
-      <View style={styles.badgeShine} />
+      <FitGloss radius="pill" strength={0.6} />
       <Text style={styles.badgeText}>{count > 99 ? '99+' : count}</Text>
     </View>
   );
@@ -564,7 +569,8 @@ const styles = StyleSheet.create({
   rowDetail: { fontFamily, fontSize: 17, color: '#385487' },
   rowDanger: { color: '#c0190e' },
   rowPressedText: { color: '#ffffff' },
-  linenBase: { flex: 1, backgroundColor: '#393c42' },
+  linenBase: { flex: 1, backgroundColor: '#3b3e44' },
+  metal: { overflow: 'hidden', backgroundColor: '#b9bdc3', borderTopWidth: 1, borderTopColor: '#5b5e63' },
   linenShade: { position: 'absolute', top: 0, left: 0, right: 0, height: 14 },
   linenHeader: {
     height: 30,

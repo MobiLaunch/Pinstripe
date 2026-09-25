@@ -18,11 +18,14 @@ import { checkPicked, type Picked } from '@/api/upload';
 import { GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
+import { BrushedMetal } from '@/components/ios6';
 import { Iris } from '@/components/iris';
 import { play } from '@/sound/sounds';
 import { fontFamily } from '@/theme/aqua';
 
 const MAX_SECONDS = 60;
+/** The record-start tone's length, plus a little quiet. */
+const START_TONE_MS = 450;
 
 export default function CameraScreen() {
   const insets = useSafeAreaInsets();
@@ -38,6 +41,7 @@ export default function CameraScreen() {
   const [error, setError] = useState<string | null>(null);
   const recorded = useRef<Picked | null>(null);
   const started = useRef(0);
+  const busy = useRef(false);
 
   const allowed = !!cameraPermission?.granted && !!micPermission?.granted;
 
@@ -64,12 +68,16 @@ export default function CameraScreen() {
   }, [recording]);
 
   const start = async () => {
-    if (!camera.current || recording) return;
+    if (!camera.current || recording || busy.current) return;
     setError(null);
     setSeconds(0);
+    // The start tone plays out before the microphone opens, so it isn't in the video.
+    busy.current = true;
+    play('recordStart');
+    await new Promise((r) => setTimeout(r, START_TONE_MS));
+    busy.current = false;
     started.current = Date.now();
     setRecording(true);
-    play('recordStart');
     try {
       const result = await camera.current.recordAsync({ maxDuration: MAX_SECONDS });
       const duration = Date.now() - started.current;
@@ -182,9 +190,7 @@ export default function CameraScreen() {
       </View>
 
       {/* The brushed-metal toolbar. */}
-      <View style={[styles.toolbar, { paddingBottom: insets.bottom + 12 }]}>
-        <LinearGradient colors={['#6d7075', '#45484d', '#2d2f33', '#232528']} locations={[0, 0.08, 0.6, 1]} style={StyleSheet.absoluteFill} />
-        <View style={styles.toolbarShine} />
+      <BrushedMetal style={[styles.toolbar, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.side}>
           <DarkButton title="Cancel" disabled={recording} onPress={close} />
         </View>
@@ -195,7 +201,7 @@ export default function CameraScreen() {
             <Icon name="photo" size={22} color="#ffffff" />
           </Pressable>
         </View>
-      </View>
+      </BrushedMetal>
     </View>
   );
 }
@@ -317,16 +323,7 @@ const styles = StyleSheet.create({
   timerText: { fontFamily, fontSize: 17, fontWeight: '700', color: '#ffffff', fontVariant: ['tabular-nums'], ...embossed },
   blink: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#ff2a1f', boxShadow: '0 0 6px rgba(255,40,30,0.9)' },
   error: { position: 'absolute', left: 16, right: 16 },
-  toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 14,
-    paddingHorizontal: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#0b0b0c',
-    overflow: 'hidden',
-  },
-  toolbarShine: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.35)' },
+  toolbar: { flexDirection: 'row', alignItems: 'center', paddingTop: 14, paddingHorizontal: 14, borderTopColor: '#1a1b1d' },
   side: { flex: 1, flexDirection: 'row' },
   right: { justifyContent: 'flex-end' },
   shutter: {

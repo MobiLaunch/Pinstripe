@@ -76,4 +76,8 @@ def click(seconds, centre):
     return [s * math.exp(-90 * i / RATE) for i, s in enumerate(burst)]
 
 write("shutter", click(0.05, 2600) + silence(0.035) + click(0.07, 1700), 0.7)
+# Picker tick: the short, dry click of the wheel passing a detent.
+tick = bandpass(noise(0.012), lambda t: 3800, q=2.0)
+tick = [s * math.exp(-420 * i / RATE) for i, s in enumerate(tick)]
+write("tick", tick + silence(0.01), 0.45)
 print("ok")

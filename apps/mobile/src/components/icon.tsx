@@ -1,6 +1,28 @@
 import { View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
+/** A cog: eight square-shouldered teeth round a ring. */
+const GEAR = (() => {
+  const teeth = 8;
+  const outer = 10.2;
+  const inner = 7.8;
+  const points: string[] = [];
+  for (let i = 0; i < teeth; i++) {
+    const a = (i / teeth) * Math.PI * 2;
+    const step = (Math.PI * 2) / teeth;
+    // Each tooth: up the flank, across the top, down, then along the ring to the next.
+    for (const [angle, r] of [
+      [a - step * 0.3, inner],
+      [a - step * 0.18, outer],
+      [a + step * 0.18, outer],
+      [a + step * 0.3, inner],
+    ] as const) {
+      points.push(`${(12 + r * Math.cos(angle)).toFixed(2)} ${(12 + r * Math.sin(angle)).toFixed(2)}`);
+    }
+  }
+  return `M${points.join(' L')} Z`;
+})();
+
 /** Stroke icons from the design canvas, drawn on a 24×24 grid. */
 const ICONS = {
   feed: <Path d="M4 6h16M4 12h16M4 18h10" />,
@@ -87,8 +109,8 @@ const ICONS = {
   bubble: <Path d="M12 4c4.97 0 9 3.13 9 7s-4.03 7-9 7c-.9 0-1.8-.1-2.6-.3L5 20l1.2-3.6C4.2 15.1 3 13.2 3 11c0-3.87 4.03-7 9-7z" />,
   gear: (
     <>
-      <Circle cx={12} cy={12} r={3.2} />
-      <Path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
+      <Path d={GEAR} />
+      <Circle cx={12} cy={12} r={3} />
     </>
   ),
 } as const;

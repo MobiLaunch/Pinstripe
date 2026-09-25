@@ -6,11 +6,11 @@ import { StyleSheet, View } from 'react-native';
 import { type MastodonRelationship, toAccount } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
 import { ActionMenu, type MenuAction } from '@/components/action-menu';
-import { GelButton, Orb, Pinstripes } from '@/components/aqua';
+import { GelButton, Pinstripes } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
-import { Spinner } from '@/components/ios6';
+import { BackButton, NavBar, Spinner } from '@/components/ios6';
 import { ProfileView } from '@/components/profile-view';
 import { PINSTRIPE_DOMAIN } from '@/config';
 
@@ -116,19 +116,13 @@ export default function ProfileScreen() {
     return actions;
   };
 
-  const back = (
-    <Orb size={44} accessibilityLabel="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
-      <Icon name="chevronLeft" color="#fff" />
-    </Orb>
-  );
+  const back = <BackButton />;
 
   if (!account) {
     return (
       <Pinstripes>
-        <View style={styles.state}>
-          {error ? <FormError message={error} /> : <Spinner />}
-          <View style={styles.back}>{back}</View>
-        </View>
+        <NavBar left={back} />
+        <View style={styles.state}>{error ? <FormError message={error} /> : <Spinner />}</View>
       </Pinstripes>
     );
   }
@@ -142,7 +136,7 @@ export default function ProfileScreen() {
         account={account}
         viewerId={viewerId}
         onRefresh={load}
-        corner={back}
+        left={back}
         postsKey={[relationship?.blocking, relationship?.blocked_by].join()}
         notice={
           error ??
@@ -189,5 +183,4 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8 },
   state: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
-  back: { position: 'absolute', top: 48, left: 14 },
 });

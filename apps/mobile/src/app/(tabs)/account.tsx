@@ -1,8 +1,9 @@
 import { Link } from 'expo-router';
 
 import { useAccount, useAuth } from '@/auth/session';
-import { GelButton, Orb } from '@/components/aqua';
+import { GelButton } from '@/components/aqua';
 import { Icon } from '@/components/icon';
+import { BarButton } from '@/components/ios6';
 import { ProfileView } from '@/components/profile-view';
 
 /** Your own profile, with Settings and Edit Profile. */
@@ -15,19 +16,15 @@ export default function AccountScreen() {
       viewerId={me.id}
       onRefresh={refreshAccount}
       onDeleted={refreshAccount}
-      corner={
-        <>
-          <Link href="/search" asChild>
-            <Orb size={44} accessibilityLabel="Find people">
-              <Icon name="search" color="#fff" />
-            </Orb>
-          </Link>
-          <Link href="/settings" asChild>
-            <Orb size={44} accessibilityLabel="Settings">
-              <Icon name="gear" color="#fff" />
-            </Orb>
-          </Link>
-        </>
+      left={
+        <Link href="/search" asChild>
+          <BarButton accessibilityLabel="Find people" icon={<Icon name="search" size={16} strokeWidth={2.6} color="#fff" />} />
+        </Link>
+      }
+      right={
+        <Link href="/settings" asChild>
+          <BarButton accessibilityLabel="Settings" icon={<Icon name="gear" size={18} strokeWidth={2} color="#fff" />} />
+        </Link>
       }
       action={
         <Link href="/edit-profile" asChild>

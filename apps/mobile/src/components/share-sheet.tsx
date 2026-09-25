@@ -10,6 +10,7 @@ import { Linking, Modal, Platform, Pressable, Share, StyleSheet, Text, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SheetButton, SheetGlass, sheetStyles } from '@/components/action-menu';
+import { Gloss } from '@/components/glass';
 import { flashHud } from '@/components/hud';
 import { Icon, type IconName } from '@/components/icon';
 import { fontFamily } from '@/theme/aqua';
@@ -86,8 +87,8 @@ export function ShareSheet({
                   <View style={[styles.icon, pressed && styles.pressed]}>
                     <LinearGradient colors={a.colors} style={StyleSheet.absoluteFill} />
                     <Icon name={a.icon} size={32} color="#ffffff" strokeWidth={2.2} />
-                    {/* The iOS 6 gloss: a bright arc over the top half. */}
-                    <LinearGradient colors={['rgba(255,255,255,0.55)', 'rgba(255,255,255,0.12)']} style={styles.gloss} pointerEvents="none" />
+                    {/* The iOS 6 icon gloss, following the rounded corners. */}
+                    <Gloss width={57} height={57} radius={11} strength={0.6} depth={0.48} />
                   </View>
                   <Text style={styles.label} numberOfLines={2}>
                     {a.label}
@@ -117,7 +118,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0,0,0,0.5)',
     boxShadow: '0 2px 4px rgba(0,0,0,0.6)',
   },
-  gloss: { position: 'absolute', top: 0, left: 0, right: 0, height: '50%', borderBottomLeftRadius: 60, borderBottomRightRadius: 60, transform: [{ scaleX: 1.4 }] },
   pressed: { opacity: 0.6 },
   label: {
     fontFamily,

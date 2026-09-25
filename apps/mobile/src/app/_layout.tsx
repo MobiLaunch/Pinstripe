@@ -8,6 +8,7 @@ import { DialogHost } from '@/components/dialog';
 import { HudHost } from '@/components/hud';
 import { usePushNotifications } from '@/push/push';
 import { ThemeProvider } from '@/theme/theme';
+import '@/web-fixes';
 
 // On web, the sign-in popup lands back on this app; this hands the result to the opener.
 WebBrowser.maybeCompleteAuthSession();

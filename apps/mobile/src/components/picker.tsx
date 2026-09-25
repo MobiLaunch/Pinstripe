@@ -6,11 +6,12 @@
  * it too.
  */
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef } from 'react';
-import { Modal, type NativeScrollEvent, type NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Modal, type NativeScrollEvent, type NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BarButton, Toolbar } from '@/components/ios6';
+import { detent } from '@/sound/sounds';
 import { fontFamily } from '@/theme/aqua';
 
 const ROW = 44;
@@ -62,15 +63,20 @@ function Wheel<T extends string>({
 }) {
   const scroller = useRef<ScrollView>(null);
   const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const passing = useRef(-1);
+  const [scrollY] = useState(() => new Animated.Value(0));
   const index = Math.max(
     0,
     options.findIndex((o) => o.value === value),
   );
 
   useEffect(() => () => clearTimeout(settle.current), []);
-  // Start on the current choice.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => scroller.current?.scrollTo({ y: index * ROW, animated: false }), []);
+  // Start on the current choice (only when the wheel opens).
+  useEffect(() => {
+    passing.current = index;
+    scroller.current?.scrollTo({ y: index * ROW, animated: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const pick = (i: number) => {
     const clamped = Math.max(0, Math.min(options.length - 1, i));
@@ -81,18 +87,25 @@ function Wheel<T extends string>({
   // Snaps to the nearest row once the spinning stops (web has no momentum events, so wait for quiet).
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
+    scrollY.setValue(y);
+    // Click as each row crosses the glass bar, like the real wheel.
+    const row = Math.max(0, Math.min(options.length - 1, Math.round(y / ROW)));
+    if (row !== passing.current) {
+      passing.current = row;
+      detent();
+    }
     clearTimeout(settle.current);
     settle.current = setTimeout(() => pick(Math.round(y / ROW)), 140);
   };
 
   return (
     <View style={styles.wheel}>
-      <ScrollView
+      <Animated.ScrollView
         ref={scroller}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.wheelContent}
         onScroll={onScroll}
-        scrollEventThrottle={32}
+        scrollEventThrottle={16}
         decelerationRate="fast">
         {options.map((o, i) => {
           const selected = i === index;
@@ -104,13 +117,38 @@ function Wheel<T extends string>({
               accessibilityLabel={o.label}
               onPress={() => pick(i)}
               style={styles.row}>
-              <Text style={[styles.rowText, selected && styles.rowSelected]} numberOfLines={1}>
+              {/* Rows turn away on the drum the further they are from the glass. */}
+              <Animated.Text
+                style={[
+                  styles.rowText,
+                  selected && styles.rowSelected,
+                  {
+                    transform: [
+                      { perspective: 500 },
+                      {
+                        rotateX: scrollY.interpolate({
+                          inputRange: [(i - 3) * ROW, i * ROW, (i + 3) * ROW],
+                          outputRange: ['-65deg', '0deg', '65deg'],
+                          extrapolate: 'clamp',
+                        }),
+                      },
+                      {
+                        scaleY: scrollY.interpolate({
+                          inputRange: [(i - 3) * ROW, i * ROW, (i + 3) * ROW],
+                          outputRange: [0.8, 1, 0.8],
+                          extrapolate: 'clamp',
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+                numberOfLines={1}>
                 {o.label}
-              </Text>
+              </Animated.Text>
             </Pressable>
           );
         })}
-      </ScrollView>
+      </Animated.ScrollView>
       {/* The cylinder's curve: rows darken as they turn away. */}
       <LinearGradient colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0)']} style={[styles.shade, styles.shadeTop]} pointerEvents="none" />
       <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0.55)']} style={[styles.shade, styles.shadeBottom]} pointerEvents="none" />
@@ -147,7 +185,7 @@ const styles = StyleSheet.create({
     boxShadow: 'inset 0 0 6px rgba(0,0,0,0.6)',
   },
   wheelContent: { paddingVertical: ROW * Math.floor(VISIBLE / 2) },
-  row: { height: ROW, justifyContent: 'center', paddingHorizontal: 20 },
+  row: { height: ROW, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
   rowText: { fontFamily, fontSize: 22, fontWeight: '700', color: '#222222' },
   rowSelected: { color: '#000000' },
   shade: { position: 'absolute', left: 0, right: 0, height: ROW * 2 },

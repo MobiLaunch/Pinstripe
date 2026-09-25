@@ -20,6 +20,7 @@ import {
 import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 
 import { colors, fontFamily, type Gradient, gelBorders, gradients, radii, touchTarget } from '@/theme/aqua';
+import { FitGloss, OrbFace } from '@/components/glass';
 import { Switch as Ios6Switch } from '@/components/ios6';
 import { useAccent } from '@/theme/theme';
 
@@ -99,16 +100,20 @@ export function GelButton({
         styles.gel,
         small && styles.gelSmall,
         rect && styles.gelRect,
-        { borderColor: t.border, opacity: disabled ? 0.5 : pressed ? 0.85 : 1 },
+        { borderColor: t.border, opacity: disabled ? 0.5 : 1 },
         style,
       ]}
       {...rest}>
-      <Fill gradient={t.gradient} />
-      <Fill gradient={gradients.gloss} style={rect ? styles.glossRect : styles.gloss} />
-      {icon}
-      {title ? (
-        <Text style={[styles.gelText, small && styles.gelTextSmall, { color: t.text }]}>{title}</Text>
-      ) : null}
+      {({ pressed }) => (
+        <>
+          <Fill gradient={t.gradient} />
+          <FitGloss radius={rect ? 10 : 'pill'} strength={pressed ? 0.5 : 0.8} />
+          {/* Pressed glass darkens and sinks. */}
+          {pressed ? <View style={[styles.gelPressed, rect ? styles.gelPressedRect : null]} pointerEvents="none" /> : null}
+          {icon}
+          {title ? <Text style={[styles.gelText, small && styles.gelTextSmall, { color: t.text }]}>{title}</Text> : null}
+        </>
+      )}
     </Pressable>
   );
 }
@@ -127,14 +132,18 @@ export function Orb({
   style?: ViewStyle;
 }) {
   const accent = useAccent();
+  const face = active ? accent.orbActive : gradients.orb;
   return (
     <Pressable
       accessibilityRole="button"
-      style={[styles.orb, { width: size, height: size, borderColor: active ? accent.orbActiveBorder : 'rgba(0,0,0,0.6)' }, style]}
+      style={[styles.orb, { width: size, height: size, borderColor: active ? accent.orbActiveBorder : 'rgba(0,0,0,0.75)' }, style]}
       {...rest}>
-      <Fill gradient={active ? accent.orbActive : gradients.orb} />
-      <Fill gradient={gradients.gloss} style={styles.orbGloss} />
-      {children}
+      {({ pressed }) => (
+        <>
+          <OrbFace size={size} colors={face.colors} pressed={pressed} />
+          {children}
+        </>
+      )}
     </Pressable>
   );
 }
@@ -294,8 +303,8 @@ const styles = StyleSheet.create({
   },
   gelSmall: { minHeight: 34, paddingHorizontal: 14 },
   gelRect: { borderRadius: 10, boxShadow: '0 1px 0 rgba(255,255,255,0.7)' },
-  glossRect: { left: 1, right: 1, top: 1, bottom: '50%', borderTopLeftRadius: 9, borderTopRightRadius: 9, opacity: 0.55 },
-  gloss: { left: '9%', right: '9%', top: 2, bottom: '56%', borderRadius: radii.pill },
+  gelPressed: { ...StyleSheet.absoluteFill, borderRadius: radii.pill, backgroundColor: 'rgba(0,0,0,0.16)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.45)' },
+  gelPressedRect: { borderRadius: 9 },
   gelText: {
     fontFamily,
     fontSize: 15,
@@ -309,10 +318,10 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     borderWidth: 1,
     overflow: 'hidden',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  orbGloss: { left: '14%', right: '14%', top: 3, bottom: '56%', borderRadius: radii.pill },
   seg: {
     flexDirection: 'row',
     borderWidth: 1,

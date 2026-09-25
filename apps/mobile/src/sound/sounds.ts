@@ -5,6 +5,7 @@
  * the choice is kept on this device.
  */
 import { type AudioPlayer, createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import * as Haptics from 'expo-haptics';
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
@@ -16,6 +17,7 @@ const FILES = {
   shutter: require('../../assets/sounds/shutter.wav'),
   recordStart: require('../../assets/sounds/record-start.wav'),
   recordStop: require('../../assets/sounds/record-stop.wav'),
+  tick: require('../../assets/sounds/tick.wav'),
 } as const;
 
 export type SoundName = keyof typeof FILES;
@@ -54,6 +56,12 @@ export function play(name: SoundName) {
   } catch {
     // A missing sound never gets in the way.
   }
+}
+
+/** A picker wheel passing a row: its click, and the light tap you feel with it. */
+export function detent() {
+  play('tick');
+  if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
 }
 
 function setEnabled(on: boolean, save = true) {
