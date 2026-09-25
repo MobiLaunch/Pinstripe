@@ -1,10 +1,11 @@
 import { POST_MAX_LENGTH, type Post, type Visibility } from '@pinstripe/core';
+import { Link } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { type TimelineKind, toMastodonVisibility, toPost } from '@/api/mastodon';
-import { useAccount, useAuth } from '@/auth/session';
+import { useAccount, useAuth, useSource } from '@/auth/session';
 import { aquaText, Avatar, Card, GelButton, Metal, Pinstripes, Segmented } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
@@ -48,9 +49,17 @@ export default function FeedScreen() {
   return (
     <Pinstripes>
       <Metal style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <Text style={[aquaText.title, styles.center]} accessibilityRole="header">
-          Feed
-        </Text>
+        <View style={styles.titleRow}>
+          <View style={styles.side} />
+          <Text style={aquaText.title} accessibilityRole="header">
+            Feed
+          </Text>
+          <View style={[styles.side, styles.sideRight]}>
+            <Link href="/search" asChild>
+              <GelButton tone="gray" small accessibilityLabel="Find people" icon={<Icon name="search" size={16} color={colors.text} />} />
+            </Link>
+          </View>
+        </View>
         <Segmented options={TIMELINES} value={timeline} onChange={setTimeline} />
       </Metal>
       <FlatList
@@ -93,7 +102,8 @@ function Composer() {
   const me = useAccount();
   const { state, refreshAccount } = useAuth();
   const [draft, setDraft] = useState('');
-  const [visibility, setVisibility] = useState<Visibility>('public');
+  const source = useSource();
+  const [visibility, setVisibility] = useState<Visibility>(source.defaultVisibility);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const remaining = POST_MAX_LENGTH - [...draft].length;
@@ -154,7 +164,9 @@ function Composer() {
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingBottom: 10, gap: 10, borderBottomWidth: 1 },
-  center: { textAlign: 'center' },
+  titleRow: { flexDirection: 'row', alignItems: 'center' },
+  side: { flex: 1 },
+  sideRight: { alignItems: 'flex-end' },
   list: { padding: 12, gap: 12, flexGrow: 1 },
   composer: { gap: 10 },
   row: { flexDirection: 'row', gap: 10 },

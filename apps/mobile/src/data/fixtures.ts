@@ -33,6 +33,7 @@ function post(id: string, author: Account, content: string, extra: Partial<Post>
     visibility: 'public',
     media: [],
     tags: [],
+    mentions: [],
     inReplyToId: null,
     reblog: null,
     counts: { replies: 0, boosts: 0, favourites: 0 },

@@ -4,6 +4,8 @@ export interface Config {
   origin: string;
   version: string;
   databaseUrl: string;
+  /** Development only: lets two local servers federate over localhost. Never in production (SSRF). */
+  allowPrivateAddress: boolean;
 }
 
 export function loadConfig(env: Record<string, string | undefined>): Config {
@@ -18,5 +20,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     origin,
     version: env.npm_package_version ?? "0.0.0",
     databaseUrl: env.DATABASE_URL,
+    allowPrivateAddress: env.PINSTRIPE_ALLOW_PRIVATE_ADDRESS === "true",
   };
 }

@@ -19,6 +19,10 @@ function RootStack() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="edit-profile" options={{ presentation: 'modal' }} />
         <Stack.Screen name="settings" />
+        <Stack.Screen name="profile/[id]" />
+        <Stack.Screen name="status/[id]" />
+        <Stack.Screen name="search" />
+        <Stack.Screen name="follow-requests" />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="sign-in" />

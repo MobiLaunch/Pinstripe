@@ -28,8 +28,11 @@ src/
   keys.ts        signing key generation and import
   mastodon.ts    Mastodon API serializers
   ids.ts         UUIDv7 (time-ordered ids for posts)
+  http.ts        request parsing and Link-header paging shared by the routes
   auth/          OAuth 2, sign-up, sessions (see below)
-  statuses/      posting, timelines, and their ActivityPub side (see below)
+  accounts/      follows, search, relationships, profile and settings editing
+  statuses/      posting, timelines, threads, and their ActivityPub side
+  remote/        other servers: fetching actors, storing their posts, sanitizing, delivery
   db/            Drizzle schema + connection; migrations live in ../drizzle
 ```
 
@@ -41,6 +44,34 @@ src/
 - `Follow` is auto-accepted unless *Approve new followers* is on, in which
   case it is stored as `pending`. `Undo(Follow)` removes it.
 - Bots are served as `Service` actors, everyone else as `Person`.
+
+### Federation
+
+- **One accounts table** for local accounts (`domain` null) and remote ones
+  we've seen. Remote profiles are fetched with Fedify, their HTML sanitized
+  (`remote/sanitize.ts`), and refreshed at most daily when looked up again.
+  Remote follower/post counts are what their server reported.
+- **Follows** (`follows` table) cover both directions. Following a remote
+  account sends `Follow` and stays a request until their `Accept`; remote
+  follows of a locked local account wait in Follow Requests and are
+  answered with `Accept` or `Reject`.
+- **Incoming**: the inbox handles Create, Update, Delete, Announce, Like,
+  Undo, Accept and Reject. Remote posts are stored only if relevant: the
+  author is followed here, they mention a local account, or they reply to a
+  post we have. Boosts of our own posts are always recorded.
+- **Outgoing** (`remote/deliver.ts`): a local post goes to the author's
+  remote followers (unless direct), everyone mentioned, and the author of
+  the post it replies to. Likes and boosts of remote posts go to their
+  author. Profile edits go to followers as `Update(Person)`.
+- **Visibility** is one SQL rule (`visibleTo` in `statuses/store.ts`):
+  public and unlisted for everyone, followers-only for accepted followers,
+  and any post for the accounts it mentions.
+- Handle lookups (`@user@server`) use WebFinger over HTTPS. For local
+  multi-server development, `PINSTRIPE_ALLOW_PRIVATE_ADDRESS=true` lets
+  servers on localhost fetch each other, and search accepts profile URLs.
+- `federation.test.ts` runs two real Pinstripe servers, each with its own
+  database (`TEST_DATABASE_URL` and the same name plus `_b`), federating
+  over HTTP.
 
 ### Persistence
 
@@ -151,11 +182,9 @@ and would otherwise show stale copies.
 
 - The Videos tab still renders a fixture (`src/data/fixtures.ts`) until
   video upload exists. Feed and Account use the API.
-- Replying: the API supports `in_reply_to_id`, but the app has no reply
-  composer or thread view yet.
-- Edit Profile and Settings edit local state only until
-  `update_credentials` and the settings endpoint exist.
 - Login lockouts live in process memory.
+- Avatar and banner uploads, and `rel="me"` link verification, come with
+  the media pipeline.
 
 ## Roadmap
 
@@ -166,17 +195,16 @@ and would otherwise show stale copies.
 3. ~~**Posts & federation out:** `/api/v1/statuses`, `Create(Note)` to
    followers, outbox, `Announce`, `Delete`.~~ Done. Still to do here:
    `Update(Person)` on profile edits, and `Like` to remote authors.
-4. **Following & inbound content:** follow local and remote accounts
-   (`Follow` out, `Accept` in), store remote posts from followed actors,
-   fill Home and Federated with them, deliver followers-only posts and
-   mentions, reply composer and threads.
+4. ~~**Following & inbound content:** follows both ways with requests,
+   remote posts in Home and Federated, mentions, replies and threads,
+   search.~~ Done.
 5. **Video pipeline:** `/api/v2/media` upload enforcing the limits, transcode
    (ffmpeg → HLS), thumbnails, blurhash, object storage + CDN; player in the
    Videos tab (expo-video).
-6. **Profile:** `update_credentials`, avatar/banner upload, `rel="me"`
-   verification.
-7. **Settings & safety:** settings endpoint, domain blocks, follow requests UI,
-   reporting, moderation.
+6. **Profile:** ~~`update_credentials`~~ (done); avatar/banner upload,
+   `rel="me"` verification.
+7. **Settings & safety:** ~~settings endpoint, follow requests~~ (done);
+   blocks and mutes, domain blocks, reporting, moderation, notifications.
 8. **Polish:** Graphite theme, barber-pole progress, gel pulse animation,
    sound credits, share sheet.
 

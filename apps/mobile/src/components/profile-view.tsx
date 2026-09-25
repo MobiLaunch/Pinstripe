@@ -1,0 +1,170 @@
+import { type Account, formatHandle, isVideoPost, type Post } from '@pinstripe/core';
+import { LinearGradient } from 'expo-linear-gradient';
+import { type ReactNode, useState } from 'react';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { aquaText, Avatar, Group, Pinstripes, Segmented } from '@/components/aqua';
+import { confirm } from '@/components/confirm';
+import { Icon } from '@/components/icon';
+import { initials } from '@/components/initials';
+import { PostCard } from '@/components/post-card';
+import { usePostList } from '@/hooks/use-post-list';
+import { colors, fontFamily, gradients } from '@/theme/aqua';
+
+const TABS = [
+  { value: 'videos', label: 'Videos' },
+  { value: 'posts', label: 'Posts' },
+  { value: 'boosts', label: 'Boosts' },
+] as const;
+
+/**
+ * A profile: banner, identity, stats and the Videos / Posts / Boosts tabs.
+ * Used for your own Account tab and for everyone else's profile.
+ */
+export function ProfileView({
+  account,
+  viewerId,
+  corner,
+  action,
+  onRefresh,
+  onDeleted,
+}: {
+  account: Account;
+  viewerId: string;
+  /** Top-right of the banner: Settings for you, Back for others. */
+  corner: ReactNode;
+  /** Beside the avatar: Edit Profile for you, Follow for others. */
+  action: ReactNode;
+  onRefresh?: () => void;
+  onDeleted?: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [tab, setTab] = useState<(typeof TABS)[number]['value']>('posts');
+  // One list of the account's posts and boosts; each tab shows its share.
+  const list = usePostList((client, maxId) => client.accountStatuses(account.id, { maxId }), account.id, {
+    accepts: (post) => post.account.id === account.id,
+  });
+  const shown = list.posts.filter((p) => (tab === 'boosts' ? !!p.reblog : !p.reblog && (tab === 'posts' || isVideoPost(p))));
+  const counts = account.counts;
+
+  const remove = async (post: Post) => {
+    if (await confirm('Delete post?', 'This removes it here and asks other servers to remove it too.', 'Delete')) {
+      if (await list.remove(post)) onDeleted?.();
+    }
+  };
+
+  const header = (
+    <>
+      <LinearGradient
+        colors={gradients.banner.colors}
+        locations={gradients.banner.locations}
+        style={[styles.banner, { paddingTop: insets.top }]}>
+        {corner}
+      </LinearGradient>
+      <View style={styles.identity}>
+        <Avatar initials={initials(account.displayName)} size={96} uri={account.avatarUrl} />
+        {action}
+      </View>
+      <View style={styles.body}>
+        <Text style={styles.name} accessibilityRole="header">
+          {account.displayName}
+        </Text>
+        <Text style={aquaText.handle}>{formatHandle(account)}</Text>
+        {account.bio ? <Text style={[aquaText.body, styles.bio]}>{account.bio}</Text> : null}
+        {account.fields.map((f) => (
+          <View key={f.name} style={styles.field}>
+            <Text style={styles.fieldName}>{f.name}</Text>
+            {f.verifiedAt ? <Icon name="check" size={14} strokeWidth={3} color={colors.verified} /> : null}
+            <Text style={[styles.fieldValue, f.verifiedAt && styles.verified]}>{f.value}</Text>
+          </View>
+        ))}
+      </View>
+      {counts ? (
+        <View style={styles.pad}>
+          <Group>
+            <View style={styles.stats}>
+              <Stat n={counts.posts} label="Posts" />
+              <Stat n={counts.following} label="Following" divider />
+              <Stat n={counts.followers} label="Followers" divider />
+            </View>
+          </Group>
+        </View>
+      ) : null}
+      <Segmented options={TABS} value={tab} onChange={setTab} style={[styles.pad, styles.tabs]} />
+    </>
+  );
+
+  return (
+    <Pinstripes>
+      <FlatList
+        data={shown}
+        keyExtractor={(p) => p.id}
+        ListHeaderComponent={header}
+        contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl
+            refreshing={list.refreshing && !list.loading}
+            onRefresh={() => {
+              list.refresh();
+              onRefresh?.();
+            }}
+          />
+        }
+        onEndReached={list.loadMore}
+        onEndReachedThreshold={0.5}
+        ListEmptyComponent={
+          list.loading ? (
+            <ActivityIndicator style={styles.empty} />
+          ) : (
+            <Text style={[aquaText.handle, styles.empty]}>
+              {tab === 'videos' ? 'No videos yet.' : tab === 'posts' ? 'No posts yet.' : 'No boosts yet.'}
+            </Text>
+          )
+        }
+        renderItem={({ item }) => (
+          <View style={styles.item}>
+            <PostCard
+              post={item}
+              viewerId={viewerId}
+              onFavourite={(p) => list.toggle(p, 'favourite')}
+              onBoost={(p) => list.toggle(p, 'boost')}
+              onDelete={remove}
+            />
+          </View>
+        )}
+      />
+    </Pinstripes>
+  );
+}
+
+function Stat({ n, label, divider = false }: { n: number; label: string; divider?: boolean }) {
+  return (
+    <View style={[styles.stat, divider && styles.statDivider]}>
+      <Text style={styles.statN}>{n.toLocaleString()}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  banner: { height: 150, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 14, borderBottomWidth: 1, borderBottomColor: '#0e3f86' },
+  identity: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 16, marginTop: -48 },
+  body: { paddingHorizontal: 16, paddingTop: 10, gap: 2 },
+  name: { fontFamily, fontSize: 20, fontWeight: '700', color: colors.text },
+  bio: { marginTop: 8 },
+  field: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
+  fieldName: { fontFamily, width: 70, fontSize: 12, fontWeight: '700', color: colors.textSubtle },
+  fieldValue: { fontFamily, fontSize: 12, color: colors.text, flexShrink: 1 },
+  verified: { color: colors.verified, fontWeight: '700' },
+  pad: { marginHorizontal: 16, marginTop: 14 },
+  tabs: { marginBottom: 12 },
+  stats: { flexDirection: 'row' },
+  stat: { flex: 1, paddingVertical: 10, alignItems: 'center' },
+  statDivider: { borderLeftWidth: 1, borderLeftColor: '#cfcfcf' },
+  statN: { fontFamily, fontSize: 17, fontWeight: '700', color: colors.text },
+  statLabel: { fontFamily, fontSize: 12, color: colors.textSubtle },
+  list: { paddingBottom: 24 },
+  item: { paddingHorizontal: 12, marginBottom: 12 },
+  empty: { textAlign: 'center', marginTop: 24 },
+});

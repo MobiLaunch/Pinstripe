@@ -1,10 +1,11 @@
 import { type AccountSettings, DEFAULT_SETTINGS, type Theme } from '@pinstripe/core';
 import { Link } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View, type ViewStyle } from 'react-native';
 
-import { useAuth } from '@/auth/session';
+import { useAccount, useAuth, useSource } from '@/auth/session';
 import { aquaText, GelButton, Group, Pinstripes, Segmented } from '@/components/aqua';
+import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { ScreenHeader } from '@/components/screen-header';
 import { colors, fontFamily } from '@/theme/aqua';
@@ -16,31 +17,114 @@ const THEMES = [
   { value: 'graphite', label: 'Graphite' },
 ] as const;
 
-export default function SettingsScreen() {
-  // Local until the settings endpoint exists.
-  const [settings, setSettings] = useState<AccountSettings>(DEFAULT_SETTINGS);
-  const { signOut } = useAuth();
-  const toggle = (key: Toggle) => (value: boolean) => setSettings((s) => ({ ...s, [key]: value }));
+// Which API saves each switch: Mastodon's profile (both servers) or Pinstripe's own preferences.
+const PROFILE_KEYS = { approveFollowers: 'locked', listInDirectory: 'discoverable' } as const;
+const PREFERENCE_KEYS = {
+  allowVideoDownloads: 'allow_video_downloads',
+  hideFollowerCounts: 'hide_follower_counts',
+  autoplayVideos: 'autoplay_videos',
+  startMuted: 'start_muted',
+  saveDataOnCellular: 'save_data_on_cellular',
+} as const;
 
-  const row = (key: Toggle, title: string, sub?: string) => (
-    <View style={styles.row} key={key}>
-      <View style={styles.flex}>
-        <Text style={aquaText.body}>{title}</Text>
-        {sub ? <Text style={aquaText.handle}>{sub}</Text> : null}
+export default function SettingsScreen() {
+  const me = useAccount();
+  const source = useSource();
+  const { state, signOut, applyCredentials } = useAuth();
+  const [settings, setSettings] = useState<AccountSettings>({
+    ...DEFAULT_SETTINGS,
+    approveFollowers: me.locked,
+    listInDirectory: me.discoverable,
+    defaultVisibility: source.defaultVisibility,
+  });
+  // Pinstripe-only settings; null while loading, false on servers that don't have them.
+  const [preferencesAvailable, setPreferencesAvailable] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const client = state.status === 'signedIn' ? state.client : null;
+
+  useEffect(() => {
+    if (!client) return;
+    client
+      .preferences()
+      .then((p) => {
+        setSettings((s) => ({
+          ...s,
+          allowVideoDownloads: p.allow_video_downloads,
+          hideFollowerCounts: p.hide_follower_counts,
+          autoplayVideos: p.autoplay_videos,
+          startMuted: p.start_muted,
+          saveDataOnCellular: p.save_data_on_cellular,
+          theme: p.theme,
+        }));
+        setPreferencesAvailable(true);
+      })
+      .catch(() => setPreferencesAvailable(false));
+  }, [client]);
+
+  /** Saves one change right away; puts the old value back if the server refuses. */
+  const change = async <K extends keyof AccountSettings>(key: K, value: AccountSettings[K]) => {
+    if (!client) return;
+    const before = settings[key];
+    setSettings((s) => ({ ...s, [key]: value }));
+    setError(null);
+    try {
+      if (key in PROFILE_KEYS) {
+        await applyCredentials(await client.updateCredentials({ [PROFILE_KEYS[key as keyof typeof PROFILE_KEYS]]: value }));
+      } else if (key in PREFERENCE_KEYS) {
+        await client.updatePreferences({ [PREFERENCE_KEYS[key as keyof typeof PREFERENCE_KEYS]]: value });
+      } else if (key === 'theme') {
+        await client.updatePreferences({ theme: value as Theme });
+      }
+    } catch (e) {
+      setSettings((s) => ({ ...s, [key]: before }));
+      setError(e instanceof Error ? e.message : 'Couldn’t save that setting.');
+    }
+  };
+
+  const row = (key: Toggle, title: string, sub?: string) => {
+    const unavailable = key in PREFERENCE_KEYS && preferencesAvailable !== true;
+    return (
+      <View style={styles.row} key={key}>
+        <View style={styles.flex}>
+          <Text style={[aquaText.body, unavailable && styles.muted]}>{title}</Text>
+          {sub ? <Text style={aquaText.handle}>{sub}</Text> : null}
+        </View>
+        <Switch
+          value={settings[key]}
+          onValueChange={(v) => change(key, v)}
+          disabled={unavailable}
+          accessibilityLabel={title}
+          trackColor={{ true: colors.accent }}
+          thumbColor="#ffffff"
+        />
       </View>
-      <Switch value={settings[key]} onValueChange={toggle(key)} accessibilityLabel={title} trackColor={{ true: colors.accent }} thumbColor="#ffffff" />
-    </View>
-  );
+    );
+  };
 
   return (
     <Pinstripes>
       <ScreenHeader title="Settings" back="Account" />
       <ScrollView contentContainerStyle={styles.content}>
+        <FormError message={error} />
+        {preferencesAvailable === false ? (
+          <Text style={[aquaText.handle, styles.note]}>
+            Some settings are Pinstripe features your server doesn’t have, so they’re turned off here.
+          </Text>
+        ) : null}
         <Group title="Account">
           <Link href="/edit-profile" asChild>
             <NavRow title="Edit profile" sub="Photo, banner, bio and profile fields" />
           </Link>
           <NavRow title="Email & password" divider />
+          {settings.approveFollowers || source.followRequests > 0 ? (
+            <Link href="/follow-requests" asChild>
+              <NavRow
+                title="Follow requests"
+                sub={source.followRequests ? `${source.followRequests} waiting` : 'None waiting'}
+                divider
+              />
+            </Link>
+          ) : null}
         </Group>
         <Group title="Privacy">
           {row('approveFollowers', 'Approve new followers', 'People must request to follow you')}
@@ -61,7 +145,7 @@ export default function SettingsScreen() {
             <Segmented<Theme>
               options={THEMES}
               value={settings.theme}
-              onChange={(theme) => setSettings((s) => ({ ...s, theme }))}
+              onChange={(theme) => change('theme', theme)}
               style={styles.flex}
             />
           </View>
@@ -103,5 +187,7 @@ const styles = StyleSheet.create({
   divider: { borderTopWidth: 1, borderTopColor: colors.hairline },
   flex: { flex: 1 },
   signOut: { marginTop: 24 },
+  muted: { color: '#8a8a8a' },
+  note: { marginBottom: 4, paddingHorizontal: 6 },
   footer: { fontFamily, textAlign: 'center', marginTop: 16 },
 });

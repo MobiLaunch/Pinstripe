@@ -21,7 +21,11 @@ const federation = buildFederation({
   queue: new PostgresMessageQueue(sql),
   origin: config.origin,
   version: config.version,
+  allowPrivateAddress: config.allowPrivateAddress,
 });
+if (config.allowPrivateAddress) {
+  console.warn("PINSTRIPE_ALLOW_PRIVATE_ADDRESS is on: this server will fetch private addresses. Development only.");
+}
 
 const app = buildApp({ federation, store, statuses, auth, domain: new URL(config.origin).host });
 

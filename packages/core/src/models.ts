@@ -62,6 +62,8 @@ export interface Post {
   visibility: Visibility;
   media: MediaAttachment[];
   tags: string[];
+  /** Accounts mentioned in the post. */
+  mentions: Pick<Account, "id" | "username" | "domain">[];
   inReplyToId: string | null;
   /** When this is a boost, the boosted post. */
   reblog: Post | null;

@@ -58,9 +58,31 @@ export interface MastodonStatus {
   reblogged?: boolean;
   media_attachments: MastodonMedia[];
   tags: { name: string }[];
+  mentions: { id: string; username: string; acct: string }[];
 }
 
 export type TimelineKind = 'home' | 'local' | 'federated';
+
+export interface MastodonRelationship {
+  id: string;
+  following: boolean;
+  followed_by: boolean;
+  requested: boolean;
+  requested_by: boolean;
+}
+
+export interface MastodonCredentialAccount extends MastodonAccount {
+  source: { privacy: MastodonVisibility; note: string; fields: { name: string; value: string }[]; follow_requests_count: number };
+}
+
+export interface PinstripePreferences {
+  allow_video_downloads: boolean;
+  hide_follower_counts: boolean;
+  autoplay_videos: boolean;
+  start_muted: boolean;
+  save_data_on_cellular: boolean;
+  theme: 'blue' | 'graphite';
+}
 
 export interface MastodonApp {
   client_id: string;
@@ -110,7 +132,7 @@ export class MastodonClient {
     return new MastodonClient(this.server, token);
   }
 
-  private async request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: Record<string, unknown>): Promise<T> {
+  private async request<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: Record<string, unknown>): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
     if (body) headers['Content-Type'] = 'application/json';
@@ -159,7 +181,68 @@ export class MastodonClient {
   }
 
   verifyCredentials() {
-    return this.request<MastodonAccount>('GET', '/api/v1/accounts/verify_credentials');
+    return this.request<MastodonCredentialAccount>('GET', '/api/v1/accounts/verify_credentials');
+  }
+
+  updateCredentials(input: {
+    display_name?: string;
+    note?: string;
+    bot?: boolean;
+    locked?: boolean;
+    discoverable?: boolean;
+    fields_attributes?: { name: string; value: string }[];
+    source?: { privacy?: MastodonVisibility };
+  }) {
+    return this.request<MastodonCredentialAccount>('PATCH', '/api/v1/accounts/update_credentials', input);
+  }
+
+  /** Pinstripe's own settings; other servers don't have this endpoint. */
+  preferences() {
+    return this.request<PinstripePreferences>('GET', '/api/v1/pinstripe/preferences');
+  }
+
+  updatePreferences(input: Partial<PinstripePreferences>) {
+    return this.request<PinstripePreferences>('PATCH', '/api/v1/pinstripe/preferences', input);
+  }
+
+  account(id: string) {
+    return this.request<MastodonAccount>('GET', `/api/v1/accounts/${encodeURIComponent(id)}`);
+  }
+
+  async relationship(id: string): Promise<MastodonRelationship | null> {
+    const [r] = await this.request<MastodonRelationship[]>('GET', `/api/v1/accounts/relationships${query({ 'id[]': id })}`);
+    return r ?? null;
+  }
+
+  follow(id: string, action: 'follow' | 'unfollow') {
+    return this.request<MastodonRelationship>('POST', `/api/v1/accounts/${encodeURIComponent(id)}/${action}`);
+  }
+
+  followRequests() {
+    return this.request<MastodonAccount[]>('GET', '/api/v1/follow_requests');
+  }
+
+  answerFollowRequest(id: string, action: 'authorize' | 'reject') {
+    return this.request<MastodonRelationship>('POST', `/api/v1/follow_requests/${encodeURIComponent(id)}/${action}`);
+  }
+
+  /** Accounts matching `q`; full handles and URLs are looked up on their servers. */
+  search(q: string) {
+    return this.request<{ accounts: MastodonAccount[]; statuses: MastodonStatus[] }>(
+      'GET',
+      `/api/v2/search${query({ q, resolve: 'true', limit: 20 })}`,
+    );
+  }
+
+  status(id: string) {
+    return this.request<MastodonStatus>('GET', `/api/v1/statuses/${encodeURIComponent(id)}`);
+  }
+
+  context(id: string) {
+    return this.request<{ ancestors: MastodonStatus[]; descendants: MastodonStatus[] }>(
+      'GET',
+      `/api/v1/statuses/${encodeURIComponent(id)}/context`,
+    );
   }
 
   postStatus(input: { status: string; visibility: MastodonVisibility; in_reply_to_id?: string; spoiler_text?: string }) {
@@ -230,6 +313,8 @@ export function toPost(json: MastodonStatus, server: string): Post {
     visibility: fromMastodonVisibility(json.visibility),
     media: json.media_attachments.map(toMedia).filter((m): m is MediaAttachment => !!m),
     tags: json.tags.map((t) => t.name),
+    // `acct` has no domain for accounts on the same server as the one answering.
+    mentions: (json.mentions ?? []).map((m) => ({ id: m.id, username: m.username, domain: m.acct.split('@')[1] ?? new URL(server).host })),
     inReplyToId: json.in_reply_to_id,
     reblog: json.reblog ? toPost(json.reblog, server) : null,
     counts: { replies: json.replies_count, boosts: json.reblogs_count, favourites: json.favourites_count },

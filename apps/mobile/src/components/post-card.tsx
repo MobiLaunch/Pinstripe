@@ -1,4 +1,5 @@
 import { formatHandle, type Post } from '@pinstripe/core';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -15,19 +16,23 @@ export interface PostCardProps {
   onFavourite: (post: Post) => void;
   onBoost: (post: Post) => void;
   onDelete: (post: Post) => void;
+  /** The post being viewed in a thread: highlighted, and not a link to itself. */
+  focused?: boolean;
 }
 
 /** A post in the Feed and on profiles. Boosts show the original with a "Boosted by" line. */
-export function PostCard({ post, viewerId, onFavourite, onBoost, onDelete }: PostCardProps) {
+export function PostCard({ post, viewerId, onFavourite, onBoost, onDelete, focused = false }: PostCardProps) {
   const shown = post.reblog ?? post;
   const [revealed, setRevealed] = useState(false);
   const favourited = !!shown.viewer?.favourited;
   const boosted = !!shown.viewer?.boosted;
   const boostable = shown.visibility === 'public' || shown.visibility === 'unlisted';
   const mine = shown.account.id === viewerId && !post.reblog;
+  const openProfile = () => router.push(`/profile/${shown.account.id}`);
+  const openThread = () => router.push(`/status/${shown.id}`);
 
   return (
-    <Card>
+    <Card style={focused ? styles.focused : undefined}>
       {post.reblog ? (
         <View style={styles.boostedBy}>
           <Icon name="boost" size={14} color={colors.textMuted} />
@@ -35,13 +40,17 @@ export function PostCard({ post, viewerId, onFavourite, onBoost, onDelete }: Pos
         </View>
       ) : null}
       <View style={styles.row}>
-        <Avatar initials={initials(shown.account.displayName)} />
+        <Pressable accessibilityRole="link" accessibilityLabel={`${shown.account.displayName}'s profile`} onPress={openProfile}>
+          <Avatar initials={initials(shown.account.displayName)} uri={shown.account.avatarUrl} />
+        </Pressable>
         <View style={styles.flex}>
           <View style={styles.meta}>
-            <Text style={[aquaText.body, styles.bold]}>{shown.account.displayName}</Text>
-            <Text style={[aquaText.handle, styles.shrink]} numberOfLines={1}>
-              {formatHandle(shown.account)}
-            </Text>
+            <Pressable accessibilityRole="link" onPress={openProfile} style={styles.author}>
+              <Text style={[aquaText.body, styles.bold]}>{shown.account.displayName}</Text>
+              <Text style={[aquaText.handle, styles.shrink]} numberOfLines={1}>
+                {formatHandle(shown.account)}
+              </Text>
+            </Pressable>
             <View style={styles.push}>
               {shown.visibility === 'followers' || shown.visibility === 'direct' ? (
                 <Icon name="lock" size={12} color={colors.textMuted} />
@@ -56,7 +65,13 @@ export function PostCard({ post, viewerId, onFavourite, onBoost, onDelete }: Pos
               <GelButton tone="gray" small title={revealed ? 'Show less' : 'Show more'} onPress={() => setRevealed(!revealed)} />
             </View>
           ) : null}
-          {!shown.spoiler || revealed ? <Text style={[aquaText.body, styles.content]}>{shown.content}</Text> : null}
+          {!shown.spoiler || revealed ? (
+            <Pressable onPress={focused ? undefined : openThread} disabled={focused} accessibilityHint={focused ? undefined : 'Opens the thread'}>
+              <Text style={[aquaText.body, styles.content, focused && styles.focusedText]} selectable={focused}>
+                {shown.content}
+              </Text>
+            </Pressable>
+          ) : null}
 
           {shown.media[0]?.kind === 'image' ? (
             <View style={styles.photo} accessibilityLabel={shown.media[0].description || 'Photo'}>
@@ -65,7 +80,12 @@ export function PostCard({ post, viewerId, onFavourite, onBoost, onDelete }: Pos
           ) : null}
 
           <View style={styles.actions}>
-            <Action icon="reply" label="Reply" count={shown.counts.replies} />
+            <Action
+              icon="reply"
+              label="Reply"
+              count={shown.counts.replies}
+              onPress={() => router.push(`/status/${shown.id}?reply=1`)}
+            />
             <Action
               icon="boost"
               label={boosted ? 'Undo boost' : 'Boost'}
@@ -127,6 +147,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 10 },
   flex: { flex: 1, minWidth: 0 },
   meta: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  author: { flexDirection: 'row', alignItems: 'baseline', gap: 6, flexShrink: 1 },
+  focused: { borderColor: '#3a7fd8', borderWidth: 2 },
+  focusedText: { fontSize: 16, lineHeight: 23 },
   shrink: { flexShrink: 1 },
   push: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4 },
   bold: { fontWeight: '700' },

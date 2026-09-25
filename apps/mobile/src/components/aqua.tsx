@@ -2,6 +2,7 @@
  * Aqua primitives. Every screen is built from these so the look stays in one
  * place; see src/theme/aqua.ts for the tokens.
  */
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import {
@@ -162,11 +163,15 @@ export function Segmented<T extends string>({
   );
 }
 
-export function Avatar({ initials, size = 40 }: { initials: string; size?: number }) {
+export function Avatar({ initials, size = 40, uri }: { initials: string; size?: number; uri?: string | null }) {
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]} accessibilityElementsHidden>
       <Fill gradient={gradients.avatar} />
-      <Text style={[styles.avatarText, { fontSize: size * 0.34 }]}>{initials}</Text>
+      {uri ? (
+        <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+      ) : (
+        <Text style={[styles.avatarText, { fontSize: size * 0.34 }]}>{initials}</Text>
+      )}
     </View>
   );
 }
