@@ -5,10 +5,10 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAccount } from '@/auth/session';
 import { aquaText, Avatar, GelButton, Group, Orb, Pinstripes, Segmented } from '@/components/aqua';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
-import { me } from '@/data/fixtures';
 import { colors, fontFamily, gradients } from '@/theme/aqua';
 
 const TABS = [
@@ -20,6 +20,7 @@ const TABS = [
 export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<(typeof TABS)[number]['value']>('videos');
+  const me = useAccount();
   const counts = me.counts;
 
   return (

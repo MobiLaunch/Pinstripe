@@ -3,10 +3,11 @@ import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAccount } from '@/auth/session';
 import { aquaText, Avatar, Card, GelButton, Metal, Pinstripes, Segmented } from '@/components/aqua';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
-import { feed, me } from '@/data/fixtures';
+import { feed } from '@/data/fixtures';
 import { colors, fontFamily } from '@/theme/aqua';
 
 const TIMELINES = [
@@ -20,6 +21,7 @@ export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const [timeline, setTimeline] = useState<Timeline>('home');
   const [draft, setDraft] = useState('');
+  const me = useAccount();
 
   return (
     <Pinstripes>

@@ -2,42 +2,120 @@ import { isValidUsername } from '@pinstripe/core';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
+import { ApiError, type FieldErrors } from '@/api/mastodon';
+import { useAuth } from '@/auth/session';
 import { aquaText, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
+import { FormError } from '@/components/form-error';
 import { ScreenHeader } from '@/components/screen-header';
-import { colors } from '@/theme/aqua';
+import { PINSTRIPE_DOMAIN, PINSTRIPE_SERVER } from '@/config';
+import { colors, fontFamily } from '@/theme/aqua';
 
-// The server this build signs up to; will come from config once multi-server lands.
-const DOMAIN = 'pinstripe.social';
+const PASSWORD_MIN = 8;
+
+/** A rough guide, not a gate: the server only enforces the minimum length. */
+function strength(password: string): { label: string; color: string } | null {
+  if (!password) return null;
+  if (password.length < PASSWORD_MIN) return { label: 'Too short', color: colors.danger };
+  const variety = [/[a-z]/, /[A-Z]/, /\d/, /[^\w\s]/, /\s/].filter((r) => r.test(password)).length;
+  const score = (password.length >= 12 ? 1 : 0) + (password.length >= 16 ? 1 : 0) + (variety >= 3 ? 1 : 0);
+  if (score >= 2) return { label: 'Strong', color: colors.verified };
+  if (score === 1) return { label: 'Good', color: colors.verified };
+  return { label: 'Fair', color: '#9a6a08' };
+}
+
+const FIELD_LABELS: Record<string, string> = { username: 'Username', email: 'Email', password: 'Password', agreement: 'Agreement' };
 
 export default function SignUpScreen() {
-  const [displayName, setDisplayName] = useState('');
+  const { signUp } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [agreed, setAgreed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  const usernameOk = isValidUsername(username);
-  const ready = usernameOk && email.includes('@') && password.length >= 8 && agreed;
+  const meter = strength(password);
+  const ready = isValidUsername(username) && email.includes('@') && password.length >= PASSWORD_MIN && agreed;
+  const fieldError = (field: string) => fieldErrors[field]?.[0]?.description;
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    setFieldErrors({});
+    try {
+      await signUp(PINSTRIPE_SERVER, { username, email, password, locale: 'en' });
+    } catch (e) {
+      if (e instanceof ApiError && Object.keys(e.details).length) {
+        setFieldErrors(e.details);
+        setError('Please fix the highlighted fields.');
+      } else {
+        setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
+      }
+      setBusy(false);
+    }
+  };
+
+  const hint = (field: string) => {
+    const message = fieldError(field);
+    return message ? (
+      <Text style={styles.fieldError}>
+        {FIELD_LABELS[field]} {message}
+      </Text>
+    ) : null;
+  };
 
   return (
     <Pinstripes>
       <ScreenHeader title="Create Account" back="Sign In" />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Card style={styles.card}>
-          <Field label="Display name" value={displayName} onChangeText={setDisplayName} />
-          <Field label="Username" autoCapitalize="none" autoCorrect={false} value={username} onChangeText={setUsername} />
-          <Text style={aquaText.handle}>@{username || 'you'}@{DOMAIN}</Text>
-          <Field label="Email" keyboardType="email-address" autoCapitalize="none" autoComplete="email" value={email} onChangeText={setEmail} />
-          <Field label="Password" secureTextEntry autoComplete="new-password" value={password} onChangeText={setPassword} />
+          <FormError message={error} />
+          <View style={styles.group}>
+            <Field
+              label="Username"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="username-new"
+              value={username}
+              onChangeText={setUsername}
+            />
+            <Text style={aquaText.handle}>
+              @{username || 'you'}@{PINSTRIPE_DOMAIN}
+            </Text>
+            {hint('username')}
+          </View>
+          <View style={styles.group}>
+            <Field
+              label="Email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              value={email}
+              onChangeText={setEmail}
+            />
+            {hint('email')}
+          </View>
+          <View style={styles.group}>
+            <Field label="Password" secureTextEntry autoComplete="new-password" value={password} onChangeText={setPassword} />
+            {meter ? <Text style={[styles.meter, { color: meter.color }]}>{meter.label}</Text> : null}
+            {hint('password')}
+          </View>
           <View style={styles.agree}>
-            <Switch value={agreed} onValueChange={setAgreed} accessibilityLabel="I agree to the server rules and privacy policy" trackColor={{ true: colors.accent }} thumbColor="#ffffff" />
+            <Switch
+              value={agreed}
+              onValueChange={setAgreed}
+              accessibilityLabel="I agree to the server rules and privacy policy"
+              trackColor={{ true: colors.accent }}
+              thumbColor="#ffffff"
+            />
             <Text style={[aquaText.body, styles.flex]}>I agree to the server rules and privacy policy.</Text>
           </View>
-          <GelButton title="Create Account" disabled={!ready} />
+          <GelButton title={busy ? 'Creating…' : 'Create Account'} disabled={busy || !ready} onPress={submit} />
         </Card>
         <Text style={[aquaText.handle, styles.note]}>
           Your handle works across the fediverse. People on Mastodon, Pixelfed and other ActivityPub apps can follow @
-          {username || 'you'}@{DOMAIN}.
+          {username || 'you'}@{PINSTRIPE_DOMAIN}.
         </Text>
       </ScrollView>
     </Pinstripes>
@@ -47,6 +125,9 @@ export default function SignUpScreen() {
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 14 },
   card: { gap: 14, padding: 16 },
+  group: { gap: 4 },
+  meter: { fontFamily, fontSize: 12, fontWeight: '700', textAlign: 'right' },
+  fieldError: { fontFamily, fontSize: 12, color: colors.danger },
   agree: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   flex: { flex: 1 },
   note: { textAlign: 'center', paddingHorizontal: 8 },

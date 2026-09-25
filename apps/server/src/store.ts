@@ -1,5 +1,8 @@
-import { exportJwk, generateCryptoKeyPair, importJwk } from "@fedify/fedify";
 import { type AccountSettings, DEFAULT_SETTINGS, isValidUsername, type ProfileField } from "@pinstripe/core";
+import { and, count, eq, sql } from "drizzle-orm";
+import type { Db } from "./db/client.ts";
+import { accountKeys, accounts, followers } from "./db/schema.ts";
+import { generateKeyPairs, importKeyPairs } from "./keys.ts";
 
 /** An account hosted on this server. Remote actors are never stored here. */
 export interface LocalAccount {
@@ -25,22 +28,6 @@ export interface RemoteFollower {
   state: FollowState;
 }
 
-/**
- * Persistence boundary for the server. The in-memory implementation lets the
- * federation layer be built and tested now; a Postgres implementation will
- * replace it without touching callers.
- */
-export interface Store {
-  createAccount(input: { username: string; displayName?: string }): Promise<LocalAccount>;
-  getAccount(id: string): Promise<LocalAccount | null>;
-  getAccountByUsername(username: string): Promise<LocalAccount | null>;
-  countAccounts(): Promise<number>;
-  getKeyPairs(accountId: string): Promise<CryptoKeyPair[]>;
-  upsertFollower(accountId: string, follower: RemoteFollower): Promise<void>;
-  removeFollower(accountId: string, actorUri: string): Promise<void>;
-  listFollowers(accountId: string, state?: FollowState): Promise<RemoteFollower[]>;
-}
-
 export class InvalidUsernameError extends Error {
   constructor(username: string) {
     super(`Invalid username: ${username}`);
@@ -53,89 +40,111 @@ export class UsernameTakenError extends Error {
   }
 }
 
-export type KeyAlgorithm = "RSASSA-PKCS1-v1_5" | "Ed25519";
-export interface StoredKeyPair {
-  algorithm: KeyAlgorithm;
-  privateKey: JsonWebKey;
-  publicKey: JsonWebKey;
-}
-
-// RSA for compatibility with Mastodon et al.; Ed25519 for Object Integrity Proofs.
-// RSA comes first: Fedify advertises the first pair as the actor's publicKey.
-export const KEY_ALGORITHMS: readonly KeyAlgorithm[] = ["RSASSA-PKCS1-v1_5", "Ed25519"];
-
-export async function generateKeyPairs(): Promise<StoredKeyPair[]> {
-  return Promise.all(
-    KEY_ALGORITHMS.map(async (algorithm) => {
-      const pair = await generateCryptoKeyPair(algorithm);
-      return { algorithm, privateKey: await exportJwk(pair.privateKey), publicKey: await exportJwk(pair.publicKey) };
-    }),
-  );
-}
-
-export async function importKeyPairs(stored: StoredKeyPair[]): Promise<CryptoKeyPair[]> {
-  const ordered = [...stored].sort((a, b) => KEY_ALGORITHMS.indexOf(a.algorithm) - KEY_ALGORITHMS.indexOf(b.algorithm));
-  return Promise.all(
-    ordered.map(async (p) => ({
-      privateKey: await importJwk(p.privateKey, "private"),
-      publicKey: await importJwk(p.publicKey, "public"),
-    })),
-  );
-}
-
 export function newAccount(username: string, displayName?: string): Omit<LocalAccount, "id" | "createdAt"> {
   if (!isValidUsername(username)) throw new InvalidUsernameError(username);
   return { username, displayName: displayName ?? username, bio: "", fields: [], bot: false, settings: { ...DEFAULT_SETTINGS } };
 }
 
-export class MemoryStore implements Store {
-  #accounts = new Map<string, LocalAccount>();
-  // Promises, so concurrent first requests share one generation.
-  #keys = new Map<string, Promise<StoredKeyPair[]>>();
-  #followers = new Map<string, Map<string, RemoteFollower>>();
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Ids arrive straight from URLs; anything that isn't a UUID can't match (and would make Postgres error). */
+export function isUuid(id: string): boolean {
+  return UUID.test(id);
+}
+
+const UNIQUE_VIOLATION = "23505";
+
+export function isUniqueViolation(error: unknown): boolean {
+  // Drizzle wraps driver errors; the Postgres error code sits on the cause.
+  for (let e: unknown = error; e; e = (e as { cause?: unknown }).cause) {
+    if ((e as { code?: string }).code === UNIQUE_VIOLATION) return true;
+  }
+  return false;
+}
+
+/** Accounts, signing keys and followers, in Postgres. */
+export class Store {
+  constructor(private readonly db: Db) {}
 
   async createAccount({ username, displayName }: { username: string; displayName?: string }) {
-    const fresh = newAccount(username, displayName);
-    if (await this.getAccountByUsername(username)) throw new UsernameTakenError(username);
-    const account: LocalAccount = { id: crypto.randomUUID(), createdAt: new Date(), ...fresh };
-    this.#accounts.set(account.id, account);
-    return account;
-  }
-
-  async getAccount(id: string) {
-    return this.#accounts.get(id) ?? null;
-  }
-
-  async getAccountByUsername(username: string) {
-    const needle = username.toLowerCase();
-    for (const account of this.#accounts.values()) {
-      if (account.username.toLowerCase() === needle) return account;
+    try {
+      const [row] = await this.db.insert(accounts).values(newAccount(username, displayName)).returning();
+      return row!;
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new UsernameTakenError(username);
+      throw error;
     }
-    return null;
+  }
+
+  async getAccount(id: string): Promise<LocalAccount | null> {
+    if (!isUuid(id)) return null;
+    const [row] = await this.db.select().from(accounts).where(eq(accounts.id, id));
+    return row ?? null;
+  }
+
+  async getAccountByUsername(username: string): Promise<LocalAccount | null> {
+    const [row] = await this.db
+      .select()
+      .from(accounts)
+      .where(sql`lower(${accounts.username}) = ${username.toLowerCase()}`);
+    return row ?? null;
   }
 
   async countAccounts() {
-    return this.#accounts.size;
+    const [row] = await this.db.select({ n: count() }).from(accounts);
+    return row?.n ?? 0;
   }
 
   async getKeyPairs(accountId: string) {
-    let stored = this.#keys.get(accountId);
-    if (!stored) this.#keys.set(accountId, (stored = generateKeyPairs()));
-    return importKeyPairs(await stored);
+    let stored = await this.db.select().from(accountKeys).where(eq(accountKeys.accountId, accountId));
+    if (stored.length === 0) {
+      // Two requests can race to create keys; the loser's insert is dropped
+      // and both read back the winner's.
+      const fresh = await generateKeyPairs();
+      await this.db
+        .insert(accountKeys)
+        .values(fresh.map((k) => ({ accountId, ...k })))
+        .onConflictDoNothing();
+      stored = await this.db.select().from(accountKeys).where(eq(accountKeys.accountId, accountId));
+    }
+    return importKeyPairs(stored);
   }
 
   async upsertFollower(accountId: string, follower: RemoteFollower) {
-    let map = this.#followers.get(accountId);
-    if (!map) this.#followers.set(accountId, (map = new Map()));
-    map.set(follower.actorUri, follower);
+    await this.db
+      .insert(followers)
+      .values({ accountId, ...follower })
+      .onConflictDoUpdate({
+        target: [followers.accountId, followers.actorUri],
+        set: {
+          inboxUri: follower.inboxUri,
+          sharedInboxUri: follower.sharedInboxUri,
+          followActivityUri: follower.followActivityUri,
+          state: follower.state,
+        },
+      });
   }
 
   async removeFollower(accountId: string, actorUri: string) {
-    this.#followers.get(accountId)?.delete(actorUri);
+    await this.db
+      .delete(followers)
+      .where(and(eq(followers.accountId, accountId), eq(followers.actorUri, actorUri)));
   }
 
-  async listFollowers(accountId: string, state?: FollowState) {
-    const all = [...(this.#followers.get(accountId)?.values() ?? [])];
-    return state ? all.filter((f) => f.state === state) : all;
+  async listFollowers(accountId: string, state?: FollowState): Promise<RemoteFollower[]> {
+    const where = state
+      ? and(eq(followers.accountId, accountId), eq(followers.state, state))
+      : eq(followers.accountId, accountId);
+    return this.db
+      .select({
+        actorUri: followers.actorUri,
+        inboxUri: followers.inboxUri,
+        sharedInboxUri: followers.sharedInboxUri,
+        followActivityUri: followers.followActivityUri,
+        state: followers.state,
+      })
+      .from(followers)
+      .where(where)
+      .orderBy(followers.createdAt);
   }
 }

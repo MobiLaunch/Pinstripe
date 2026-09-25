@@ -1,35 +1,12 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { connect, runMigrations } from "./db/client.ts";
-import { PostgresStore } from "./pg-store.ts";
-import { InvalidUsernameError, MemoryStore, type Store, UsernameTakenError } from "./store.ts";
+import { beforeEach, describe, expect, it } from "vitest";
+import { testDb } from "../test/db.ts";
+import { InvalidUsernameError, Store, UsernameTakenError } from "./store.ts";
 
-/**
- * One contract, run against every Store. Postgres runs when TEST_DATABASE_URL
- * is set (CI sets it); the tests truncate that database, so never point it
- * at real data.
- */
-const pgUrl = process.env.TEST_DATABASE_URL;
-const pg = pgUrl ? connect(pgUrl) : null;
-if (pg) await runMigrations(pg.db);
-afterAll(() => pg?.sql.end());
+const { db, reset } = testDb();
+const store = new Store(db);
+beforeEach(reset);
 
-const stores: [string, () => Promise<Store>][] = [["memory", async () => new MemoryStore()]];
-if (pg) {
-  stores.push([
-    "postgres",
-    async () => {
-      await pg.sql`TRUNCATE accounts CASCADE`;
-      return new PostgresStore(pg.db);
-    },
-  ]);
-}
-
-describe.each(stores)("%s store", (_name, make) => {
-  let store: Store;
-  beforeEach(async () => {
-    store = await make();
-  });
-
+describe("Store", () => {
   it("creates and finds accounts, case-insensitively", async () => {
     const sam = await store.createAccount({ username: "Sam", displayName: "Sam Avery" });
     expect(sam).toMatchObject({ username: "Sam", displayName: "Sam Avery", bot: false });
@@ -47,7 +24,7 @@ describe.each(stores)("%s store", (_name, make) => {
     await expect(store.createAccount({ username: "no spaces" })).rejects.toBeInstanceOf(InvalidUsernameError);
   });
 
-  it("creates key pairs once and returns the same ones after", async () => {
+  it("creates key pairs once, even when asked concurrently", async () => {
     const sam = await store.createAccount({ username: "sam" });
     const [first, again] = await Promise.all([store.getKeyPairs(sam.id), store.getKeyPairs(sam.id)]);
     expect(first).toHaveLength(2);
@@ -56,7 +33,7 @@ describe.each(stores)("%s store", (_name, make) => {
     const later = await store.getKeyPairs(sam.id);
     const jwk = (k: CryptoKey) => crypto.subtle.exportKey("jwk", k);
     expect(await jwk(later[0]!.publicKey)).toEqual(await jwk(first[0]!.publicKey));
-    expect(await jwk(again![0]!.publicKey)).toEqual(await jwk(first[0]!.publicKey));
+    expect(await jwk(again[0]!.publicKey)).toEqual(await jwk(first[0]!.publicKey));
   });
 
   it("tracks followers and their state", async () => {

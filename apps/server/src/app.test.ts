@@ -1,24 +1,15 @@
-import { MemoryKvStore } from "@fedify/fedify";
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildApp } from "./app.ts";
-import { buildFederation } from "./federation.ts";
-import { type LocalAccount, MemoryStore } from "./store.ts";
+import { ORIGIN, testApp } from "../test/app.ts";
+import { accounts } from "./db/schema.ts";
+import type { LocalAccount } from "./store.ts";
 
-const ORIGIN = "https://pinstripe.test";
-
-let app: ReturnType<typeof buildApp>;
+const { db, store, reset, get } = testApp();
 let sam: LocalAccount;
-let store: MemoryStore;
 
 beforeEach(async () => {
-  store = new MemoryStore();
-  const federation = buildFederation({ kv: new MemoryKvStore(), origin: ORIGIN, version: "0.0.0" });
-  app = buildApp({ federation, store, domain: "pinstripe.test" });
+  await reset();
   sam = await store.createAccount({ username: "sam", displayName: "Sam Avery" });
 });
-
-const get = (path: string, accept = "application/activity+json") =>
-  app.request(new URL(path, ORIGIN), { headers: { accept } });
 
 describe("WebFinger", () => {
   it("resolves a local handle to the actor", async () => {
@@ -51,7 +42,7 @@ describe("actor", () => {
   });
 
   it("serves bots as Service", async () => {
-    sam.bot = true;
+    await db.update(accounts).set({ bot: true });
     const actor = await (await get(`/users/${sam.id}`)).json();
     expect(actor.type).toBe("Service");
   });
@@ -111,7 +102,7 @@ describe("Mastodon client API", () => {
     });
     const count = async () => (await (await get(`/api/v1/accounts/${sam.id}`, "application/json")).json()).followers_count;
     expect(await count()).toBe(1);
-    sam.settings.hideFollowerCounts = true;
+    await db.update(accounts).set({ settings: { ...sam.settings, hideFollowerCounts: true } });
     expect(await count()).toBe(0);
   });
 });

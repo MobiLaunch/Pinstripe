@@ -1,14 +1,31 @@
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAuth } from '@/auth/session';
 import { aquaText, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
+import { FormError } from '@/components/form-error';
+import { PINSTRIPE_SERVER } from '@/config';
 import { fontFamily } from '@/theme/aqua';
 
 export default function SignInScreen() {
+  const { signInWithPassword } = useAuth();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await signInWithPassword(PINSTRIPE_SERVER, login, password);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
+      setBusy(false);
+    }
+  };
 
   return (
     <Pinstripes>
@@ -19,13 +36,28 @@ export default function SignInScreen() {
             <Text style={aquaText.handle}>Short videos for the fediverse.</Text>
           </View>
           <Card style={styles.card}>
-            <Field label="Username or email" autoCapitalize="none" autoComplete="username" value={login} onChangeText={setLogin} />
-            <Field label="Password" secureTextEntry autoComplete="current-password" value={password} onChangeText={setPassword} />
-            <Text style={aquaText.link} accessibilityRole="link">Forgot password?</Text>
-            <GelButton title="Sign In" disabled={!login || !password} />
+            <FormError message={error} />
+            <Field
+              label="Username or email"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="username"
+              textContentType="username"
+              value={login}
+              onChangeText={setLogin}
+            />
+            <Field
+              label="Password"
+              secureTextEntry
+              autoComplete="current-password"
+              textContentType="password"
+              value={password}
+              onChangeText={setPassword}
+              onSubmitEditing={submit}
+            />
+            <GelButton title={busy ? 'Signing In…' : 'Sign In'} disabled={busy || !login || !password} onPress={submit} />
           </Card>
-          {/* Signs in through the user's home server via OAuth. */}
-          <GelButton tone="gray" title="Use an account on another server" />
+          <GelButton tone="gray" title="Use an account on another server" onPress={() => router.push('/other-server')} />
           <Text style={[aquaText.body, styles.center]}>
             New to Pinstripe? <Link href="/sign-up" style={aquaText.link}>Create an account</Link>
           </Text>

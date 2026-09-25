@@ -22,20 +22,20 @@ Requires Node 22+ and pnpm 10 (`corepack enable`).
 
 ```sh
 pnpm install
-pnpm test          # all packages
-pnpm typecheck
 
-# Postgres (or skip it: without DATABASE_URL the server keeps data in memory)
+# Postgres (required by the server and its tests)
 docker compose up -d
 export DATABASE_URL=postgres://pinstripe:pinstripe@localhost:5432/pinstripe
 export TEST_DATABASE_URL=postgres://pinstripe:pinstripe@localhost:5432/pinstripe_test
 
-# server on http://localhost:8000 with a seeded @sam account
-PINSTRIPE_SEED_ACCOUNT=sam pnpm dev:server
-curl -H 'accept: application/activity+json' \
-  'http://localhost:8000/.well-known/webfinger?resource=acct:sam@localhost:8000'
+pnpm test          # all packages
+pnpm typecheck
 
-# app (Expo dev server; press i / a / w)
+# server on http://localhost:8000
+pnpm dev:server
+
+# app (Expo dev server; press i / a / w). Create an account from the app,
+# or sign in with any Mastodon account via "Use an account on another server".
 pnpm dev:mobile
 ```
 

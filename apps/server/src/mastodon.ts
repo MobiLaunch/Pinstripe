@@ -3,7 +3,13 @@
  * https://docs.joinmastodon.org/entities/ so any Mastodon client (including
  * ours) can read them.
  */
+import type { Visibility } from "@pinstripe/core";
 import type { LocalAccount } from "./store.ts";
+
+/** Mastodon calls followers-only posts "private". */
+export function toMastodonVisibility(v: Visibility): "public" | "unlisted" | "private" | "direct" {
+  return v === "followers" ? "private" : v;
+}
 
 export interface MastodonAccount {
   id: string;

@@ -185,6 +185,8 @@ export function Group({ title, children }: { title?: string; children: ReactNode
 }
 
 export function Field({ label, ...rest }: TextInputProps & { label: string }) {
+  // Never capitalise or autocorrect a password.
+  const secret = rest.secureTextEntry ? { autoCapitalize: 'none' as const, autoCorrect: false } : {};
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.label}>{label}</Text>
@@ -192,6 +194,7 @@ export function Field({ label, ...rest }: TextInputProps & { label: string }) {
         accessibilityLabel={label}
         placeholderTextColor="#767676"
         style={styles.field}
+        {...secret}
         {...rest}
       />
     </View>

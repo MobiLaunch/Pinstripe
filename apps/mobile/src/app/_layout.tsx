@@ -1,17 +1,40 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as WebBrowser from 'expo-web-browser';
+
+import { AuthProvider, useAuth } from '@/auth/session';
+
+// On web, the sign-in popup lands back on this app; this hands the result to the opener.
+WebBrowser.maybeCompleteAuthSession();
+
+function RootStack() {
+  const { state } = useAuth();
+  // The saved session loads from secure storage in a few ms; render nothing until then.
+  if (state.status === 'loading') return null;
+  const signedIn = state.status === 'signedIn';
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Protected guard={signedIn}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="edit-profile" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="settings" />
+      </Stack.Protected>
+      <Stack.Protected guard={!signedIn}>
+        <Stack.Screen name="sign-in" />
+        <Stack.Screen name="sign-up" />
+        <Stack.Screen name="other-server" options={{ presentation: 'modal' }} />
+      </Stack.Protected>
+      <Stack.Screen name="oauth" />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   return (
-    <>
+    <AuthProvider>
       <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="sign-in" />
-        <Stack.Screen name="sign-up" />
-        <Stack.Screen name="edit-profile" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="settings" />
-      </Stack>
-    </>
+      <RootStack />
+    </AuthProvider>
   );
 }

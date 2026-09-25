@@ -41,12 +41,6 @@ function post(id: string, author: Account, content: string, extra: Partial<Post>
   };
 }
 
-export const me: Account = {
-  ...account('sam', 'pinstripe.social', 'Sam Avery', 'Fixing things, filming things. Short clips from the workbench.'),
-  fields: [{ name: 'Website', value: 'sam.example', verifiedAt: '2026-09-02T00:00:00Z' }],
-  counts: { posts: 128, following: 212, followers: 1045 },
-};
-
 const mira = account('mira', 'tilde.zone', 'Mira Reyes');
 const jonah = account('jonah', 'mastodon.social', 'Jonah Park');
 const ada = account('ada', 'pixelfed.social', 'Ada Okafor');

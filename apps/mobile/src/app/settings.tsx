@@ -1,8 +1,9 @@
 import { type AccountSettings, DEFAULT_SETTINGS, type Theme } from '@pinstripe/core';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View, type ViewStyle } from 'react-native';
 
+import { useAuth } from '@/auth/session';
 import { aquaText, GelButton, Group, Pinstripes, Segmented } from '@/components/aqua';
 import { Icon } from '@/components/icon';
 import { ScreenHeader } from '@/components/screen-header';
@@ -18,6 +19,7 @@ const THEMES = [
 export default function SettingsScreen() {
   // Local until the settings endpoint exists.
   const [settings, setSettings] = useState<AccountSettings>(DEFAULT_SETTINGS);
+  const { signOut } = useAuth();
   const toggle = (key: Toggle) => (value: boolean) => setSettings((s) => ({ ...s, [key]: value }));
 
   const row = (key: Toggle, title: string, sub?: string) => (
@@ -64,7 +66,7 @@ export default function SettingsScreen() {
             />
           </View>
         </Group>
-        <GelButton tone="red" title="Sign Out" style={styles.signOut} onPress={() => router.replace('/sign-in')} />
+        <GelButton tone="red" title="Sign Out" style={styles.signOut} onPress={signOut} />
         <Text style={[aquaText.handle, styles.footer]}>Pinstripe · ActivityPub</Text>
       </ScrollView>
     </Pinstripes>

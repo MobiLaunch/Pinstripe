@@ -24,8 +24,10 @@ src/
   config.ts      env → Config
   federation.ts  Fedify: actor, key pairs, followers, inbox listeners, NodeInfo
   app.ts         Hono: Fedify middleware first, then /api/v1 client routes
-  store.ts       Store interface + MemoryStore (tests, no-database dev)
-  pg-store.ts    PostgresStore
+  store.ts       Store: accounts, keys, followers
+  keys.ts        signing key generation and import
+  mastodon.ts    Mastodon API serializers
+  auth/          OAuth 2, sign-up, sessions (see below)
   db/            Drizzle schema + connection; migrations live in ../drizzle
 ```
 
@@ -40,16 +42,15 @@ src/
 
 ### Persistence
 
-With `DATABASE_URL` set, the server uses Postgres for everything: accounts,
-keys and followers through Drizzle (`PostgresStore`), and Fedify's cache and
-delivery queue through `@fedify/postgres`. Pending migrations run at
-startup. Without it, everything is in memory.
+Postgres holds everything: accounts, keys, followers and auth through
+Drizzle, and Fedify's cache and delivery queue through `@fedify/postgres`.
+`DATABASE_URL` is required; pending migrations run at startup.
 
 - Change `src/db/schema.ts`, then `pnpm --filter @pinstripe/server db:generate`
   to write a migration into `apps/server/drizzle/`. Commit both.
-- `store.test.ts` runs one contract against every `Store`; Postgres is
-  included when `TEST_DATABASE_URL` is set (CI sets it). It truncates that
-  database.
+- Tests need `TEST_DATABASE_URL` (CI provides it). They migrate it once,
+  truncate it between tests and run files one at a time, so never point it
+  at real data.
 - Local Postgres: `docker compose up -d` (creates `pinstripe` and
   `pinstripe_test`).
 
@@ -66,17 +67,66 @@ mapping layer converts from Mastodon JSON.
 Pinstripe-only features (video-first timelines, sound credits) are added as
 extra fields or extra endpoints, never by changing Mastodon's shapes.
 
+### Auth
+
+Mastodon's OAuth 2 flavour, so the app (and any Mastodon client) signs in the
+same way everywhere:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/v1/apps` | Register a client; returns `client_id`/`client_secret` once. |
+| `GET/POST /oauth/authorize` | Server-rendered sign-in + consent page. Authorization code, PKCE S256. |
+| `POST /oauth/token` | `authorization_code`, `password`, `client_credentials`. |
+| `POST /oauth/revoke` | Revoke a token (only by the app it was issued to). |
+| `POST /api/v1/accounts` | Sign up; needs an app token with `write:accounts`. |
+| `GET /api/v1/accounts/verify_credentials` | The signed-in account plus `source`. |
+
+- Passwords: scrypt (N=2^15, r=8), parameters stored with the hash so they
+  can be raised. Unknown users are checked against a dummy hash, so timing
+  doesn't reveal which usernames exist.
+- Tokens, codes and client secrets are random 256-bit values stored only as
+  SHA-256 digests. Codes live 10 minutes and are deleted on first use,
+  successful or not.
+- Scopes follow Mastodon (`read`, `write`, `follow`, `push`, `profile`, and
+  granular `read:accounts` etc.); a top-level scope covers its children.
+- 10 failed logins per username/email per 15 minutes, then that login is
+  locked out for the rest of the window. In process memory for now.
+- The authorize page never redirects to a URI the app didn't register, is
+  not frameable, and sends no scripts.
+- The API allows any origin (CORS `*`): it's bearer-token only, no cookies.
+
+**How the app signs in**
+
+- *Pinstripe account:* native form → `password` grant against
+  `EXPO_PUBLIC_PINSTRIPE_SERVER`.
+- *Sign up:* `client_credentials` app token → `POST /api/v1/accounts`.
+- *Another server:* the system browser opens that server's
+  `/oauth/authorize` (authorization code + PKCE) and returns to
+  `pinstripe://oauth`, so the app never sees that password. Works against
+  Mastodon and against Pinstripe itself.
+- The token and per-server client credentials are kept in the Keychain /
+  Keystore via expo-secure-store (localStorage on web). The last-known
+  profile is cached with the session, so the app opens instantly and
+  offline; only a 401 signs out.
+
+Not yet: email confirmation and password reset (need an email provider),
+signup rate limiting / CAPTCHA, a moderation approval mode.
+
 ## What's intentionally temporary
 
-- The mobile app renders fixtures (`src/data/fixtures.ts`) typed as core
-  models; screens swap to API calls as endpoints land.
+- Videos and Feed still render fixtures (`src/data/fixtures.ts`) typed as
+  core models; they switch to API calls with posts and timelines. Account
+  shows the real signed-in account.
+- Edit Profile and Settings edit local state only until
+  `update_credentials` and the settings endpoint exist.
+- Login lockouts live in process memory.
 
 ## Roadmap
 
 1. ~~**Persistence:** Postgres for accounts, keys, followers, Fedify KV and
    queue; migrations; docker-compose.~~ Done.
-2. **Auth:** registration, password login, OAuth 2 in Mastodon's shape so the
-   app gets tokens the same way from Pinstripe or any Mastodon server.
+2. ~~**Auth:** registration, password login, OAuth 2 in Mastodon's shape so the
+   app gets tokens the same way from Pinstripe or any Mastodon server.~~ Done.
 3. **Posts & federation out:** `/api/v1/statuses`, `Create(Note)` /
    `Create(Video)` to followers, outbox, `Like`, `Announce`, `Delete`,
    `Update(Person)`.

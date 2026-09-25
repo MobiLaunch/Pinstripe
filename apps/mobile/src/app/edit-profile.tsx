@@ -3,11 +3,12 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useAccount } from '@/auth/session';
 import { aquaText, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
 import { ScreenHeader } from '@/components/screen-header';
-import { me } from '@/data/fixtures';
 
 export default function EditProfileScreen() {
+  const me = useAccount();
   const [displayName, setDisplayName] = useState(me.displayName);
   const [bio, setBio] = useState(me.bio);
   const [fields, setFields] = useState(() => {
