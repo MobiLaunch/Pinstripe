@@ -76,3 +76,111 @@ function startOfDayUtc(date: Date): string {
   d.setUTCHours(0, 0, 0, 0);
   return d.toISOString();
 }
+
+export function fromMastodonVisibility(v: string | undefined): Visibility | null {
+  switch (v) {
+    case "public":
+    case "unlisted":
+    case "direct":
+      return v;
+    case "private":
+      return "followers";
+    default:
+      return null;
+  }
+}
+
+export interface MastodonStatus {
+  id: string;
+  uri: string;
+  url: string | null;
+  created_at: string;
+  edited_at: null;
+  account: MastodonAccount;
+  content: string;
+  /** Only in DELETE responses, for "delete and redraft". */
+  text?: string;
+  visibility: "public" | "unlisted" | "private" | "direct";
+  sensitive: boolean;
+  spoiler_text: string;
+  language: string | null;
+  in_reply_to_id: string | null;
+  in_reply_to_account_id: string | null;
+  reblog: MastodonStatus | null;
+  replies_count: number;
+  reblogs_count: number;
+  favourites_count: number;
+  favourited?: boolean;
+  reblogged?: boolean;
+  muted?: boolean;
+  bookmarked?: boolean;
+  pinned?: boolean;
+  media_attachments: [];
+  mentions: [];
+  tags: { name: string; url: string }[];
+  emojis: [];
+  card: null;
+  poll: null;
+  application: null;
+  filtered: [];
+}
+
+export interface StatusUrls {
+  /** ActivityPub id: the Note's URI, or the Announce's for a boost. */
+  uri: string;
+  url: string | null;
+  tagUrl: (tag: string) => string;
+}
+
+export function serializeStatus(
+  view: {
+    status: {
+      id: string;
+      content: string;
+      visibility: Visibility;
+      sensitive: boolean;
+      spoilerText: string;
+      language: string | null;
+      inReplyToId: string | null;
+      inReplyToAccountId: string | null;
+      tags: string[];
+      createdAt: Date;
+    };
+    counts: { replies: number; reblogs: number; favourites: number };
+    viewer: { favourited: boolean; reblogged: boolean } | null;
+  },
+  account: MastodonAccount,
+  urls: StatusUrls,
+  reblog: MastodonStatus | null,
+): MastodonStatus {
+  const { status, counts, viewer } = view;
+  return {
+    id: status.id,
+    uri: urls.uri,
+    url: urls.url,
+    created_at: status.createdAt.toISOString(),
+    edited_at: null,
+    account,
+    content: status.content,
+    visibility: toMastodonVisibility(status.visibility),
+    sensitive: status.sensitive,
+    spoiler_text: status.spoilerText,
+    language: status.language,
+    in_reply_to_id: status.inReplyToId,
+    in_reply_to_account_id: status.inReplyToAccountId,
+    reblog,
+    replies_count: counts.replies,
+    reblogs_count: counts.reblogs,
+    favourites_count: counts.favourites,
+    ...(viewer ? { favourited: viewer.favourited, reblogged: viewer.reblogged, muted: false, bookmarked: false, pinned: false } : {}),
+    media_attachments: [],
+    // Local mentions are links in `content`; structured mentions arrive with remote mentions.
+    mentions: [],
+    tags: status.tags.map((name) => ({ name, url: urls.tagUrl(name) })),
+    emojis: [],
+    card: null,
+    poll: null,
+    application: null,
+    filtered: [],
+  };
+}

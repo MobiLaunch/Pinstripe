@@ -57,6 +57,8 @@ export interface Post {
   uri: string;
   account: Account;
   content: string;
+  /** Content warning; when set, the content starts hidden. */
+  spoiler: string;
   visibility: Visibility;
   media: MediaAttachment[];
   tags: string[];

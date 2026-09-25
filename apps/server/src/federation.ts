@@ -8,6 +8,7 @@ import {
   Accept,
   Endpoints,
   Follow,
+  Note,
   PropertyValue,
   Person,
   Service,
@@ -15,11 +16,14 @@ import {
   isActor,
 } from "@fedify/vocab";
 import { Temporal } from "@js-temporal/polyfill";
+import { activityFor, noteFor } from "./statuses/activitypub.ts";
+import { DEFAULT_LIMIT, type StatusStore } from "./statuses/store.ts";
 import type { Store } from "./store.ts";
 
-/** Passed to every Fedify callback; gives them the store without globals. */
+/** Passed to every Fedify callback; gives them the stores without globals. */
 export interface ContextData {
   store: Store;
+  statuses: StatusStore;
 }
 
 export interface FederationOptions {
@@ -28,6 +32,8 @@ export interface FederationOptions {
   /** Canonical public origin, e.g. `https://pinstripe.social`. */
   origin?: string;
   version: string;
+  /** Tests only: allow delivering to localhost. Never in production (SSRF). */
+  allowPrivateAddress?: boolean;
 }
 
 export function buildFederation(options: FederationOptions): Federation<ContextData> {
@@ -35,6 +41,7 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
     kv: options.kv,
     queue: options.queue,
     origin: options.origin,
+    allowPrivateAddress: options.allowPrivateAddress,
   });
 
   federation
@@ -53,6 +60,7 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
         inbox: ctx.getInboxUri(identifier),
         endpoints: new Endpoints({ sharedInbox: ctx.getInboxUri() }),
         followers: ctx.getFollowersUri(identifier),
+        outbox: ctx.getOutboxUri(identifier),
         manuallyApprovesFollowers: account.settings.approveFollowers,
         discoverable: account.settings.listInDirectory,
         attachments: account.fields.map((f) => new PropertyValue({ name: f.name, value: f.value })),
@@ -76,6 +84,35 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
       })),
     };
   });
+
+  // Each post is fetchable at its id. Only public and unlisted ones for now:
+  // serving followers-only posts needs signed-fetch checks.
+  federation.setObjectDispatcher(Note, "/users/{identifier}/statuses/{id}", async (ctx, { identifier, id }) => {
+    const status = await ctx.data.statuses.get(id);
+    if (!status || status.accountId !== identifier || status.reblogOfId) return null;
+    if (status.visibility !== "public" && status.visibility !== "unlisted") return null;
+    const [view] = await ctx.data.statuses.hydrate([status], null);
+    return view ? noteFor(ctx, view) : null;
+  });
+
+  // Newest first; the cursor is the last id of the previous page.
+  federation
+    .setOutboxDispatcher("/users/{identifier}/outbox", async (ctx, identifier, cursor) => {
+      if (cursor === null) return null;
+      if (!(await ctx.data.store.getAccount(identifier))) return null;
+      const rows = await ctx.data.statuses.accountStatuses(
+        identifier,
+        { maxId: cursor || undefined, limit: DEFAULT_LIMIT },
+        { viewerId: null },
+      );
+      const views = await ctx.data.statuses.hydrate(rows, null);
+      return {
+        items: views.map((v) => activityFor(ctx, v)),
+        nextCursor: rows.length === DEFAULT_LIMIT ? rows.at(-1)!.id : null,
+      };
+    })
+    .setCounter((ctx, identifier) => ctx.data.statuses.countByAccount(identifier))
+    .setFirstCursor(() => "");
 
   federation
     .setInboxListeners("/users/{identifier}/inbox", "/inbox")
@@ -124,7 +161,7 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
     openRegistrations: true,
     usage: {
       users: { total: await ctx.data.store.countAccounts() },
-      localPosts: 0,
+      localPosts: await ctx.data.statuses.countAll(),
       localComments: 0,
     },
   }));

@@ -30,6 +30,13 @@ const ICONS = {
   ),
   plus: <Path d="M12 5v14M5 12h14" />,
   check: <Path d="M5 12l5 5 9-10" />,
+  trash: <Path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
+  lock: (
+    <>
+      <Rect x={5} y={11} width={14} height={10} rx={2} />
+      <Path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </>
+  ),
   chevronLeft: <Path d="M15 5l-7 7 7 7" />,
   chevronRight: <Path d="M9 5l7 7-7 7" />,
   gear: (

@@ -3,6 +3,7 @@ import { buildApp } from "../src/app.ts";
 import { FailureLimiter } from "../src/auth/rate-limit.ts";
 import { AuthStore } from "../src/auth/store.ts";
 import { buildFederation } from "../src/federation.ts";
+import { StatusStore } from "../src/statuses/store.ts";
 import { Store } from "../src/store.ts";
 import { testDb } from "./db.ts";
 
@@ -13,14 +14,17 @@ export function testApp() {
   const { db, reset: resetDb } = testDb();
   const store = new Store(db);
   const auth = new AuthStore(db);
+  const statuses = new StatusStore(db);
   const loginLimiter = new FailureLimiter(3, 60_000);
   const reset = async () => {
     await resetDb();
     loginLimiter.clear();
   };
   // Fedify's cache can stay in memory in tests; nothing reads it across runs.
-  const federation = buildFederation({ kv: new MemoryKvStore(), origin: ORIGIN, version: "0.0.0" });
-  const app = buildApp({ federation, store, auth, domain: "pinstripe.test", loginLimiter });
+  // No queue: deliveries happen inline, so tests can observe them. Private
+  // addresses are allowed so a local server can stand in for a remote inbox.
+  const federation = buildFederation({ kv: new MemoryKvStore(), origin: ORIGIN, version: "0.0.0", allowPrivateAddress: true });
+  const app = buildApp({ federation, store, statuses, auth, domain: "pinstripe.test", loginLimiter });
 
   const request = (path: string, init: RequestInit = {}) => app.request(new URL(path, ORIGIN), init);
   const get = (path: string, accept = "application/activity+json", headers: Record<string, string> = {}) =>
@@ -30,5 +34,15 @@ export function testApp() {
   const postForm = (path: string, body: Record<string, string>, headers: Record<string, string> = {}) =>
     request(path, { method: "POST", headers, body: new URLSearchParams(body) });
 
-  return { app, db, store, auth, reset, request, get, postJson, postForm };
+  /** A local user with a full-scope token, created directly (faster than the HTTP flow). */
+  async function signedInUser(username: string, scopes = ["read", "write", "follow"]) {
+    const account = await auth.registerUser({ username, email: `${username}@example.com`, password: "correct horse", locale: null });
+    const { app: client } = await auth.createApp({ name: "Test", website: null, redirectUris: ["pinstripe://oauth"], scopes });
+    const { token } = await auth.createToken({ appId: client.id, accountId: account.id, scopes });
+    return { account, token, headers: { authorization: `Bearer ${token}` } };
+  }
+
+  const del = (path: string, headers: Record<string, string> = {}) => request(path, { method: "DELETE", headers });
+
+  return { app, db, store, statuses, auth, reset, signedInUser, del, request, get, postJson, postForm };
 }

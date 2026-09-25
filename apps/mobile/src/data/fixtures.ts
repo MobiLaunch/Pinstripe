@@ -1,6 +1,6 @@
 /**
- * Demo content from the design canvas, typed against @pinstripe/core so the
- * screens are ready for real API data. Replace with API calls as endpoints land.
+ * Demo video from the design canvas, for the Videos tab until video upload
+ * exists. Typed against @pinstripe/core like real API data.
  */
 import type { Account, Post } from '@pinstripe/core';
 
@@ -29,6 +29,7 @@ function post(id: string, author: Account, content: string, extra: Partial<Post>
     uri: `${author.uri}/posts/${id}`,
     account: author,
     content,
+    spoiler: '',
     visibility: 'public',
     media: [],
     tags: [],
@@ -42,9 +43,6 @@ function post(id: string, author: Account, content: string, extra: Partial<Post>
 }
 
 const mira = account('mira', 'tilde.zone', 'Mira Reyes');
-const jonah = account('jonah', 'mastodon.social', 'Jonah Park');
-const ada = account('ada', 'pixelfed.social', 'Ada Okafor');
-const news = account('news', 'pinstripe.social', 'Pinstripe');
 
 export const videos: Post[] = [
   post('v1', mira, 'Brought a 2003 iBook G4 back to life this weekend. That Aqua boot screen still gets me.', {
@@ -63,20 +61,5 @@ export const videos: Post[] = [
       },
     ],
     counts: { replies: 318, boosts: 96, favourites: 2418 },
-  }),
-];
-
-export const feed: Post[] = [
-  post('a', jonah, 'Anyone else keep a shelf of old PowerBooks just because they look incredible? Asking for a friend. The friend is me.', {
-    counts: { replies: 12, boosts: 4, favourites: 38 },
-  }),
-  post('b', ada, 'Golden hour on the lake. Shot on a 2006 point-and-shoot, zero edits.', {
-    media: [
-      { id: 'm2', kind: 'image', url: '', previewUrl: null, width: null, height: null, duration: null, description: 'A lake at golden hour', blurhash: null },
-    ],
-    counts: { replies: 5, boosts: 21, favourites: 140 },
-  }),
-  post('c', news, 'Welcome aboard. Everything you post here federates to Mastodon, Pixelfed, Misskey and anything else that speaks ActivityPub.', {
-    counts: { replies: 31, boosts: 88, favourites: 402 },
   }),
 ];

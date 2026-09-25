@@ -9,11 +9,14 @@ import { authRoutes } from "./auth/routes.ts";
 import type { AuthStore } from "./auth/store.ts";
 import type { ContextData } from "./federation.ts";
 import { serializeAccount } from "./mastodon.ts";
+import { statusRoutes } from "./statuses/routes.ts";
+import type { StatusStore } from "./statuses/store.ts";
 import type { LocalAccount, Store } from "./store.ts";
 
 export interface AppOptions {
   federation: Federation<ContextData>;
   store: Store;
+  statuses: StatusStore;
   auth: AuthStore;
   domain: string;
   loginLimiter?: FailureLimiter;
@@ -24,19 +27,24 @@ export interface AppOptions {
  * requests first; everything else falls through to OAuth and the
  * Mastodon-compatible client API.
  */
-export function buildApp({ federation, store, auth, domain, loginLimiter }: AppOptions) {
+export function buildApp({ federation, store, statuses, auth, domain, loginLimiter }: AppOptions) {
   const app = new Hono<AuthEnv>();
 
-  app.use(federationMiddleware(federation, () => ({ store })));
+  const contextData = { store, statuses };
+  app.use(federationMiddleware(federation, () => contextData));
+  const federationContext = (c: Context) => federation.createContext(c.req.raw, contextData);
 
   app.get("/health", (c) => c.json({ ok: true }));
 
   const notFound = (c: Context) => c.json({ error: "Record not found" }, 404);
 
   async function renderAccount(c: Context, account: LocalAccount) {
-    const ctx = federation.createContext(c.req.raw, { store });
+    const ctx = federationContext(c);
     const origin = ctx.canonicalOrigin;
-    const followers = await store.listFollowers(account.id, "accepted");
+    const [followers, statusCount] = await Promise.all([
+      store.listFollowers(account.id, "accepted"),
+      statuses.countByAccount(account.id),
+    ]);
     return serializeAccount(
       account,
       {
@@ -46,7 +54,7 @@ export function buildApp({ federation, store, auth, domain, loginLimiter }: AppO
         missingAvatar: new URL("/avatars/original/missing.png", origin),
         missingHeader: new URL("/headers/original/missing.png", origin),
       },
-      { followers: followers.length, following: 0, statuses: 0 },
+      { followers: followers.length, following: 0, statuses: statusCount },
     );
   }
 
@@ -59,6 +67,7 @@ export function buildApp({ federation, store, auth, domain, loginLimiter }: AppO
   app.use("/api/*", bearerAuth(auth));
   // Registered before /api/v1/accounts/:id so verify_credentials isn't read as an id.
   app.route("/", authRoutes({ auth, store, renderAccount, loginLimiter }));
+  app.route("/", statusRoutes({ store, statuses, domain, renderAccount, federationContext }));
 
   app.get("/api/v1/accounts/lookup", async (c) => {
     const handle = parseHandle(c.req.query("acct") ?? "", domain);

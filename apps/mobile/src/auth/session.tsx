@@ -24,6 +24,8 @@ interface Auth {
   signInWithBrowser(server: string): Promise<void>;
   signUp(server: string, input: { username: string; email: string; password: string; locale: string }): Promise<void>;
   signOut(): Promise<void>;
+  /** Re-reads the signed-in profile (counts, bio) from the server. */
+  refreshAccount(): Promise<void>;
 }
 
 const SESSION_KEY = 'pinstripe.session';
@@ -65,6 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         activate(server, await oauth.passwordSignIn(server, login, password)),
       signInWithBrowser: async (server) => activate(server, await oauth.browserSignIn(server)),
       signUp: async (server, input) => activate(server, await oauth.signUp(server, input)),
+      refreshAccount: async () => {
+        if (state.status !== 'signedIn') return;
+        await activate(state.server, state.token).catch(() => {});
+      },
       signOut: async () => {
         if (state.status === 'signedIn') {
           // Best effort: the token is forgotten locally either way.

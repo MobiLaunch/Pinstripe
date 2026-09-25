@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import {
   Pressable,
   type PressableProps,
+  type StyleProp,
   StyleSheet,
   Text,
   TextInput,
@@ -139,7 +140,7 @@ export function Segmented<T extends string>({
   options: readonly { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }) {
   return (
     <View style={[styles.seg, style]} accessibilityRole="tablist">

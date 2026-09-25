@@ -131,6 +131,15 @@ export class Store {
       .where(and(eq(followers.accountId, accountId), eq(followers.actorUri, actorUri)));
   }
 
+  async hasAcceptedFollowers(accountId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: followers.accountId })
+      .from(followers)
+      .where(and(eq(followers.accountId, accountId), eq(followers.state, "accepted")))
+      .limit(1);
+    return !!row;
+  }
+
   async listFollowers(accountId: string, state?: FollowState): Promise<RemoteFollower[]> {
     const where = state
       ? and(eq(followers.accountId, accountId), eq(followers.state, state))

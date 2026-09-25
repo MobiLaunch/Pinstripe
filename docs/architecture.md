@@ -27,7 +27,9 @@ src/
   store.ts       Store: accounts, keys, followers
   keys.ts        signing key generation and import
   mastodon.ts    Mastodon API serializers
+  ids.ts         UUIDv7 (time-ordered ids for posts)
   auth/          OAuth 2, sign-up, sessions (see below)
+  statuses/      posting, timelines, and their ActivityPub side (see below)
   db/            Drizzle schema + connection; migrations live in ../drizzle
 ```
 
@@ -112,11 +114,45 @@ same way everywhere:
 Not yet: email confirmation and password reset (need an email provider),
 signup rate limiting / CAPTCHA, a moderation approval mode.
 
+### Posts
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/v1/statuses` | Post (500 characters; emoji count as one). |
+| `GET / DELETE /api/v1/statuses/:id` | Read; delete returns `text` for redrafting. |
+| `POST /api/v1/statuses/:id/{favourite,unfavourite,reblog,unreblog}` | |
+| `GET /api/v1/accounts/:id/statuses` | A profile's posts and boosts. |
+| `GET /api/v1/timelines/home` | Your posts and boosts (followed accounts join once following exists). |
+| `GET /api/v1/timelines/public` | Public posts; `?local=true` for Local. No boosts. |
+
+- Post ids are UUIDv7, so id order is time order and `max_id` / `min_id` /
+  `since_id` paging and the `Link` header work as Mastodon clients expect.
+- Text is escaped, then URLs, `#hashtags` and local `@mentions` become links
+  (`statuses/content.ts`). Remote mentions need a WebFinger lookup and come
+  with inbound federation.
+- Visibility: public and unlisted posts are visible to anyone;
+  followers-only and direct posts only to their author until following and
+  mention delivery exist.
+- Boosts are status rows pointing at the original (`reblog_of_id`), one per
+  account. Deleting a post deletes its boosts and favourites.
+- ActivityPub: each public/unlisted post is a `Note` at
+  `/users/{id}/statuses/{id}`; the actor links an outbox of `Create` and
+  `Announce` activities. Posting, boosting, unboosting and deleting send
+  `Create`, `Announce`, `Undo` and `Delete` to accepted followers through
+  Fedify's queue, signed with the author's key. Nothing is sent for direct
+  posts or for accounts with no followers.
+
+In the app, `usePostList` backs every list (Feed timelines, Account tabs)
+with paging, pull-to-refresh and optimistic favourites/boosts. Changes are
+broadcast to every mounted list, because the swipeable tabs stay mounted
+and would otherwise show stale copies.
+
 ## What's intentionally temporary
 
-- Videos and Feed still render fixtures (`src/data/fixtures.ts`) typed as
-  core models; they switch to API calls with posts and timelines. Account
-  shows the real signed-in account.
+- The Videos tab still renders a fixture (`src/data/fixtures.ts`) until
+  video upload exists. Feed and Account use the API.
+- Replying: the API supports `in_reply_to_id`, but the app has no reply
+  composer or thread view yet.
 - Edit Profile and Settings edit local state only until
   `update_credentials` and the settings endpoint exist.
 - Login lockouts live in process memory.
@@ -127,11 +163,13 @@ signup rate limiting / CAPTCHA, a moderation approval mode.
    queue; migrations; docker-compose.~~ Done.
 2. ~~**Auth:** registration, password login, OAuth 2 in Mastodon's shape so the
    app gets tokens the same way from Pinstripe or any Mastodon server.~~ Done.
-3. **Posts & federation out:** `/api/v1/statuses`, `Create(Note)` /
-   `Create(Video)` to followers, outbox, `Like`, `Announce`, `Delete`,
-   `Update(Person)`.
-4. **Inbound content:** store remote posts from followed actors; Home / Local /
-   Federated timelines.
+3. ~~**Posts & federation out:** `/api/v1/statuses`, `Create(Note)` to
+   followers, outbox, `Announce`, `Delete`.~~ Done. Still to do here:
+   `Update(Person)` on profile edits, and `Like` to remote authors.
+4. **Following & inbound content:** follow local and remote accounts
+   (`Follow` out, `Accept` in), store remote posts from followed actors,
+   fill Home and Federated with them, deliver followers-only posts and
+   mentions, reply composer and threads.
 5. **Video pipeline:** `/api/v2/media` upload enforcing the limits, transcode
    (ffmpeg → HLS), thumbnails, blurhash, object storage + CDN; player in the
    Videos tab (expo-video).
