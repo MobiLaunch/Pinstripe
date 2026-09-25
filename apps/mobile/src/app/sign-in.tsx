@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/auth/session';
 import { aquaText, GelButton, Pinstripes, TableField } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
+import { showHud } from '@/components/hud';
 import { PINSTRIPE_SERVER } from '@/config';
 import { fontFamily } from '@/theme/aqua';
 
@@ -19,9 +20,12 @@ export default function SignInScreen() {
   const submit = async () => {
     setBusy(true);
     setError(null);
+    const hud = showHud('Signing In…');
     try {
       await signInWithPassword(PINSTRIPE_SERVER, login, password);
+      hud.hide();
     } catch (e) {
+      hud.hide();
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
       setBusy(false);
     }

@@ -1,13 +1,13 @@
 import { POST_MAX_LENGTH, type Post } from '@pinstripe/core';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { type MastodonClient, toMastodonVisibility, toPost } from '@/api/mastodon';
 import { useAccount, useAuth } from '@/auth/session';
 import { Pinstripes } from '@/components/aqua';
-import { BarButton, Toolbar } from '@/components/ios6';
+import { BarButton, Spinner, Toolbar } from '@/components/ios6';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { PostCard } from '@/components/post-card';
@@ -45,7 +45,7 @@ export default function ThreadScreen() {
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             list.loading ? (
-              <ActivityIndicator style={styles.state} />
+              <Spinner style={styles.state} />
             ) : (
               <View style={styles.state}>
                 <FormError message={list.error ?? 'This post isn’t available.'} />

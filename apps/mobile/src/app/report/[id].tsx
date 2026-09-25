@@ -1,14 +1,14 @@
 import { type Account, formatHandle, type Post } from '@pinstripe/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { type ReportCategory, toAccount, toPost } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
 import { AquaSwitch, aquaText, Card, GelButton, Segmented } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
-import { BarButton, TableBackground } from '@/components/ios6';
+import { BarButton, Spinner, TableBackground } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
 import { PINSTRIPE_DOMAIN } from '@/config';
 import { colors, fontFamily } from '@/theme/aqua';
@@ -108,7 +108,7 @@ export default function ReportScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <FormError message={error} />
         {!account ? (
-          error ? null : <ActivityIndicator />
+          error ? null : <Spinner />
         ) : (
           <>
             <Text style={aquaText.body}>
@@ -121,7 +121,7 @@ export default function ReportScreen() {
 
             <Text style={[aquaText.body, styles.bold]}>Which posts? (optional)</Text>
             {posts === null ? (
-              <ActivityIndicator />
+              <Spinner />
             ) : posts.length === 0 ? (
               <Text style={aquaText.handle}>No recent posts.</Text>
             ) : (

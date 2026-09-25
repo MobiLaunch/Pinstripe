@@ -4,6 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 
 import { AuthProvider, useAuth } from '@/auth/session';
 import { DialogHost } from '@/components/dialog';
+import { HudHost } from '@/components/hud';
 import { usePushNotifications } from '@/push/push';
 import { ThemeProvider } from '@/theme/theme';
 
@@ -61,6 +62,7 @@ export default function RootLayout() {
         <PushNotifications />
         <RootStack />
         <DialogHost />
+        <HudHost />
       </ThemeProvider>
     </AuthProvider>
   );

@@ -9,6 +9,7 @@ import { checkPicked, type Picked, updateProfileImages } from '@/api/upload';
 import { useAccount, useAuth, useSource } from '@/auth/session';
 import { AquaSwitch, Avatar, TableField } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
+import { showHud } from '@/components/hud';
 import { initials } from '@/components/initials';
 import { BarButton, TableBackground, TableGroup, TableRow } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
@@ -56,6 +57,7 @@ export default function EditProfileScreen() {
     if (state.status !== 'signedIn') return;
     setSaving(true);
     setError(null);
+    const hud = showHud('Saving…');
     try {
       if (images.avatar || images.header) await updateProfileImages(state.client, state.token, images);
       const json = await state.client.updateCredentials({
@@ -66,10 +68,12 @@ export default function EditProfileScreen() {
         fields_attributes: fields.filter((f) => f.name.trim() || f.value.trim()),
       });
       await applyCredentials(json);
+      hud.done('Saved');
       // Opened directly (a link, a reload) there's nothing to go back to.
       if (router.canGoBack()) router.back();
       else router.replace('/account');
     } catch (e) {
+      hud.hide();
       setError(e instanceof Error ? e.message : 'Couldn’t save your profile.');
       setSaving(false);
     }
@@ -96,7 +100,7 @@ export default function EditProfileScreen() {
           </View>
           {/* The Contacts photo well: a white-framed picture on the page. */}
           <View style={styles.photoWell}>
-            <Avatar initials={initials(displayName || me.username)} size={74} uri={images.avatar?.uri ?? me.avatarUrl} />
+            <Avatar framed initials={initials(displayName || me.username)} size={74} uri={images.avatar?.uri ?? me.avatarUrl} />
           </View>
         </View>
         <TableGroup footer="Photo: square, at least 400 × 400. Banner: 1500 × 500.">
@@ -150,17 +154,7 @@ const styles = StyleSheet.create({
   photos: { marginHorizontal: 10, marginTop: 14, marginBottom: 22 },
   banner: { height: 110, borderRadius: 10, overflow: 'hidden', backgroundColor: '#9fb3cc', borderWidth: 1, borderColor: '#8a95a3' },
   fill: { width: '100%', height: '100%' },
-  photoWell: {
-    position: 'absolute',
-    left: 14,
-    bottom: -26,
-    padding: 3,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#a6adb6',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.35)',
-  },
+  photoWell: { position: 'absolute', left: 14, bottom: -26 },
   pair: { flexDirection: 'row', minHeight: 44 },
   pairLabel: {
     width: 96,

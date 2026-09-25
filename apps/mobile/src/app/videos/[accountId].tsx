@@ -1,11 +1,12 @@
 import { isVideoPost } from '@pinstripe/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, View, type ViewToken } from 'react-native';
+import { FlatList, StyleSheet, View, type ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Orb } from '@/components/aqua';
 import { Icon } from '@/components/icon';
+import { Spinner } from '@/components/ios6';
 import { usePlaybackPreferences, VideoPage } from '@/components/video-page';
 import { usePostList } from '@/hooks/use-post-list';
 import { colors } from '@/theme/aqua';
@@ -61,7 +62,7 @@ export default function AccountVideosScreen() {
         />
       ) : (
         <View style={styles.center}>
-          <ActivityIndicator color="#fff" />
+          <Spinner color="#fff" />
         </View>
       )}
       <View style={[styles.back, { top: insets.top + 12 }]}>

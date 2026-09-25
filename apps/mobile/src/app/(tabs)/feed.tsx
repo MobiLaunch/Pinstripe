@@ -3,19 +3,20 @@ import { Link } from 'expo-router';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { type MastodonMedia, type TimelineKind, toMastodonVisibility, toPost } from '@/api/mastodon';
 import { checkPicked, uploadMedia } from '@/api/upload';
 import { useAccount, useAuth, useSource } from '@/auth/session';
 import { aquaText, Avatar, Card, GelButton, Pinstripes, Segmented } from '@/components/aqua';
-import { Badge, BarButton, NavBar } from '@/components/ios6';
+import { Badge, BarButton, NavBar, Spinner } from '@/components/ios6';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
 import { PostCard } from '@/components/post-card';
 import { ProgressBar } from '@/components/progress-bar';
+import { usePullToRefresh } from '@/components/pull-refresh';
 import { publishPostEvent, usePostList } from '@/hooks/use-post-list';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { colors, fontFamily } from '@/theme/aqua';
@@ -50,6 +51,8 @@ export default function FeedScreen() {
     }
   };
 
+  const pull = usePullToRefresh(list.refresh, list.refreshing && !list.loading);
+
   return (
     <Pinstripes>
       <NavBar
@@ -66,13 +69,18 @@ export default function FeedScreen() {
         data={list.posts}
         keyExtractor={(p) => p.id}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={list.refreshing && !list.loading} onRefresh={list.refresh} />}
+        {...pull.listProps}
         onEndReached={list.loadMore}
         onEndReachedThreshold={0.5}
-        ListHeaderComponent={<Composer />}
+        ListHeaderComponent={
+          <>
+            {pull.header}
+            <Composer />
+          </>
+        }
         ListEmptyComponent={
           list.loading ? (
-            <ActivityIndicator style={styles.state} />
+            <Spinner style={styles.state} />
           ) : list.error ? (
             <View style={styles.state}>
               <FormError message={list.error} />

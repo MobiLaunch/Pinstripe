@@ -1,15 +1,16 @@
-import { type Account, formatHandle } from '@pinstripe/core';
-import { router, useLocalSearchParams } from 'expo-router';
+import type { Account } from '@pinstripe/core';
+import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text } from 'react-native';
 
 import { toAccount } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
-import { aquaText, Avatar, Card, GelButton } from '@/components/aqua';
+import { AccountCell } from '@/components/account-cell';
+import { GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
-import { initials } from '@/components/initials';
-import { TableBackground } from '@/components/ios6';
+import { Spinner, TableBackground, TableEmpty } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
+import { fontFamily } from '@/theme/aqua';
 
 /** Accounts you've muted or blocked, each with a way to undo it. */
 export default function BlockedAccountsScreen() {
@@ -57,28 +58,24 @@ export default function BlockedAccountsScreen() {
         ListHeaderComponent={<FormError message={error} />}
         ListEmptyComponent={
           accounts === null ? (
-            error ? null : <ActivityIndicator style={styles.empty} />
+            error ? null : <Spinner style={styles.empty} />
           ) : (
-            <Text style={[aquaText.handle, styles.empty]}>
-              {kind === 'mutes' ? 'You haven’t muted anyone.' : 'You haven’t blocked anyone.'}
-            </Text>
+            <TableEmpty title={kind === 'mutes' ? 'No Muted Accounts' : 'No Blocked Accounts'} />
           )
         }
-        renderItem={({ item }) => (
-          <Card style={styles.row}>
-            <Pressable accessibilityRole="link" style={styles.who} onPress={() => router.push(`/profile/${item.id}`)}>
-              <Avatar initials={initials(item.displayName)} uri={item.avatarUrl} />
-              <View style={styles.flex}>
-                <Text style={[aquaText.body, styles.bold]} numberOfLines={1}>
-                  {item.displayName}
-                </Text>
-                <Text style={aquaText.handle} numberOfLines={1}>
-                  {formatHandle(item)}
-                </Text>
-              </View>
-            </Pressable>
-            <GelButton tone="gray" small title={verb} accessibilityLabel={`${verb} ${item.displayName}`} onPress={() => undo(item)} />
-          </Card>
+        ListFooterComponent={
+          accounts?.length ? (
+            <Text style={styles.footer}>
+              {kind === 'mutes'
+                ? 'Muted people can still see and follow you; you just don’t see them.'
+                : 'Blocked people can’t follow you or see your posts, and you won’t see theirs.'}
+            </Text>
+          ) : null
+        }
+        renderItem={({ item, index }) => (
+          <AccountCell account={item} first={index === 0} last={index === (accounts?.length ?? 0) - 1}>
+            <GelButton tone="gray" small rect title={verb} accessibilityLabel={`${verb} ${item.displayName}`} onPress={() => undo(item)} />
+          </AccountCell>
         )}
       />
     </TableBackground>
@@ -86,10 +83,17 @@ export default function BlockedAccountsScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { padding: 12, gap: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  who: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  flex: { flex: 1, minWidth: 0 },
-  bold: { fontWeight: '700' },
-  empty: { textAlign: 'center', marginTop: 24 },
+  list: { paddingTop: 18, paddingBottom: 24 },
+  empty: { marginTop: 24 },
+  footer: {
+    fontFamily,
+    fontSize: 15,
+    color: '#4c566c',
+    textAlign: 'center',
+    marginTop: 10,
+    marginHorizontal: 24,
+    textShadowColor: '#ffffff',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 0,
+  },
 });

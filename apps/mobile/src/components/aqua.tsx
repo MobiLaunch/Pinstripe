@@ -179,19 +179,38 @@ export function Segmented<T extends string>({
   );
 }
 
-export function Avatar({ initials, size = 40, uri }: { initials: string; size?: number; uri?: string | null }) {
+/**
+ * A profile picture in the iOS 6 photo well: a rounded square with a fine
+ * dark rim, a soft drop shadow and a touch of glass across the top. Big ones
+ * can be `framed` in a white mount, as on a Contacts card.
+ */
+export function Avatar({ initials, size = 40, uri, framed = false }: { initials: string; size?: number; uri?: string | null; framed?: boolean }) {
   const accent = useAccent();
+  const radius = Math.max(4, Math.round(size * 0.14));
+  if (framed) {
+    return (
+      <View style={[styles.avatarFrame, { borderRadius: radius + 4 }]} accessibilityElementsHidden>
+        <Avatar initials={initials} size={size} uri={uri} />
+      </View>
+    );
+  }
   return (
-    <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, borderColor: accent.bannerEdge }]} accessibilityElementsHidden>
-      <Fill gradient={accent.avatar} />
-      {uri ? (
-        <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
-      ) : (
-        <Text style={[styles.avatarText, { fontSize: size * 0.34 }]}>{initials}</Text>
-      )}
+    <View style={[styles.avatar, { width: size, height: size, borderRadius: radius }]} accessibilityElementsHidden>
+      <View style={[styles.avatarClip, { borderRadius: radius }]}>
+        <Fill gradient={accent.avatar} />
+        {uri ? (
+          <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+        ) : (
+          <Text style={[styles.avatarText, { fontSize: size * 0.34 }]}>{initials}</Text>
+        )}
+        <Fill gradient={AVATAR_GLASS} style={{ bottom: '50%' }} />
+      </View>
+      <View style={[styles.avatarRim, { borderRadius: radius }]} pointerEvents="none" />
     </View>
   );
 }
+
+const AVATAR_GLASS: Gradient = { colors: ['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.06)'], locations: [0, 1] };
 
 /** The iOS 6 ON/OFF switch (see ios6.tsx). */
 export function AquaSwitch(props: { value: boolean; onValueChange?: (value: boolean) => void; disabled?: boolean; accessibilityLabel?: string }) {
@@ -309,12 +328,10 @@ const styles = StyleSheet.create({
   segItemBar: { minHeight: 30 },
   segBarPressed: { ...StyleSheet.absoluteFill, boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.75)' },
   segTextBar: { fontSize: 12, textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: -1 }, textShadowRadius: 0 },
-  avatar: {
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
+  avatarFrame: { padding: 4, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#a6adb6', boxShadow: '0 2px 4px rgba(0,0,0,0.35)' },
+  avatar: { backgroundColor: '#ffffff', boxShadow: '0 1px 2px rgba(0,0,0,0.45)' },
+  avatarClip: { ...StyleSheet.absoluteFill, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  avatarRim: { ...StyleSheet.absoluteFill, borderWidth: 1, borderColor: 'rgba(0,0,0,0.35)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)' },
   avatarText: { fontFamily, color: '#ffffff', fontWeight: '700' },
   // An iOS 6 grouped-table cell: white, rounded, a fine grey rim and a white
   // highlight underneath.

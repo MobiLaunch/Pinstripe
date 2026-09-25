@@ -1,12 +1,14 @@
 import type { Post } from '@pinstripe/core';
 import { useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { useAccount } from '@/auth/session';
 import { aquaText, GelButton, Pinstripes } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
+import { Spinner } from '@/components/ios6';
 import { PostCard } from '@/components/post-card';
+import { usePullToRefresh } from '@/components/pull-refresh';
 import { ScreenHeader } from '@/components/screen-header';
 import { usePostList } from '@/hooks/use-post-list';
 
@@ -22,6 +24,8 @@ export default function TagScreen() {
     if (await confirm('Delete post?', 'This removes it here and asks other servers to remove it too.', 'Delete')) await list.remove(post);
   };
 
+  const pull = usePullToRefresh(list.refresh, list.refreshing && !list.loading);
+
   return (
     <Pinstripes>
       <ScreenHeader title={`#${name}`} back="Back" />
@@ -29,12 +33,13 @@ export default function TagScreen() {
         data={list.posts}
         keyExtractor={(p) => p.id}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={list.refreshing && !list.loading} onRefresh={list.refresh} />}
+        {...pull.listProps}
+        ListHeaderComponent={<>{pull.header}</>}
         onEndReached={list.loadMore}
         onEndReachedThreshold={0.5}
         ListEmptyComponent={
           list.loading ? (
-            <ActivityIndicator style={styles.empty} />
+            <Spinner style={styles.empty} />
           ) : list.error ? (
             <View style={styles.empty}>
               <FormError message={list.error} />

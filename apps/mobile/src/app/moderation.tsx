@@ -1,17 +1,19 @@
 import { formatHandle } from '@pinstripe/core';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { type MastodonAdminReport, type MastodonClient, type MastodonServerBlock, toAccount, toPost } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
-import { aquaText, Avatar, Card, Field, GelButton, Segmented } from '@/components/aqua';
+import { aquaText, Avatar, Card, GelButton, Segmented, TableField } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { initials } from '@/components/initials';
+import { Spinner, TableBackground, TableCell, TableEmpty, TableGroup, TableTitle } from '@/components/ios6';
+import { usePullToRefresh } from '@/components/pull-refresh';
 import { relativeTime } from '@/components/relative-time';
-import { TableBackground } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
+import { fontFamily } from '@/theme/aqua';
 
 const VIEWS = [
   { value: 'open', label: 'Open' },
@@ -31,10 +33,9 @@ export default function ModerationScreen() {
   const [pane, setPane] = useState<(typeof PANES)[number]['value']>('reports');
   return (
     <TableBackground>
-      <ScreenHeader title="Moderation" back="Back" />
-      <View style={styles.tabs}>
-        <Segmented options={PANES} value={pane} onChange={setPane} />
-      </View>
+      <ScreenHeader title="Moderation" back="Back">
+        <Segmented variant="bar" options={PANES} value={pane} onChange={setPane} />
+      </ScreenHeader>
       {pane === 'reports' ? <ReportsPane /> : pane === 'servers' ? <ServersPane /> : <LogPane />}
     </TableBackground>
   );
@@ -53,7 +54,6 @@ function ReportsPane() {
   const server = state.status === 'signedIn' ? state.server : '';
   const [view, setView] = useState<(typeof VIEWS)[number]['value']>('open');
   const [reports, setReports] = useState<MastodonAdminReport[] | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -77,6 +77,8 @@ function ReportsPane() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const pull = usePullToRefresh(load);
 
   const act = async (work: () => Promise<unknown>) => {
     try {
@@ -107,22 +109,18 @@ function ReportsPane() {
         data={reports ?? []}
         keyExtractor={(r) => r.id}
         contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={async () => {
-              setRefreshing(true);
-              await load();
-              setRefreshing(false);
-            }}
-          />
+        {...pull.listProps}
+        ListHeaderComponent={
+          <>
+            {pull.header}
+            <FormError message={error} />
+          </>
         }
-        ListHeaderComponent={<FormError message={error} />}
         ListEmptyComponent={
           reports === null ? (
-            <ActivityIndicator style={styles.empty} />
+            <Spinner style={styles.empty} />
           ) : error ? null : (
-            <Text style={[aquaText.handle, styles.empty]}>{view === 'open' ? 'Nothing to review.' : 'No resolved reports yet.'}</Text>
+            <TableEmpty title={view === 'open' ? 'Nothing to Review' : 'No Resolved Reports'} />
           )
         }
         renderItem={({ item }) => {
@@ -244,31 +242,43 @@ function ServersPane() {
     <FlatList
       data={blocks ?? []}
       keyExtractor={(b) => b.id}
-      contentContainerStyle={styles.list}
+      contentContainerStyle={styles.tableList}
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={
-        <View style={styles.header}>
+        <View>
           <FormError message={error} />
-          <Card style={styles.card}>
-            <Field label="Server" placeholder="spam.example" autoCapitalize="none" autoCorrect={false} keyboardType="url" value={domain} onChangeText={setDomain} />
-            <Segmented options={SEVERITIES} value={severity} onChange={setSeverity} />
-            <Field label="Reason (shown publicly)" value={reason} onChangeText={setReason} />
-            <GelButton small tone={severity === 'suspend' ? 'red' : 'blue'} title={busy ? 'Saving…' : 'Block Server'} disabled={busy || !domain.trim()} onPress={add} />
-          </Card>
+          <TableGroup
+            title="Block a Server"
+            footer={severity === 'suspend' ? 'Nothing from there reaches anyone here.' : 'Its accounts are only seen by people here who already follow them.'}>
+            <TableField label="Server" placeholder="spam.example" autoCapitalize="none" autoCorrect={false} keyboardType="url" value={domain} onChangeText={setDomain} />
+            <TableField label="Reason" accessibilityLabel="Reason (shown publicly)" placeholder="Shown publicly" value={reason} onChangeText={setReason} />
+            <View style={styles.severity}>
+              <Segmented options={SEVERITIES} value={severity} onChange={setSeverity} />
+            </View>
+          </TableGroup>
+          <GelButton
+            rect
+            tone={severity === 'suspend' ? 'red' : 'blue'}
+            title={busy ? 'Saving…' : 'Block Server'}
+            disabled={busy || !domain.trim()}
+            onPress={add}
+            style={styles.button}
+          />
+          {blocks?.length ? <TableTitle title="Blocked Servers" /> : null}
         </View>
       }
-      ListEmptyComponent={blocks === null ? <ActivityIndicator style={styles.empty} /> : <Text style={[aquaText.handle, styles.empty]}>No servers blocked.</Text>}
-      renderItem={({ item }) => (
-        <Card style={styles.serverRow}>
+      ListEmptyComponent={blocks === null ? <Spinner style={styles.empty} /> : <TableEmpty title="No Servers Blocked" />}
+      renderItem={({ item, index }) => (
+        <TableCell first={index === 0} last={index === (blocks?.length ?? 0) - 1} style={styles.serverRow}>
           <View style={styles.flex}>
-            <Text style={[aquaText.body, styles.bold]}>{item.domain}</Text>
-            <Text style={aquaText.handle}>
+            <Text style={styles.cellTitle}>{item.domain}</Text>
+            <Text style={styles.cellSub}>
               {item.severity === 'suspend' ? 'Suspended' : 'Limited'} · {relativeTime(item.created_at)}
               {item.public_comment ? ` · ${item.public_comment}` : ''}
             </Text>
           </View>
-          <GelButton tone="gray" small title="Unblock" accessibilityLabel={`Unblock ${item.domain}`} onPress={() => remove(item)} />
-        </Card>
+          <GelButton tone="gray" small rect title="Unblock" accessibilityLabel={`Unblock ${item.domain}`} onPress={() => remove(item)} />
+        </TableCell>
       )}
     />
   );
@@ -307,34 +317,39 @@ function LogPane() {
     <FlatList
       data={entries ?? []}
       keyExtractor={(e) => e.id}
-      contentContainerStyle={styles.list}
+      contentContainerStyle={styles.tableList}
       ListHeaderComponent={<FormError message={error} />}
-      ListEmptyComponent={entries === null ? <ActivityIndicator style={styles.empty} /> : <Text style={[aquaText.handle, styles.empty]}>Nothing yet.</Text>}
-      renderItem={({ item }) => (
-        <Card style={styles.logRow}>
-          <Text style={aquaText.body}>
+      ListEmptyComponent={entries === null ? <Spinner style={styles.empty} /> : <TableEmpty title="Nothing Yet" />}
+      renderItem={({ item, index }) => (
+        <TableCell first={index === 0} last={index === (entries?.length ?? 0) - 1} style={styles.logRow}>
+          <Text style={styles.logText}>
             <Text style={styles.bold}>{item.moderator ? `@${item.moderator.username}` : 'A moderator'}</Text> {LOG_LABELS[item.action] ?? item.action}{' '}
             <Text style={styles.bold}>{item.summary}</Text>
           </Text>
-          <Text style={aquaText.handle}>{relativeTime(item.created_at)}</Text>
-        </Card>
+          <Text style={styles.cellSub}>{relativeTime(item.created_at)}</Text>
+        </TableCell>
       )}
     />
   );
 }
 
 const styles = StyleSheet.create({
-  header: { gap: 8, marginBottom: 4 },
-  serverRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  logRow: { gap: 2 },
   tabs: { paddingHorizontal: 12, paddingTop: 12 },
   list: { padding: 12, gap: 10 },
+  tableList: { paddingBottom: 24 },
   card: { gap: 8 },
   who: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   flex: { flex: 1, minWidth: 0 },
   bold: { fontWeight: '700' },
   tag: { fontSize: 11, fontWeight: '700', color: '#fff', backgroundColor: '#b02a37', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: 'hidden' },
-  post: { padding: 10, borderRadius: 6, backgroundColor: '#f3f3f3', borderWidth: 1, borderColor: '#d4d4d4' },
+  post: { padding: 10, borderRadius: 6, backgroundColor: '#f3f3f3', borderWidth: 1, borderColor: '#d4d4d4', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.12)' },
   buttons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-  empty: { textAlign: 'center', marginTop: 24 },
+  empty: { marginTop: 24 },
+  severity: { padding: 8 },
+  button: { marginHorizontal: 10, marginTop: 14 },
+  serverRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  cellTitle: { fontFamily, fontSize: 17, fontWeight: '700', color: '#000000' },
+  cellSub: { fontFamily, fontSize: 13, color: '#7a7a7a' },
+  logRow: { gap: 2, paddingHorizontal: 12, paddingVertical: 9 },
+  logText: { fontFamily, fontSize: 15, lineHeight: 20, color: '#000000' },
 });

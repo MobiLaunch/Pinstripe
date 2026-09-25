@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/auth/session';
-import { aquaText, Card, Field, GelButton } from '@/components/aqua';
+import { GelButton, TableField } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
-import { TableBackground } from '@/components/ios6';
+import { Spinner, TableBackground, TableCell, TableEmpty, TableGroup, TableTitle } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
+import { fontFamily } from '@/theme/aqua';
 
 /** Servers whose people and posts you never want to see. */
 export default function BlockedServersScreen() {
@@ -67,10 +68,10 @@ export default function BlockedServersScreen() {
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
-          <View style={styles.header}>
+          <View>
             <FormError message={error} />
-            <Card style={styles.add}>
-              <Field
+            <TableGroup footer="Blocking a server hides everyone there from you: their posts, replies and notifications.">
+              <TableField
                 label="Server"
                 placeholder="example.social"
                 autoCapitalize="none"
@@ -80,22 +81,19 @@ export default function BlockedServersScreen() {
                 onChangeText={setDraft}
                 onSubmitEditing={add}
               />
-              <GelButton small title={busy ? 'Blocking…' : 'Block Server'} disabled={busy || !draft.trim()} onPress={add} />
-            </Card>
+            </TableGroup>
+            <GelButton rect title={busy ? 'Blocking…' : 'Block Server'} disabled={busy || !draft.trim()} onPress={add} style={styles.button} />
+            {domains?.length ? <TableTitle title="Blocked" /> : null}
           </View>
         }
-        ListEmptyComponent={
-          domains === null ? (
-            error ? null : <ActivityIndicator style={styles.empty} />
-          ) : (
-            <Text style={[aquaText.handle, styles.empty]}>No servers blocked.</Text>
-          )
-        }
-        renderItem={({ item }) => (
-          <Card style={styles.row}>
-            <Text style={[aquaText.body, styles.flex]}>{item}</Text>
-            <GelButton tone="gray" small title="Unblock" accessibilityLabel={`Unblock ${item}`} onPress={() => remove(item)} />
-          </Card>
+        ListEmptyComponent={domains === null ? error ? null : <Spinner style={styles.empty} /> : <TableEmpty title="No Servers Blocked" />}
+        renderItem={({ item, index }) => (
+          <TableCell first={index === 0} last={index === (domains?.length ?? 0) - 1} style={styles.row}>
+            <Text style={styles.domain} numberOfLines={1}>
+              {item}
+            </Text>
+            <GelButton tone="gray" small rect title="Unblock" accessibilityLabel={`Unblock ${item}`} onPress={() => remove(item)} />
+          </TableCell>
         )}
       />
     </TableBackground>
@@ -103,10 +101,9 @@ export default function BlockedServersScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { padding: 12, gap: 8 },
-  header: { gap: 8, marginBottom: 4 },
-  add: { gap: 10 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  flex: { flex: 1 },
-  empty: { textAlign: 'center', marginTop: 24 },
+  list: { paddingBottom: 24 },
+  button: { marginHorizontal: 10, marginTop: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 50, paddingHorizontal: 12, paddingVertical: 6 },
+  domain: { flex: 1, fontFamily, fontSize: 17, fontWeight: '700', color: '#000000' },
+  empty: { marginTop: 24 },
 });

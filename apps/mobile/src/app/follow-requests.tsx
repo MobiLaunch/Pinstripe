@@ -1,14 +1,13 @@
-import { type Account, formatHandle } from '@pinstripe/core';
-import { router } from 'expo-router';
+import type { Account } from '@pinstripe/core';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet } from 'react-native';
 
 import { toAccount } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
-import { aquaText, Avatar, Card, GelButton } from '@/components/aqua';
+import { AccountCell } from '@/components/account-cell';
+import { GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
-import { initials } from '@/components/initials';
-import { TableBackground } from '@/components/ios6';
+import { Spinner, TableBackground, TableEmpty } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
 
 /** People waiting for you to approve their follow (when "Approve new followers" is on). */
@@ -52,27 +51,12 @@ export default function FollowRequestsScreen() {
         keyExtractor={(a) => a.id}
         contentContainerStyle={styles.list}
         ListHeaderComponent={<FormError message={error} />}
-        ListEmptyComponent={
-          requests === null ? <ActivityIndicator style={styles.empty} /> : <Text style={[aquaText.handle, styles.empty]}>No requests right now.</Text>
-        }
-        renderItem={({ item }) => (
-          <Card style={styles.row}>
-            <Pressable accessibilityRole="link" style={styles.who} onPress={() => router.push(`/profile/${item.id}`)}>
-              <Avatar initials={initials(item.displayName)} uri={item.avatarUrl} />
-              <View style={styles.flex}>
-                <Text style={[aquaText.body, styles.bold]} numberOfLines={1}>
-                  {item.displayName}
-                </Text>
-                <Text style={aquaText.handle} numberOfLines={1}>
-                  {formatHandle(item)}
-                </Text>
-              </View>
-            </Pressable>
-            <View style={styles.buttons}>
-              <GelButton tone="gray" small title="Reject" accessibilityLabel={`Reject ${item.displayName}`} onPress={() => answer(item, 'reject')} />
-              <GelButton small title="Approve" accessibilityLabel={`Approve ${item.displayName}`} onPress={() => answer(item, 'authorize')} />
-            </View>
-          </Card>
+        ListEmptyComponent={requests === null ? <Spinner style={styles.empty} /> : <TableEmpty title="No Follow Requests" />}
+        renderItem={({ item, index }) => (
+          <AccountCell account={item} first={index === 0} last={index === (requests?.length ?? 0) - 1}>
+            <GelButton tone="gray" small rect title="Reject" accessibilityLabel={`Reject ${item.displayName}`} onPress={() => answer(item, 'reject')} />
+            <GelButton small rect title="Approve" accessibilityLabel={`Approve ${item.displayName}`} onPress={() => answer(item, 'authorize')} />
+          </AccountCell>
         )}
       />
     </TableBackground>
@@ -80,11 +64,6 @@ export default function FollowRequestsScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { padding: 12, gap: 8 },
-  row: { gap: 10 },
-  who: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  flex: { flex: 1, minWidth: 0 },
-  bold: { fontWeight: '700' },
-  buttons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-  empty: { textAlign: 'center', marginTop: 24 },
+  list: { paddingTop: 18, paddingBottom: 24 },
+  empty: { marginTop: 24 },
 });

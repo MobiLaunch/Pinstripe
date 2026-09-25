@@ -1,7 +1,7 @@
 import { type Account, formatHandle } from '@pinstripe/core';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { toAccount } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
@@ -9,7 +9,7 @@ import { aquaText, Avatar, Card, Pinstripes } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
-import { SearchBar } from '@/components/ios6';
+import { SearchBar, Spinner } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
 
 /**
@@ -50,7 +50,7 @@ export default function SearchScreen() {
     <Pinstripes>
       <ScreenHeader title="Find People" back="Back" />
       <SearchBar accessibilityLabel="Search" placeholder="Name, @user@server or profile link" autoFocus value={query} onChangeText={setQuery} />
-      {searching ? <ActivityIndicator style={styles.searching} /> : null}
+      {searching ? <Spinner style={styles.searching} /> : null}
       <FlatList
         // Too short to search: nothing, rather than the last search's results.
         data={query.trim().length < 2 ? [] : results}

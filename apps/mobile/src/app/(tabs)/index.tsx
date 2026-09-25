@@ -3,7 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useIsFocused } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Platform, StyleSheet, Text, View, type ViewToken } from 'react-native';
+import { FlatList, Platform, StyleSheet, Text, View, type ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { TimelineKind } from '@/api/mastodon';
@@ -12,6 +12,7 @@ import { ActionMenu } from '@/components/action-menu';
 import { GelButton, Orb, Segmented } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
+import { Spinner } from '@/components/ios6';
 import { usePlaybackPreferences, VideoPage } from '@/components/video-page';
 import { target, usePostList } from '@/hooks/use-post-list';
 import { colors, fontFamily } from '@/theme/aqua';
@@ -102,7 +103,7 @@ export default function VideosScreen() {
       ) : (
         <LinearGradient colors={['#3a7cc2', '#123658', '#050d18']} style={styles.stage}>
           {list.loading ? (
-            <ActivityIndicator color="#fff" />
+            <Spinner color="#fff" />
           ) : (
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>{list.error ? 'Couldn’t load videos' : 'No videos yet'}</Text>

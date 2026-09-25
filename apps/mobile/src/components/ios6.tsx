@@ -21,7 +21,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, LinearGradient as SvgGradient, Path, Pattern, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, G, LinearGradient as SvgGradient, Path, Pattern, Rect, Stop } from 'react-native-svg';
 
 import { Icon } from '@/components/icon';
 import { fontFamily, type Gradient } from '@/theme/aqua';
@@ -305,6 +305,72 @@ export function TableRow({
 }
 
 /**
+ * One cell of a grouped table drawn row by row (a FlatList's items): the
+ * first and last are rounded, the others get a divider on top.
+ */
+export function TableCell({ first, last, style, ...rest }: ViewProps & { first: boolean; last: boolean }) {
+  return <View style={[styles.cell, first ? styles.cellFirst : styles.tableDivider, last && styles.cellLast, style]} {...rest} />;
+}
+
+/** A section title on its own, for tables drawn row by row. */
+export function TableTitle({ title }: { title: string }) {
+  return <Text style={[styles.tableTitle, styles.tableTitleAlone]}>{title}</Text>;
+}
+
+/** The grey, embossed words a table shows when it has nothing in it ("No Notifications"). */
+export function TableEmpty({ title, dark = false }: { title: string; dark?: boolean }) {
+  return <Text style={[styles.tableEmpty, dark && styles.tableEmptyDark]}>{title}</Text>;
+}
+
+// UIActivityIndicatorView
+
+const SPOKES = 12;
+
+/**
+ * The iOS 6 spinner: twelve rounded spokes fading round the circle, turning
+ * a spoke at a time. `size` is 'small' (20), 'large' (37) or a number;
+ * `color` defaults to the grey style.
+ */
+export function Spinner({
+  size = 'small',
+  color = '#8a8a8a',
+  style,
+  accessibilityLabel = 'Loading',
+}: {
+  size?: 'small' | 'large' | number;
+  color?: string;
+  style?: StyleProp<ViewStyle>;
+  accessibilityLabel?: string;
+}) {
+  const px = size === 'small' ? 20 : size === 'large' ? 37 : size;
+  const [turn] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    const loop = Animated.loop(
+      // Stepped, one spoke per tick, as the original did.
+      Animated.timing(turn, { toValue: 1, duration: 1000, easing: (t) => Math.floor(t * SPOKES) / SPOKES, useNativeDriver: true }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [turn]);
+  const rotate = turn.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const c = px / 2;
+  const w = px * 0.09;
+  return (
+    <View accessibilityRole="progressbar" accessibilityLabel={accessibilityLabel} style={[{ width: px, height: px, alignSelf: 'center' }, style]}>
+      <Animated.View style={{ width: px, height: px, transform: [{ rotate }] }}>
+        <Svg width={px} height={px}>
+          {Array.from({ length: SPOKES }, (_, i) => (
+            <G key={i} rotation={-i * (360 / SPOKES)} origin={`${c}, ${c}`}>
+              <Rect x={c - w / 2} y={px * 0.02} width={w} height={px * 0.27} rx={w / 2} fill={color} opacity={1 - (i / SPOKES) * 0.8} />
+            </G>
+          ))}
+        </Svg>
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
  * The dark linen of iOS 6's Notification Center: a fine weave of light and
  * dark threads (two overlapping patterns so it doesn't look tiled), with a
  * soft shadow falling from the top.
@@ -462,6 +528,24 @@ const styles = StyleSheet.create({
     boxShadow: '0 1px 0 rgba(255,255,255,0.7)',
   },
   tableDivider: { borderTopWidth: 1, borderTopColor: '#e0e0e0' },
+  tableTitleAlone: { marginHorizontal: 20, marginTop: 18 },
+  cell: { marginHorizontal: 10, backgroundColor: '#ffffff', borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#aaaeb3', overflow: 'hidden' },
+  cellFirst: { borderTopWidth: 1, borderTopLeftRadius: 10, borderTopRightRadius: 10 },
+  cellLast: { borderBottomWidth: 1, borderBottomLeftRadius: 10, borderBottomRightRadius: 10, boxShadow: '0 1px 0 rgba(255,255,255,0.7)' },
+  tableEmpty: {
+    fontFamily,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#8a939f',
+    textAlign: 'center',
+    marginTop: 40,
+    marginHorizontal: 20,
+    textShadowColor: '#ffffff',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 0,
+  },
+  tableEmptyDark: { color: '#7c828b', textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 0, height: -1 } },
+
   tableFooter: {
     fontFamily,
     fontSize: 15,

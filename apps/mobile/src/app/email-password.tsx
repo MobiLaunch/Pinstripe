@@ -5,6 +5,7 @@ import { ApiError } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
 import { GelButton, TableField } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
+import { showHud } from '@/components/hud';
 import { TableBackground, TableGroup, TableRow } from '@/components/ios6';
 import { PASSWORD_MIN, StrengthMeter } from '@/components/password-strength';
 import { ScreenHeader } from '@/components/screen-header';
@@ -70,12 +71,15 @@ function EmailCard({ login, onChanged }: { login: { email: string; confirmed: bo
     if (!client) return;
     setBusy(true);
     setError(null);
+    const hud = showHud('Saving…');
     try {
       onChanged(await client.changeEmail(current, email.trim()));
+      hud.done('Saved');
       setEditing(false);
       setCurrent('');
       setMessage(`We sent a confirmation link to ${email.trim()}.`);
     } catch (e) {
+      hud.hide();
       setError(e instanceof Error ? e.message : 'Couldn’t change your email.');
     } finally {
       setBusy(false);
@@ -145,13 +149,16 @@ function PasswordCard() {
     if (!client) return;
     setBusy(true);
     setError(null);
+    const hud = showHud('Saving…');
     try {
       await client.changePassword(current, password);
+      hud.done('Password Changed');
       setCurrent('');
       setPassword('');
       setAgain('');
       setDone(true);
     } catch (e) {
+      hud.hide();
       setError(e instanceof Error ? e.message : 'Couldn’t change your password.');
     } finally {
       setBusy(false);

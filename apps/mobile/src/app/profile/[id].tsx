@@ -1,7 +1,7 @@
 import { type Account, formatHandle } from '@pinstripe/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { type MastodonRelationship, toAccount } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
@@ -10,6 +10,7 @@ import { GelButton, Orb, Pinstripes } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
+import { Spinner } from '@/components/ios6';
 import { ProfileView } from '@/components/profile-view';
 import { PINSTRIPE_DOMAIN } from '@/config';
 
@@ -125,7 +126,7 @@ export default function ProfileScreen() {
     return (
       <Pinstripes>
         <View style={styles.state}>
-          {error ? <FormError message={error} /> : <ActivityIndicator />}
+          {error ? <FormError message={error} /> : <Spinner />}
           <View style={styles.back}>{back}</View>
         </View>
       </Pinstripes>

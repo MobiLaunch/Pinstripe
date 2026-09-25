@@ -6,6 +6,7 @@ import { ApiError, type FieldErrors } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
 import { AquaSwitch, GelButton, TableField } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
+import { showHud } from '@/components/hud';
 import { TableBackground, TableGroup, TableRow } from '@/components/ios6';
 import { PASSWORD_MIN, StrengthMeter } from '@/components/password-strength';
 import { ScreenHeader } from '@/components/screen-header';
@@ -31,9 +32,12 @@ export default function SignUpScreen() {
     setBusy(true);
     setError(null);
     setFieldErrors({});
+    const hud = showHud('Creating Account…');
     try {
       await signUp(PINSTRIPE_SERVER, { username, email, password, locale: 'en' });
+      hud.hide();
     } catch (e) {
+      hud.hide();
       if (e instanceof ApiError && Object.keys(e.details).length) {
         setFieldErrors(e.details);
         setError('Please fix the highlighted fields.');

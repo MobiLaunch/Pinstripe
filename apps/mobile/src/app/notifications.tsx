@@ -1,7 +1,7 @@
 import { type Account, formatHandle, type Post } from '@pinstripe/core';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { type MastodonNotification, toAccount, toPost } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
@@ -9,7 +9,8 @@ import { aquaText, Avatar, Card, GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon, type IconName } from '@/components/icon';
 import { initials } from '@/components/initials';
-import { Linen, LinenHeader } from '@/components/ios6';
+import { Linen, LinenHeader, Spinner } from '@/components/ios6';
+import { usePullToRefresh } from '@/components/pull-refresh';
 import { relativeTime } from '@/components/relative-time';
 import { ScreenHeader } from '@/components/screen-header';
 import { setUnreadNotifications } from '@/hooks/use-unread-notifications';
@@ -43,7 +44,6 @@ export default function NotificationsScreen() {
   const client = state.status === 'signedIn' ? state.client : null;
   const server = state.status === 'signedIn' ? state.server : '';
   const [items, setItems] = useState<Item[] | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [end, setEnd] = useState(false);
   const loadingMore = useRef(false);
@@ -81,11 +81,7 @@ export default function NotificationsScreen() {
     load();
   }, [load]);
 
-  const refresh = async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  };
+  const pull = usePullToRefresh(load);
 
   const loadMore = async () => {
     const last = items?.at(-1);
@@ -120,11 +116,12 @@ export default function NotificationsScreen() {
         data={items ?? []}
         keyExtractor={(n) => n.id}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+        {...pull.listProps}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
         ListHeaderComponent={
           <>
+            {pull.header}
             <LinenHeader title="Pinstripe" />
             <FormError message={error} />
             {push === 'ask' ? (
@@ -138,7 +135,7 @@ export default function NotificationsScreen() {
         }
         ListEmptyComponent={
           items === null ? (
-            error ? null : <ActivityIndicator style={styles.empty} />
+            error ? null : <Spinner color="#ffffff" style={styles.empty} />
           ) : (
             <Text style={styles.empty}>No Notifications</Text>
           )

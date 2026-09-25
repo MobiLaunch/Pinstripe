@@ -3,14 +3,16 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { type ReactNode, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { aquaText, Avatar, Group, Pinstripes, Segmented } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
+import { Spinner } from '@/components/ios6';
 import { PostCard } from '@/components/post-card';
+import { usePullToRefresh } from '@/components/pull-refresh';
 import { usePostList } from '@/hooks/use-post-list';
 import { colors, fontFamily } from '@/theme/aqua';
 import { useAccent } from '@/theme/theme';
@@ -73,7 +75,7 @@ export function ProfileView({
         {corner}
       </LinearGradient>
       <View style={styles.identity}>
-        <Avatar initials={initials(account.displayName)} size={96} uri={account.avatarUrl} />
+        <Avatar framed initials={initials(account.displayName)} size={92} uri={account.avatarUrl} />
         {action}
       </View>
       <View style={styles.body}>
@@ -111,6 +113,10 @@ export function ProfileView({
   );
 
   const grid = tab === 'videos';
+  const pull = usePullToRefresh(() => {
+    onRefresh?.();
+    return list.refresh();
+  }, list.refreshing && !list.loading);
   return (
     <Pinstripes>
       <FlatList
@@ -120,22 +126,19 @@ export function ProfileView({
         columnWrapperStyle={grid ? styles.gridRow : undefined}
         data={shown}
         keyExtractor={(p) => p.id}
-        ListHeaderComponent={header}
-        contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl
-            refreshing={list.refreshing && !list.loading}
-            onRefresh={() => {
-              list.refresh();
-              onRefresh?.();
-            }}
-          />
+        ListHeaderComponent={
+          <>
+            {pull.header}
+            {header}
+          </>
         }
+        contentContainerStyle={styles.list}
+        {...pull.listProps}
         onEndReached={list.loadMore}
         onEndReachedThreshold={0.5}
         ListEmptyComponent={
           list.loading ? (
-            <ActivityIndicator style={styles.empty} />
+            <Spinner style={styles.empty} />
           ) : (
             <Text style={[aquaText.handle, styles.empty]}>
               {tab === 'videos' ? 'No videos yet.' : tab === 'posts' ? 'No posts yet.' : 'No boosts yet.'}
