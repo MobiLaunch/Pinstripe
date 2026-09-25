@@ -43,6 +43,8 @@ export async function persistActor(ctx: Context<ContextData>, actor: Actor): Pro
   if (!actor.id || !actor.inboxId) return null;
   const local = ctx.parseUri(actor.id);
   if (local?.type === "actor") return ctx.data.store.getLocalAccount(local.identifier);
+  // Servers the moderators suspended are cut off entirely.
+  if (await ctx.data.safety.serverSuspended(actor.id.host)) return null;
 
   const username = text(actor.preferredUsername).trim();
   if (!username) return null;
@@ -108,6 +110,7 @@ async function fetchActor(ctx: Context<ContextData>, identifier: string): Promis
 export async function resolveActorUri(ctx: Context<ContextData>, uri: URL): Promise<AccountRow | null> {
   const local = ctx.parseUri(uri);
   if (local?.type === "actor") return ctx.data.store.getLocalAccount(local.identifier);
+  if (await ctx.data.safety.serverSuspended(uri.host)) return null;
   return (await ctx.data.store.getAccountByUri(uri.href)) ?? fetchActor(ctx, uri.href);
 }
 
@@ -124,6 +127,9 @@ export async function resolveHandle(
 ): Promise<AccountRow | null> {
   if (domain.toLowerCase() === new URL(ctx.canonicalOrigin).host.toLowerCase()) {
     return ctx.data.store.getAccountByUsername(username);
+  }
+  if (await ctx.data.safety.serverSuspended(domain)) {
+    return null;
   }
   const known = await ctx.data.store.getAccountByHandle(username, domain);
   if (known) {

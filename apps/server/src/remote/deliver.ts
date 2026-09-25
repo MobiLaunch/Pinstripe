@@ -24,6 +24,8 @@ export async function deliver(
     const r = account && account.domain !== null ? asRecipient(account) : null;
     if (r) recipients.set(r.uri, r);
   }
+  // Nothing goes to servers the moderators suspended.
+  for (const [uri] of recipients) if (await ctx.data.safety.serverSuspended(new URL(uri).host)) recipients.delete(uri);
   // Nobody to tell: skip it, which also skips signing (and generating keys).
   if (!recipients.size) return;
   try {

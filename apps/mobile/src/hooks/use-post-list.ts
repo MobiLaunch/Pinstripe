@@ -48,6 +48,13 @@ export function usePostList(load: Loader, key: string, options: { accepts?: (pos
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  // A new list (another timeline, say) starts empty and loading, in the same render.
+  const [listKey, setListKey] = useState(key);
+  if (listKey !== key) {
+    setListKey(key);
+    setPosts([]);
+    setLoading(true);
+  }
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
@@ -85,13 +92,14 @@ export function usePostList(load: Loader, key: string, options: { accepts?: (pos
   }, [fetchPage]);
 
   useEffect(() => {
-    setLoading(true);
-    setPosts([]);
     refresh();
   }, [refresh]);
 
+  // The latest filter, for the event listener below without re-subscribing.
   const accepts = useRef(options.accepts);
-  accepts.current = options.accepts;
+  useEffect(() => {
+    accepts.current = options.accepts;
+  });
   useEffect(() => {
     const listener = (event: PostEvent) => {
       if (event.type === 'updated') setPosts((ps) => mapPost(ps, event.post.id, () => event.post));

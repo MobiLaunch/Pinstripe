@@ -12,7 +12,6 @@ import { initials } from '@/components/initials';
 import { relativeTime } from '@/components/relative-time';
 import { ScreenHeader } from '@/components/screen-header';
 import { setUnreadNotifications } from '@/hooks/use-unread-notifications';
-import { colors } from '@/theme/aqua';
 import { useAccent } from '@/theme/theme';
 
 interface Item {
@@ -60,9 +59,9 @@ export default function NotificationsScreen() {
 
   const load = useCallback(async () => {
     if (!client) return;
-    setError(null);
     try {
       const [unread, page] = await Promise.all([client.unreadNotifications().catch(() => 0), client.notifications()]);
+      setError(null);
       setItems(page.map((n, i) => toItem(n, i < unread)));
       setEnd(page.length === 0);
       if (page[0]) {

@@ -8,6 +8,6 @@ export function testDb() {
   return {
     ...conn,
     /** Empties every table the app owns. */
-    reset: () => conn.sql`TRUNCATE accounts, oauth_apps CASCADE`,
+    reset: () => conn.sql`TRUNCATE accounts, oauth_apps, instance_domain_blocks CASCADE`,
   };
 }

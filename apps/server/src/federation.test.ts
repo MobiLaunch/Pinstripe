@@ -245,6 +245,25 @@ describe("reports across servers", () => {
   });
 });
 
+describe("suspended servers", () => {
+  it("stops taking anything from a server the moderators suspended", async () => {
+    const { a, b } = servers;
+    const alice = await a.user("alice");
+    const mod = await a.user("mod", { moderator: true });
+    const bob = await b.user("bob");
+    const remoteBob = await discover(a, alice, bob.actor);
+    await a.post(`/api/v1/accounts/${remoteBob.id}/follow`, {}, alice.headers);
+
+    await a.post("/api/v1/admin/domain_blocks", { domain: b.host, severity: "suspend" }, mod.headers);
+    await b.post("/api/v1/statuses", { status: "you won't see this" }, bob.headers);
+    expect(await a.get("/api/v1/timelines/home", alice.headers)).toEqual([]);
+    // Nothing goes out either: Alice's posts don't reach Bob's server.
+    const [rel] = await a.get(`/api/v1/accounts/relationships?id[]=${remoteBob.id}`, alice.headers);
+    expect(rel.following).toBe(false);
+    expect((await a.get(`/api/v2/search?q=${encodeURIComponent(bob.actor)}&resolve=true`, alice.headers)).accounts).toEqual([]);
+  });
+});
+
 describe("profiles across servers", () => {
   it("sends profile edits to followers' servers", async () => {
     const { a, b } = servers;

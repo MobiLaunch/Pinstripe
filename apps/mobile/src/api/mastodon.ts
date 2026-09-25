@@ -91,6 +91,15 @@ export interface MastodonRelationship {
   domain_blocking?: boolean;
 }
 
+export interface MastodonServerBlock {
+  id: string;
+  domain: string;
+  severity: 'silence' | 'suspend';
+  public_comment: string | null;
+  private_comment: string | null;
+  created_at: string;
+}
+
 export type ReportCategory = 'spam' | 'legal' | 'violation' | 'other';
 
 /** Mastodon's Admin::Report, as far as the moderation screen uses it. */
@@ -101,7 +110,7 @@ export interface MastodonAdminReport {
   comment: string;
   created_at: string;
   account: { id: string; account: MastodonAccount } | null;
-  target_account: { id: string; suspended: boolean; account: MastodonAccount } | null;
+  target_account: { id: string; suspended: boolean; silenced?: boolean; account: MastodonAccount } | null;
   statuses: MastodonStatus[];
 }
 
@@ -326,8 +335,28 @@ export class MastodonClient {
     return this.request<MastodonAdminReport>('POST', `/api/v1/admin/reports/${encodeURIComponent(id)}/resolve`);
   }
 
-  suspendAccount(accountId: string, reportId: string) {
-    return this.request<object>('POST', `/api/v1/admin/accounts/${encodeURIComponent(accountId)}/action`, { type: 'suspend', report_id: reportId });
+  /** Moderators: suspend (gone for everyone) or limit ("silence": only followers see them). */
+  moderateAccount(accountId: string, type: 'suspend' | 'silence', reportId?: string) {
+    return this.request<object>('POST', `/api/v1/admin/accounts/${encodeURIComponent(accountId)}/action`, { type, report_id: reportId });
+  }
+
+  serverBlocks() {
+    return this.request<MastodonServerBlock[]>('GET', '/api/v1/admin/domain_blocks');
+  }
+
+  blockServer(input: { domain: string; severity: 'silence' | 'suspend'; public_comment?: string; private_comment?: string }) {
+    return this.request<MastodonServerBlock>('POST', '/api/v1/admin/domain_blocks', input);
+  }
+
+  unblockServer(id: string) {
+    return this.request<object>('DELETE', `/api/v1/admin/domain_blocks/${encodeURIComponent(id)}`);
+  }
+
+  moderationLog() {
+    return this.request<{ id: string; action: string; summary: string; created_at: string; moderator: { username: string } | null }[]>(
+      'GET',
+      '/api/v1/pinstripe/admin/log',
+    );
   }
 
   /** Accounts matching `q`; full handles and URLs are looked up on their servers. */

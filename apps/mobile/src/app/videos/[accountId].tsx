@@ -1,6 +1,6 @@
 import { isVideoPost } from '@pinstripe/core';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, View, type ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -26,10 +26,11 @@ export default function AccountVideosScreen() {
   const [active, setActive] = useState<number | null>(null);
   const current = active ?? startIndex;
 
-  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+  // FlatList wants this function to stay the same for the list's life.
+  const onViewable = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems[0];
     if (first?.index !== undefined && first.index !== null) setActive(first.index);
-  }).current;
+  }, []);
 
   return (
     <View style={styles.root} onLayout={(e) => setHeight(e.nativeEvent.layout.height)}>

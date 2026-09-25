@@ -248,6 +248,19 @@ and would otherwise show stale copies.
   it), plus an `Undo(Follow)` or `Reject(Follow)` for any follows it
   ended. Incoming `Block`s are stored, so the blocker disappears for the
   blocked person here. Incoming `Flag`s become reports.
+- **Server-wide:** moderators can limit or suspend an account, or a whole
+  server (`/api/v1/admin/domain_blocks`):
+  - *Limit* (Mastodon's "silence") keeps it out of public and hashtag
+    timelines, and out of the notifications of anyone who doesn't follow
+    it. Followers still see everything.
+  - *Suspend* on a server refuses its actors and activities (they're
+    never stored or fetched), sends nothing there, removes every follow
+    with it, and hides what was already stored.
+  - Server blocks are listed publicly at `/api/v1/instance/domain_blocks`,
+    with the public reason, and cached in memory for a minute.
+- Every moderator action goes in `moderation_log`
+  (`/api/v1/pinstripe/admin/log`). In the app, Settings → Moderation has
+  Reports, Servers and Log tabs.
 - Roles live on `users.role` (`user`, `moderator`, `admin`). Set them with
   `pnpm --filter @pinstripe/server role <username> <role>`. The app asks
   Pinstripe's own server (and only it) for the admin scopes, and shows
@@ -378,8 +391,8 @@ Pinstripe it's also saved with the account and followed on sign-in.
    verification, video grid with views~~ Done.
 7. **Settings & safety:** ~~settings endpoint, follow requests~~ (done);
    ~~notifications, blocks and mutes, domain blocks, reporting, basic
-   moderation~~ (done). Still to do: push notifications, report forwarding,
-   server-wide blocks.
+   moderation, report forwarding, server-wide blocks, moderation log~~
+   (done). Still to do: push notifications.
 8. **Polish:** ~~Graphite theme, barber-pole progress, share sheet~~ (done);
    gel pulse animation, sound credits.
 

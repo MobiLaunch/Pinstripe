@@ -56,7 +56,6 @@ export default function NewVideoScreen() {
   useEffect(() => {
     if (!asset || state.status !== 'signedIn') return;
     let cancelled = false;
-    setStage({ kind: 'uploading', progress: 0 });
     (async () => {
       try {
         const uploaded = await uploadMedia(state.client, state.token, asset, {
@@ -139,7 +138,11 @@ export default function NewVideoScreen() {
               ) : (
                 <>
                   <FormError message={stage.message} />
-                  <GelButton tone="gray" small title="Try Again" onPress={() => setAttempt((n) => n + 1)} />
+                  <GelButton tone="gray" small title="Try Again" onPress={() => {
+                      setStage({ kind: 'uploading', progress: 0 });
+                      setAttempt((n) => n + 1);
+                    }}
+                  />
                 </>
               )}
             </View>

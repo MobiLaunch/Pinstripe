@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NetworkStateType, useNetworkState } from 'expo-network';
 import { router } from 'expo-router';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, type VideoPlayer, VideoView } from 'expo-video';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
@@ -180,7 +180,7 @@ export function VideoPage({
           </Orb>
         </RailAction>
         <RailAction label={muted ? 'Muted' : 'Sound'}>
-          <Orb accessibilityLabel={muted ? 'Unmute' : 'Mute'} onPress={() => (player.muted = !muted)}>
+          <Orb accessibilityLabel={muted ? 'Unmute' : 'Mute'} onPress={() => toggleMuted(player)}>
             <Icon name={muted ? 'soundOff' : 'sound'} size={24} color="#fff" />
           </Orb>
         </RailAction>
@@ -210,6 +210,11 @@ export function VideoPage({
       </View>
     </View>
   );
+}
+
+/** expo-video players are changed by setting properties. */
+function toggleMuted(player: VideoPlayer) {
+  player.muted = !player.muted;
 }
 
 function RailAction({ label, children }: { label: string; children: ReactNode }) {

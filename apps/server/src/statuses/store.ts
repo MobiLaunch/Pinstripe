@@ -5,7 +5,7 @@ import { accounts, blocks, favourites, follows, mediaAttachments, mentions, stat
 import type { MediaRow } from "../media/store.ts";
 import { uuidv7 } from "../ids.ts";
 import { notify, unnotify } from "../notifications/store.ts";
-import { authorSuspended, blocksViewer, hiddenStatus } from "../safety/sql.ts";
+import { authorSuspended, blocksViewer, hiddenStatus, limitedFor } from "../safety/sql.ts";
 import { type AccountRow, isUniqueViolation, isUuid } from "../store.ts";
 
 export type StatusRow = typeof statuses.$inferSelect;
@@ -334,7 +334,12 @@ export class StatusStore {
 
   /** Public posts, no boosts (as in Mastodon). `scope` picks Local (this server), remote only, or everything (Federated). */
   publicTimeline(page: Page, scope: "local" | "remote" | "all", media?: MediaFilter, viewerId: string | null = null) {
-    const where: SQL[] = [eq(statuses.visibility, "public"), isNull(statuses.reblogOfId), visibleTo(viewerId)];
+    const where: SQL[] = [
+      eq(statuses.visibility, "public"),
+      isNull(statuses.reblogOfId),
+      visibleTo(viewerId),
+      sql`not ${limitedFor(statuses.accountId, viewerId)}`,
+    ];
     const hidden = hiddenStatus(viewerId);
     if (hidden) where.push(sql`not ${hidden}`);
     if (media) where.push(hasMedia(media));
@@ -359,6 +364,7 @@ export class StatusStore {
         eq(statuses.visibility, "public"),
         isNull(statuses.reblogOfId),
         visibleTo(options.viewerId),
+        sql`not ${limitedFor(statuses.accountId, options.viewerId)}`,
         hidden ? sql`not ${hidden}` : undefined,
         options.media ? hasMedia(options.media) : undefined,
         options.local ? sql`${statuses.accountId} in (select ${accounts.id} from ${accounts} where ${accounts.domain} is null)` : undefined,

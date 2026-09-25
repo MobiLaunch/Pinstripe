@@ -26,10 +26,7 @@ export default function SearchScreen() {
 
   useEffect(() => {
     const q = query.trim();
-    if (state.status !== 'signedIn' || q.length < 2) {
-      setResults([]);
-      return;
-    }
+    if (state.status !== 'signedIn' || q.length < 2) return;
     // Wait for a pause in typing; full handles trigger a network lookup.
     const run = ++latest.current;
     const timer = setTimeout(async () => {
@@ -69,7 +66,8 @@ export default function SearchScreen() {
         {searching ? <ActivityIndicator /> : null}
       </View>
       <FlatList
-        data={results}
+        // Too short to search: nothing, rather than the last search's results.
+        data={query.trim().length < 2 ? [] : results}
         keyExtractor={(a) => a.id}
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"

@@ -152,7 +152,7 @@ export default function SettingsScreen() {
         {source.moderator ? (
           <Group title="Moderation">
             <Link href="/moderation" asChild>
-              <NavRow title="Reports" sub="Review what people have reported" />
+              <NavRow title="Moderation" sub="Reports, blocked servers and the log" />
             </Link>
           </Group>
         ) : null}

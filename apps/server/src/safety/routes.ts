@@ -9,9 +9,13 @@
  *   POST   /api/v1/reports                { account_id, status_ids[], comment, category, forward }  forward: Flag to their server
  *   GET    /api/v1/admin/reports          ?resolved=true; moderators and admins only
  *   GET    /api/v1/admin/reports/:id      POST …/resolve, …/reopen
- *   POST   /api/v1/admin/accounts/:id/action     { type: "suspend" | "none", report_id }
- *   POST   /api/v1/admin/accounts/:id/unsuspend
+ *   POST   /api/v1/admin/accounts/:id/action     { type: "suspend" | "silence" | "none", report_id }
+ *   POST   /api/v1/admin/accounts/:id/unsuspend  and /unsilence
+ *   GET    /api/v1/admin/domain_blocks    POST { domain, severity, public_comment, private_comment }, PUT and DELETE /:id
+ *   GET    /api/v1/instance/domain_blocks public list of blocked servers
+ *   GET    /api/v1/pinstripe/admin/log    every moderator action
  */
+import { createHash } from "node:crypto";
 import type { Context as FedifyContext } from "@fedify/fedify";
 import { type Context, Hono } from "hono";
 import { type AuthEnv, requireUser } from "../auth/middleware.ts";
@@ -42,6 +46,9 @@ export interface SafetyRoutesOptions {
 export function safetyRoutes(options: SafetyRoutesOptions) {
   const { store, statuses, safety, renderAccount, relationship, federationContext } = options;
   const app = new Hono<AuthEnv>();
+
+  /** How the log names an account: its handle. */
+  const handleOf = (a: AccountRow) => `@${a.username}${a.domain ? `@${a.domain}` : ""}`;
 
   /** The account in `:id`, if it exists and isn't the viewer. */
   async function targetOf(c: Context, me: LocalAccount) {
@@ -215,7 +222,9 @@ export function safetyRoutes(options: SafetyRoutesOptions) {
     ]);
     const posts = (await Promise.all(report.statusIds.map((id) => statuses.get(id)))).filter((s) => s !== null);
     const adminAccount = async (a: AccountRow | null) =>
-      a ? { id: a.id, username: a.username, domain: a.domain, suspended: a.suspendedAt !== null, account: await renderAccount(c, a) } : null;
+      a
+        ? { id: a.id, username: a.username, domain: a.domain, suspended: a.suspendedAt !== null, silenced: a.silencedAt !== null, account: await renderAccount(c, a) }
+        : null;
     return {
       id: report.id,
       action_taken: report.actionTakenAt !== null,
@@ -258,33 +267,141 @@ export function safetyRoutes(options: SafetyRoutesOptions) {
       const auth = await requireModerator(c, "admin:write:reports");
       if (!auth.ok) return auth.response;
       const report = await safety.resolveReport(c.req.param("id"), action === "resolve" ? auth.value.account.id : null);
-      return report ? c.json(await adminReportJson(c, report)) : notFound(c);
+      if (!report) return notFound(c);
+      const target = await store.getAccount(report.targetAccountId);
+      await safety.log(auth.value.account.id, `${action}_report`, report.id, target ? handleOf(target) : "");
+      return c.json(await adminReportJson(c, report));
     });
   }
 
   app.post("/api/v1/admin/accounts/:id/action", async (c) => {
     const auth = await requireModerator(c, "admin:write:accounts");
     if (!auth.ok) return auth.response;
+    const me = auth.value.account.id;
     const target = await store.getAccount(c.req.param("id"));
     if (!target) return notFound(c);
     const p = await readParams(c);
-    if (p.type !== "suspend" && p.type !== "none") return c.json({ error: "Validation failed: Type is not supported" }, 422);
-    if (p.type === "suspend") {
-      if ((await safety.role(target.id)) !== "user") return c.json({ error: "Moderators can't be suspended" }, 403);
-      await safety.suspend(target.id, true);
+    if (p.type !== "suspend" && p.type !== "silence" && p.type !== "none") {
+      return c.json({ error: "Validation failed: Type is not supported" }, 422);
+    }
+    if (p.type !== "none") {
+      if ((await safety.role(target.id)) !== "user") return c.json({ error: "Moderators can't be suspended or limited" }, 403);
+      if (p.type === "suspend") await safety.suspend(target.id, true);
+      else await safety.silence(target.id, true);
+      await safety.log(me, p.type === "suspend" ? "suspend" : "limit", target.id, handleOf(target));
     }
     // Acting on a report resolves it, as on Mastodon.
-    if (p.report_id) await safety.resolveReport(p.report_id, auth.value.account.id);
+    if (p.report_id && (await safety.resolveReport(p.report_id, me))) await safety.log(me, "resolve_report", p.report_id, handleOf(target));
     return c.json({});
   });
 
-  app.post("/api/v1/admin/accounts/:id/unsuspend", async (c) => {
-    const auth = await requireModerator(c, "admin:write:accounts");
+  for (const [path, undo] of [
+    ["unsuspend", "suspend"],
+    ["unsilence", "silence"],
+  ] as const) {
+    app.post(`/api/v1/admin/accounts/:id/${path}`, async (c) => {
+      const auth = await requireModerator(c, "admin:write:accounts");
+      if (!auth.ok) return auth.response;
+      const target = await store.getAccount(c.req.param("id"));
+      if (!target) return notFound(c);
+      if (undo === "suspend") await safety.suspend(target.id, false);
+      else await safety.silence(target.id, false);
+      await safety.log(auth.value.account.id, undo === "suspend" ? "unsuspend" : "unlimit", target.id, handleOf(target));
+      return c.json({});
+    });
+  }
+
+  // Server-wide blocks (Mastodon's admin domain blocks)
+
+  type ServerBlock = Awaited<ReturnType<SafetyStore["serverBlocks"]>>[number];
+  const serverBlockJson = (b: ServerBlock) => ({
+    id: b.id,
+    domain: b.domain,
+    created_at: b.createdAt.toISOString(),
+    severity: b.severity,
+    reject_media: b.severity === "suspend",
+    reject_reports: false,
+    private_comment: b.privateComment || null,
+    public_comment: b.publicComment || null,
+    obfuscate: false,
+  });
+
+  app.get("/api/v1/admin/domain_blocks", async (c) => {
+    const auth = await requireModerator(c, "admin:read");
     if (!auth.ok) return auth.response;
-    const target = await store.getAccount(c.req.param("id"));
-    if (!target) return notFound(c);
-    await safety.suspend(target.id, false);
+    return c.json((await safety.serverBlocks()).map(serverBlockJson));
+  });
+
+  app.get("/api/v1/admin/domain_blocks/:id", async (c) => {
+    const auth = await requireModerator(c, "admin:read");
+    if (!auth.ok) return auth.response;
+    const block = await safety.getServerBlock(c.req.param("id"));
+    return block ? c.json(serverBlockJson(block)) : notFound(c);
+  });
+
+  async function saveServerBlock(c: Context<AuthEnv>, existing: ServerBlock | null) {
+    const auth = await requireModerator(c, "admin:write");
+    if (!auth.ok) return auth.response;
+    const p = await readParams(c);
+    const domain = existing?.domain ?? normalizeDomain(p.domain ?? "");
+    if (!domain) return c.json({ error: "Validation failed: Domain is invalid" }, 422);
+    if (domain === new URL(federationContext(c).canonicalOrigin).host) return c.json({ error: "Validation failed: That's this server" }, 422);
+    const severity = p.severity ?? existing?.severity ?? "silence";
+    if (severity !== "silence" && severity !== "suspend") return c.json({ error: "Validation failed: Severity is not supported" }, 422);
+    const block = await safety.blockServer({
+      domain,
+      severity,
+      publicComment: (p.public_comment ?? existing?.publicComment ?? "").slice(0, 1000),
+      privateComment: (p.private_comment ?? existing?.privateComment ?? "").slice(0, 1000),
+    });
+    await safety.log(auth.value.account.id, severity === "suspend" ? "suspend_server" : "limit_server", domain, domain);
+    return c.json(serverBlockJson(block));
+  }
+
+  app.post("/api/v1/admin/domain_blocks", (c) => saveServerBlock(c, null));
+  app.put("/api/v1/admin/domain_blocks/:id", async (c) => {
+    const existing = await safety.getServerBlock(c.req.param("id"));
+    return existing ? saveServerBlock(c, existing) : notFound(c);
+  });
+
+  app.delete("/api/v1/admin/domain_blocks/:id", async (c) => {
+    const auth = await requireModerator(c, "admin:write");
+    if (!auth.ok) return auth.response;
+    const removed = await safety.unblockServer(c.req.param("id"));
+    if (!removed) return notFound(c);
+    await safety.log(auth.value.account.id, "unblock_server", removed.domain, removed.domain);
     return c.json({});
+  });
+
+  /** Public, as on Mastodon: which servers this one blocks, and why. */
+  app.get("/api/v1/instance/domain_blocks", async (c) =>
+    c.json(
+      (await safety.serverBlocks()).map((b) => ({
+        domain: b.domain,
+        digest: createHash("sha256").update(b.domain).digest("hex"),
+        severity: b.severity,
+        comment: b.publicComment || null,
+      })),
+    ),
+  );
+
+  // The moderation log (Pinstripe's own; Mastodon only shows it on the web).
+
+  app.get("/api/v1/pinstripe/admin/log", async (c) => {
+    const auth = await requireModerator(c, "admin:read");
+    if (!auth.ok) return auth.response;
+    const rows = await safety.logEntries({ maxId: c.req.query("max_id"), limit: readLimit(c, 40, 100) });
+    setLinkHeader(c, rows.map((r) => r.entry.id));
+    return c.json(
+      rows.map(({ entry, moderator }) => ({
+        id: entry.id,
+        action: entry.action,
+        target: entry.target,
+        summary: entry.summary,
+        created_at: entry.createdAt.toISOString(),
+        moderator: moderator ? { id: moderator.id, username: moderator.username } : null,
+      })),
+    );
   });
 
   return app;

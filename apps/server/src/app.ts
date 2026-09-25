@@ -39,6 +39,8 @@ export interface AppOptions {
   mailer?: Mailer;
   /** Emails per address per hour. */
   emailLimiter?: FailureLimiter;
+  /** Blocks, mutes, reports and moderation; made here unless given (tests pass their own). */
+  safety?: SafetyStore;
   /** Checks profile links (rel="me"); by default one that only fetches public addresses. */
   linkVerifier?: LinkVerifier;
 }
@@ -54,10 +56,9 @@ function roleJson(role: Role) {
  * requests first; everything else falls through to OAuth and the
  * Mastodon-compatible client API.
  */
-export function buildApp({ federation, store, statuses, media, auth, domain, loginLimiter, mailer = new ConsoleMailer(), emailLimiter, linkVerifier = new LinkVerifier(store) }: AppOptions) {
+export function buildApp({ federation, store, statuses, media, auth, domain, loginLimiter, mailer = new ConsoleMailer(), emailLimiter, linkVerifier = new LinkVerifier(store), safety = new SafetyStore(store.db, store) }: AppOptions) {
   const app = new Hono<AuthEnv>();
 
-  const safety = new SafetyStore(store.db, store);
   const contextData = { store, statuses, media, safety };
   app.use(federationMiddleware(federation, () => contextData));
   const federationContext = (c: Context) => federation.createContext(c.req.raw, contextData);

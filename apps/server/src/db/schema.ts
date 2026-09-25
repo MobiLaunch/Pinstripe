@@ -52,6 +52,8 @@ export const accounts = pgTable(
     fetchedAt: timestamp("fetched_at", { withTimezone: true }),
     /** Set by a moderator: the account's posts are hidden, and a local one can't sign in. */
     suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+    /** Set by a moderator ("limit"): only people who follow the account see it. */
+    silencedAt: timestamp("silenced_at", { withTimezone: true }),
   },
   (t) => [
     // Handles are case-insensitive: @Sam@x and @sam@x are the same person.
@@ -437,4 +439,37 @@ export const statusViews = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.statusId, t.accountId] })],
+);
+
+/**
+ * A server blocked for everyone here by the moderators. `silence` (Mastodon's
+ * "limit") hides its accounts from anyone who doesn't follow them;
+ * `suspend` cuts it off: nothing in, nothing out, follows removed.
+ */
+export const instanceDomainBlocks = pgTable("instance_domain_blocks", {
+  id: uuid("id").primaryKey(),
+  domain: text("domain").notNull().unique(),
+  severity: text("severity").$type<"silence" | "suspend">().notNull(),
+  /** Shown to everyone in the list of blocked servers. */
+  publicComment: text("public_comment").notNull().default(""),
+  /** For the moderators only. */
+  privateComment: text("private_comment").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Every moderator action, for the moderators to look back on. */
+export const moderationLog = pgTable(
+  "moderation_log",
+  {
+    /** UUIDv7: newest last. */
+    id: uuid("id").primaryKey(),
+    moderatorId: uuid("moderator_id").references(() => accounts.id, { onDelete: "set null" }),
+    action: text("action").notNull(),
+    /** What it was done to: an account id, report id or domain. */
+    target: text("target").notNull(),
+    /** A readable summary at the time (the account's handle, say), since the target may be gone later. */
+    summary: text("summary").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("moderation_log_created_idx").on(t.createdAt)],
 );

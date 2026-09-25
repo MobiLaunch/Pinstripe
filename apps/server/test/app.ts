@@ -5,6 +5,7 @@ import { MemoryKvStore } from "@fedify/fedify";
 import { afterAll } from "vitest";
 import { LinkVerifier } from "../src/accounts/verify-links.ts";
 import { buildApp } from "../src/app.ts";
+import { SafetyStore } from "../src/safety/store.ts";
 import { FailureLimiter } from "../src/auth/rate-limit.ts";
 import { AuthStore } from "../src/auth/store.ts";
 import { buildFederation } from "../src/federation.ts";
@@ -30,10 +31,12 @@ export function testApp() {
   const media = new MediaService(new MediaStore(db), new LocalDiskStorage(mediaDir, ORIGIN));
   const loginLimiter = new FailureLimiter(3, 60_000);
   const emailLimiter = new FailureLimiter(5, 60_000);
+  const safety = new SafetyStore(db, store);
   const reset = async () => {
     await resetDb();
     loginLimiter.clear();
     emailLimiter.clear();
+    safety.forgetCache();
   };
   // Fedify's cache can stay in memory in tests; nothing reads it across runs.
   // No queue: deliveries happen inline, so tests can observe them. Private
@@ -42,7 +45,7 @@ export function testApp() {
   const mailer = new MemoryMailer();
   // Tests serve the pages being linked to from 127.0.0.1.
   const linkVerifier = new LinkVerifier(store, { allowPrivateAddress: true });
-  const app = buildApp({ federation, store, statuses, media, auth, domain: "pinstripe.test", loginLimiter, mailer, emailLimiter, linkVerifier });
+  const app = buildApp({ federation, store, statuses, media, auth, domain: "pinstripe.test", loginLimiter, mailer, emailLimiter, linkVerifier, safety });
 
   const request = (path: string, init: RequestInit = {}) => app.request(new URL(path, ORIGIN), init);
   const get = (path: string, accept = "application/activity+json", headers: Record<string, string> = {}) =>
@@ -89,5 +92,5 @@ export function testApp() {
 
   const del = (path: string, headers: Record<string, string> = {}) => request(path, { method: "DELETE", headers });
 
-  return { app, db, store, statuses, media, auth, mailer, linkVerifier, reset, signedInUser, remoteFollower, del, request, get, postJson, postForm };
+  return { app, db, store, statuses, media, auth, mailer, linkVerifier, safety, reset, signedInUser, remoteFollower, del, request, get, postJson, postForm };
 }

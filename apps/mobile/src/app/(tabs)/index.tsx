@@ -2,7 +2,7 @@ import { isVideoPost, type Post } from '@pinstripe/core';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useIsFocused } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Platform, StyleSheet, Text, View, type ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -38,10 +38,11 @@ export default function VideosScreen() {
   // Servers that don't know only_video send other posts too.
   const videos = list.posts.filter(isVideo);
 
-  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+  // FlatList wants this function to stay the same for the list's life.
+  const onViewable = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems[0];
     if (first?.index !== undefined && first.index !== null) setActive(first.index);
-  }).current;
+  }, []);
 
   const newVideo = async (source: 'camera' | 'library') => {
     setError(null);

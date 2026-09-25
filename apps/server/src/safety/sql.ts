@@ -4,16 +4,30 @@
  */
 import { type SQL, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
-import { accounts, blocks, domainBlocks, mutes, notifications, statuses } from "../db/schema.ts";
+import { accounts, blocks, domainBlocks, follows, instanceDomainBlocks, mutes, notifications, statuses } from "../db/schema.ts";
 
 /** The author of `account` blocks the viewer: then the viewer can't see their posts at all. */
 export function blocksViewer(authorColumn: AnyPgColumn, viewerId: string): SQL {
   return sql`exists (select 1 from ${blocks} where ${blocks.accountId} = ${authorColumn} and ${blocks.targetAccountId} = ${viewerId})`;
 }
 
-/** A suspended author's posts are hidden from everyone. */
+/** A suspended author's posts are hidden from everyone, as are those of anyone on a suspended server. */
 export function authorSuspended(authorColumn: AnyPgColumn): SQL {
-  return sql`exists (select 1 from ${accounts} where ${accounts.id} = ${authorColumn} and ${accounts.suspendedAt} is not null)`;
+  return sql`exists (select 1 from ${accounts} where ${accounts.id} = ${authorColumn} and (${accounts.suspendedAt} is not null
+    or lower(${accounts.domain}) in (select ${instanceDomainBlocks.domain} from ${instanceDomainBlocks} where ${instanceDomainBlocks.severity} = 'suspend')))`;
+}
+
+/**
+ * Limited ("silenced") by the moderators, the account or its whole server,
+ * and the viewer doesn't follow them: then they stay out of the viewer's
+ * public timelines and notifications.
+ */
+export function limitedFor(authorColumn: AnyPgColumn, viewerId: string | null): SQL {
+  const limited = sql`exists (select 1 from ${accounts} where ${accounts.id} = ${authorColumn} and (${accounts.silencedAt} is not null
+    or lower(${accounts.domain}) in (select ${instanceDomainBlocks.domain} from ${instanceDomainBlocks} where ${instanceDomainBlocks.severity} = 'silence')))`;
+  if (!viewerId) return limited;
+  return sql`(${limited} and ${authorColumn} <> ${viewerId} and not exists (select 1 from ${follows}
+    where ${follows.followerId} = ${viewerId} and ${follows.followingId} = ${authorColumn} and ${follows.state} = 'accepted'))`;
 }
 
 /**
@@ -45,8 +59,9 @@ export function hiddenStatus(viewerId: string | null): SQL | undefined {
     or (${statuses.reblogOfId} is not null and ${unwanted(original, viewerId)}))`;
 }
 
-/** Notifications to leave out: from someone unwanted, or someone suspended. */
+/** Notifications to leave out: from someone unwanted, suspended, or limited and not followed. */
 export function hiddenNotification(viewerId: string): SQL {
   return sql`(${unwanted(sql`${notifications.fromAccountId}`, viewerId, { forNotifications: true })}
-    or ${authorSuspended(notifications.fromAccountId)})`;
+    or ${authorSuspended(notifications.fromAccountId)}
+    or ${limitedFor(notifications.fromAccountId, viewerId)})`;
 }

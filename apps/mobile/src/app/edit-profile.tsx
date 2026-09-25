@@ -104,7 +104,7 @@ export default function EditProfileScreen() {
         <Card style={styles.card}>
           <Text style={[aquaText.body, styles.bold]}>Profile fields</Text>
           <Text style={aquaText.handle}>
-            Up to four, shown on your profile. Links that point back here with rel="me" get a green check.
+            Up to four, shown on your profile. Links that point back here with rel=“me” get a green check.
           </Text>
           {fields.map((f, i) => (
             <View key={i} style={styles.pair}>

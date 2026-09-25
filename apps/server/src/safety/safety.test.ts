@@ -234,3 +234,76 @@ describe("admin scopes", () => {
     expect(hasScope(["read"], "admin:read:reports")).toBe(false);
   });
 });
+
+describe("server-wide moderation", () => {
+  async function moderator() {
+    const mod = await signedInUser("mod", ["read", "write", "follow", "admin:read", "admin:write"]);
+    await safety.setRole(mod.account.id, "moderator");
+    return mod;
+  }
+
+  it("limits an account to the people who follow it", async () => {
+    const mod = await moderator();
+    const sam = await signedInUser("sam");
+    const fan = await signedInUser("fan");
+    const other = await signedInUser("other");
+    await post(`/api/v1/accounts/${sam.account.id}/follow`, fan.headers);
+    await post("/api/v1/statuses", sam.headers, { status: "limited voice" });
+
+    expect((await postJson(`/api/v1/admin/accounts/${sam.account.id}/action`, { type: "silence" }, mod.headers)).status).toBe(200);
+    expect(await read("/api/v1/timelines/public", other.headers)).toEqual([]);
+    expect(await read("/api/v1/timelines/public", {})).toEqual([]);
+    expect(texts(await read("/api/v1/timelines/public", fan.headers))).toEqual(["limited voice"]);
+    expect(texts(await read("/api/v1/timelines/home", fan.headers))).toEqual(["limited voice"]);
+    // Their mention of a non-follower doesn't notify; of a follower it does.
+    await post("/api/v1/statuses", sam.headers, { status: "@other @fan hi" });
+    expect(await read("/api/v1/notifications", other.headers)).toEqual([]);
+    expect((await read("/api/v1/notifications", fan.headers)).map((n: any) => n.type)).toEqual(["mention"]);
+
+    await postJson(`/api/v1/admin/accounts/${sam.account.id}/unsilence`, {}, mod.headers);
+    expect(await read("/api/v1/timelines/public", other.headers)).toHaveLength(2);
+    const log = await read("/api/v1/pinstripe/admin/log", mod.headers);
+    expect(log.map((e: any) => [e.action, e.summary, e.moderator.username])).toEqual([
+      ["unlimit", "@sam", "mod"],
+      ["limit", "@sam", "mod"],
+    ]);
+  });
+
+  it("limits or suspends whole servers, and lists them publicly", async () => {
+    const mod = await moderator();
+    const sam = await signedInUser("sam");
+    const zed = await remotePost("from afar", "bad.example");
+    await store.follow({ followerId: sam.account.id, followingId: zed.id, state: "accepted", uri: null });
+    expect(await read("/api/v1/timelines/public", sam.headers)).toHaveLength(1);
+
+    const limited = await json(await postJson("/api/v1/admin/domain_blocks", { domain: "Bad.Example", severity: "silence", public_comment: "Spam" }, mod.headers));
+    expect(limited).toMatchObject({ domain: "bad.example", severity: "silence", public_comment: "Spam" });
+    // Limited: Sam follows Zed, so still sees them; others don't.
+    expect(await read("/api/v1/timelines/public", sam.headers)).toHaveLength(1);
+    expect(await read("/api/v1/timelines/public", {})).toEqual([]);
+
+    const suspended = await json(await request(`/api/v1/admin/domain_blocks/${limited.id}`, {
+      method: "PUT",
+      headers: { ...mod.headers, "content-type": "application/json" },
+      body: JSON.stringify({ severity: "suspend" }),
+    }));
+    expect(suspended.severity).toBe("suspend");
+    // Suspended: gone for everyone, and the follow is removed.
+    expect(await read("/api/v1/timelines/public", sam.headers)).toEqual([]);
+    expect((await store.followCounts(sam.account.id)).following).toBe(0);
+    expect(await json(await get("/api/v1/instance/domain_blocks", "application/json"))).toEqual([
+      { domain: "bad.example", digest: expect.any(String), severity: "suspend", comment: "Spam" },
+    ]);
+    // Not for regular users.
+    expect((await get("/api/v1/admin/domain_blocks", "application/json", sam.headers)).status).toBe(403);
+
+    await request(`/api/v1/admin/domain_blocks/${limited.id}`, { method: "DELETE", headers: mod.headers });
+    expect(await read("/api/v1/timelines/public", {})).toHaveLength(1);
+    expect((await read("/api/v1/pinstripe/admin/log", mod.headers)).map((e: any) => e.action)).toEqual([
+      "unblock_server",
+      "suspend_server",
+      "limit_server",
+    ]);
+  });
+});
+

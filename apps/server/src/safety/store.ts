@@ -1,6 +1,17 @@
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { Db } from "../db/client.ts";
-import { accounts, blocks, domainBlocks, follows, mutes, type ReportCategory, reports, users } from "../db/schema.ts";
+import {
+  accounts,
+  blocks,
+  domainBlocks,
+  follows,
+  instanceDomainBlocks,
+  moderationLog,
+  mutes,
+  type ReportCategory,
+  reports,
+  users,
+} from "../db/schema.ts";
 import { uuidv7 } from "../ids.ts";
 import { type AccountRow, isUuid, type Store } from "../store.ts";
 
@@ -278,6 +289,90 @@ export class SafetyStore {
       .from(users)
       .where(inArray(users.role, ["moderator", "admin"]));
     return rows.map((r) => r.id);
+  }
+
+  async silence(accountId: string, silenced: boolean) {
+    await this.db
+      .update(accounts)
+      .set({ silencedAt: silenced ? new Date() : null })
+      .where(eq(accounts.id, accountId));
+  }
+
+  // Server-wide blocks
+
+  #serverBlocks: { at: number; bySeverity: Map<string, "silence" | "suspend"> } | null = null;
+
+  /** All server-wide blocks, cached for a minute (they're checked on every incoming activity). */
+  async #serverBlockMap() {
+    if (this.#serverBlocks && Date.now() - this.#serverBlocks.at < 60_000) return this.#serverBlocks.bySeverity;
+    const rows = await this.db.select().from(instanceDomainBlocks);
+    const bySeverity = new Map(rows.map((r) => [r.domain, r.severity]));
+    this.#serverBlocks = { at: Date.now(), bySeverity };
+    return bySeverity;
+  }
+
+  /** Tests: forget cached server blocks after emptying the database. */
+  forgetCache() {
+    this.#serverBlocks = null;
+  }
+
+  /** Whether everything from this server is refused. */
+  async serverSuspended(domain: string | null): Promise<boolean> {
+    return !!domain && (await this.#serverBlockMap()).get(domain.toLowerCase()) === "suspend";
+  }
+
+  async serverBlocks() {
+    return this.db.select().from(instanceDomainBlocks).orderBy(desc(instanceDomainBlocks.createdAt));
+  }
+
+  async getServerBlock(id: string) {
+    if (!isUuid(id)) return null;
+    const [row] = await this.db.select().from(instanceDomainBlocks).where(eq(instanceDomainBlocks.id, id));
+    return row ?? null;
+  }
+
+  /**
+   * Blocks (or changes the block on) a server for everyone. Suspending also
+   * removes every follow between accounts here and there.
+   */
+  async blockServer(input: { domain: string; severity: "silence" | "suspend"; publicComment: string; privateComment: string }) {
+    const [row] = await this.db
+      .insert(instanceDomainBlocks)
+      .values({ id: uuidv7(), ...input })
+      .onConflictDoUpdate({
+        target: instanceDomainBlocks.domain,
+        set: { severity: input.severity, publicComment: input.publicComment, privateComment: input.privateComment },
+      })
+      .returning();
+    this.#serverBlocks = null;
+    if (input.severity === "suspend") {
+      const there = this.db.select({ id: accounts.id }).from(accounts).where(sql`lower(${accounts.domain}) = ${input.domain}`);
+      await this.db.delete(follows).where(or(inArray(follows.followerId, there), inArray(follows.followingId, there)));
+    }
+    return row!;
+  }
+
+  async unblockServer(id: string) {
+    if (!isUuid(id)) return null;
+    const [row] = await this.db.delete(instanceDomainBlocks).where(eq(instanceDomainBlocks.id, id)).returning();
+    this.#serverBlocks = null;
+    return row ?? null;
+  }
+
+  // Moderation log
+
+  async log(moderatorId: string | null, action: string, target: string, summary: string) {
+    await this.db.insert(moderationLog).values({ id: uuidv7(), moderatorId, action, target, summary });
+  }
+
+  async logEntries(options: { maxId?: string; limit: number }) {
+    return this.db
+      .select({ entry: moderationLog, moderator: accounts })
+      .from(moderationLog)
+      .leftJoin(accounts, eq(accounts.id, moderationLog.moderatorId))
+      .where(options.maxId && isUuid(options.maxId) ? lt(moderationLog.id, options.maxId) : undefined)
+      .orderBy(desc(moderationLog.id))
+      .limit(options.limit);
   }
 
   async suspend(accountId: string, suspended: boolean) {

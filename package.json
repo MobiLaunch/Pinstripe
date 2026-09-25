@@ -9,6 +9,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "lint": "pnpm -r --if-present lint",
     "dev:server": "pnpm --filter @pinstripe/server dev",
     "dev:mobile": "pnpm --filter @pinstripe/mobile start"
   },

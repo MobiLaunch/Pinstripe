@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Defs, Pattern, Polygon, Rect } from 'react-native-svg';
 
@@ -13,7 +13,7 @@ const STRIPE = 14;
  */
 export function ProgressBar({ progress, label }: { progress: number | null; label: string }) {
   const accent = useAccent();
-  const shift = useRef(new Animated.Value(0)).current;
+  const [shift] = useState(() => new Animated.Value(0));
   const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {

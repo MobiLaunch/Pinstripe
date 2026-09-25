@@ -49,7 +49,7 @@ export default function OtherServerScreen() {
           <GelButton title={busy ? 'Opening…' : 'Continue'} disabled={busy || !server} onPress={submit} />
         </Card>
         <Text style={[aquaText.handle, styles.note]}>
-          You'll sign in on your server's own page, so Pinstripe never sees your password. Works with Mastodon and
+          You’ll sign in on your server’s own page, so Pinstripe never sees your password. Works with Mastodon and
           other servers that support its apps.
         </Text>
       </ScrollView>

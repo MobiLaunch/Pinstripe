@@ -51,7 +51,8 @@ async function start(databaseUrl: string): Promise<{ instance: Instance; close: 
   const origin = `http://127.0.0.1:${port}`;
   const federation = buildFederation({ kv: new MemoryKvStore(), origin, version: "0.0.0", allowPrivateAddress: true });
   const media = new MediaService(new MediaStore(conn.db), new LocalDiskStorage(mediaDir, origin));
-  const app = buildApp({ federation, store, statuses, media, auth, domain: `127.0.0.1:${port}` });
+  const safety = new SafetyStore(conn.db, store);
+  const app = buildApp({ federation, store, statuses, media, auth, safety, domain: `127.0.0.1:${port}` });
   listener = getRequestListener(app.fetch);
 
   const call = async (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
@@ -71,12 +72,13 @@ async function start(databaseUrl: string): Promise<{ instance: Instance; close: 
     store,
     statuses,
     reset: async () => {
-      await conn.sql`TRUNCATE accounts, oauth_apps CASCADE`;
+      await conn.sql`TRUNCATE accounts, oauth_apps, instance_domain_blocks CASCADE`;
+      safety.forgetCache();
     },
     user: async (username, options: { moderator?: boolean } = {}) => {
       const account = await auth.registerUser({ username, email: `${username}@example.com`, password: "correct horse", locale: null });
       const scopes = ["read", "write", "follow", ...(options.moderator ? ["admin:read", "admin:write"] : [])];
-      if (options.moderator) await new SafetyStore(conn.db, store).setRole(account.id, "moderator");
+      if (options.moderator) await safety.setRole(account.id, "moderator");
       const { app: client } = await auth.createApp({ name: "Test", website: null, redirectUris: ["pinstripe://oauth"], scopes });
       const { token } = await auth.createToken({ appId: client.id, accountId: account.id, scopes });
       return {
