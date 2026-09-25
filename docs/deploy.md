@@ -2,7 +2,8 @@
 
 The server ships as one Docker image (`Dockerfile` at the repository root).
 `deploy/compose.yaml` runs it with Postgres and Caddy, which serves HTTPS
-with automatic certificates.
+with automatic certificates, or with a Cloudflare Tunnel instead. To
+run it on a computer at home, see [home-hosting.md](home-hosting.md).
 
 ## First deploy
 

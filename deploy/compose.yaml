@@ -1,10 +1,15 @@
-# Pinstripe in production: the server, Postgres, and Caddy for HTTPS.
+# Pinstripe in production: the server, Postgres, and a way in from the
+# internet (COMPOSE_PROFILES in .env picks one):
+#
+#   direct  Caddy on ports 80/443 with automatic HTTPS (ports forwarded
+#           to this machine, DNS pointing at it)
+#   tunnel  a Cloudflare Tunnel: no open ports, works behind CGNAT
+#   ddns    (with direct) keeps the DNS record on a changing home IP
 #
 #   cp .env.example .env   # then fill it in
 #   docker compose up -d --build
 #
-# Caddy gets a certificate for PINSTRIPE_HOST automatically (ports 80 and
-# 443 must reach this machine, and DNS must point at it).
+# See docs/deploy.md, and docs/home-hosting.md for running it at home.
 services:
   postgres:
     image: postgres:16
@@ -38,6 +43,7 @@ services:
 
   caddy:
     image: caddy:2
+    profiles: [direct]
     restart: unless-stopped
     depends_on: [server]
     ports: ["80:80", "443:443", "443:443/udp"]
@@ -47,6 +53,31 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: [tunnel]
+    restart: unless-stopped
+    depends_on: [server]
+    # In the Cloudflare dashboard, route the tunnel's public hostname
+    # (PINSTRIPE_HOST) to http://server:8000.
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+
+  ddns:
+    image: favonia/cloudflare-ddns:latest
+    profiles: [ddns]
+    restart: unless-stopped
+    network_mode: host
+    read_only: true
+    cap_drop: [all]
+    security_opt: [no-new-privileges:true]
+    environment:
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      DOMAINS: ${PINSTRIPE_HOST}
+      # Straight to this machine: Cloudflare's proxy would cap uploads at 100 MB.
+      PROXIED: "false"
 
 volumes:
   pgdata:
