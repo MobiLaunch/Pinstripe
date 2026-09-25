@@ -13,6 +13,7 @@ import { FormError } from '@/components/form-error';
 import { PostCard } from '@/components/post-card';
 import { ScreenHeader } from '@/components/screen-header';
 import { publishPostEvent, usePostList } from '@/hooks/use-post-list';
+import { play } from '@/sound/sounds';
 import { colors, fontFamily } from '@/theme/aqua';
 
 /** The whole thread, oldest first; a thread has no further pages. */
@@ -95,6 +96,7 @@ function ReplyBox({ to, autoFocus, onPosted }: { to: Post; autoFocus: boolean; o
       setDraft(handles.length ? `${[...new Set(handles)].join(' ')} ` : '');
       publishPostEvent({ type: 'created', post: toPost(status, state.server) });
       onPosted();
+      play('sent');
       refreshAccount();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Couldn’t send your reply.');

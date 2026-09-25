@@ -6,7 +6,7 @@ import { NetworkStateType, useNetworkState } from 'expo-network';
 import { router } from 'expo-router';
 import { useVideoPlayer, type VideoPlayer, VideoView } from 'expo-video';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { MastodonRelationship } from '@/api/mastodon';
 import { saveVideo } from '@/api/save-video';
@@ -14,6 +14,7 @@ import { useAuth } from '@/auth/session';
 import { Avatar, Orb } from '@/components/aqua';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
+import { ShareSheet } from '@/components/share-sheet';
 import { target } from '@/hooks/use-post-list';
 import { colors, fontFamily, gradients } from '@/theme/aqua';
 import { useAccent } from '@/theme/theme';
@@ -119,6 +120,7 @@ export function VideoPage({
     }
   };
 
+  const [sharing, setSharing] = useState(false);
   const save = async () => {
     setSaving(true);
     try {
@@ -192,12 +194,19 @@ export function VideoPage({
           </RailAction>
         ) : null}
         <RailAction label="Share">
-          <Orb accessibilityLabel="Share" onPress={() => Share.share({ message: shown.uri, url: shown.uri }).catch(() => {})}>
+          <Orb accessibilityLabel="Share" onPress={() => setSharing(true)}>
             <Icon name="share" size={24} color="#fff" />
           </Orb>
         </RailAction>
       </View>
 
+      <ShareSheet
+        visible={sharing}
+        url={shown.uri}
+        text={`${shown.account.displayName} on Pinstripe`}
+        onSaveVideo={canSave ? save : undefined}
+        onClose={() => setSharing(false)}
+      />
       <View style={styles.caption}>
         {post.reblog ? <Text style={styles.boosted}>Boosted by {post.account.displayName}</Text> : null}
         <Text style={styles.name} onPress={() => router.push(`/profile/${shown.account.id}`)}>

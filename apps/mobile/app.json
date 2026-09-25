@@ -8,7 +8,6 @@
     "scheme": "pinstripe",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "social.pinstripe.app"
     },
     "android": {
@@ -48,6 +47,14 @@
         "expo-notifications",
         {
           "color": "#2a74d6"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Pinstripe uses the camera so you can record videos.",
+          "microphonePermission": "Pinstripe records sound with your videos.",
+          "recordAudioAndroid": true
         }
       ]
     ],

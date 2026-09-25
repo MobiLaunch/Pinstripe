@@ -9,6 +9,7 @@ import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { TableBackground, TableGroup, TableRow } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
+import { useSoundEffects } from '@/sound/sounds';
 import { fontFamily } from '@/theme/aqua';
 import { useAccent, useSetTheme } from '@/theme/theme';
 
@@ -35,6 +36,7 @@ export default function SettingsScreen() {
   const { state, signOut, applyCredentials } = useAuth();
   const accent = useAccent();
   const setTheme = useSetTheme();
+  const [sounds, setSounds] = useSoundEffects();
   const [settings, setSettings] = useState<AccountSettings>({
     ...DEFAULT_SETTINGS,
     theme: accent.theme,
@@ -154,6 +156,9 @@ export default function SettingsScreen() {
           {row('autoplayVideos', 'Autoplay')}
           {row('startMuted', 'Start Muted')}
           {row('saveDataOnCellular', 'Save Data on Cellular')}
+        </TableGroup>
+        <TableGroup title="Sounds" footer="Sent posts, refreshing and the camera. Silent when your phone is.">
+          <TableRow title="Sound Effects" right={<AquaSwitch value={sounds} onValueChange={setSounds} accessibilityLabel="Sound Effects" />} />
         </TableGroup>
         <TableGroup title="Appearance">
           {THEMES.map((t) => (

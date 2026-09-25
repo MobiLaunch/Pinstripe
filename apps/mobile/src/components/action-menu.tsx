@@ -28,12 +28,11 @@ export function ActionMenu({
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close menu" accessibilityRole="button" />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 18 }]} accessibilityViewIsModal>
-        <LinearGradient colors={['rgba(64,72,86,0.92)', 'rgba(22,28,38,0.94)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
-        <View style={styles.sheetShine} pointerEvents="none" />
+      <Pressable style={sheetStyles.backdrop} onPress={onClose} accessibilityLabel="Close menu" accessibilityRole="button" />
+      <View style={[sheetStyles.sheet, { paddingBottom: insets.bottom + 18 }]} accessibilityViewIsModal>
+        <SheetGlass />
         {title ? (
-          <Text style={styles.title} accessibilityRole="header">
+          <Text style={sheetStyles.title} accessibilityRole="header">
             {title}
           </Text>
         ) : null}
@@ -48,11 +47,48 @@ export function ActionMenu({
             }}
           />
         ))}
-        <SheetButton label="Cancel" kind="cancel" onPress={onClose} style={styles.cancel} />
+        <SheetButton label="Cancel" kind="cancel" onPress={onClose} style={sheetStyles.cancel} />
       </View>
     </Modal>
   );
 }
+
+/** The sheet's dark glass and its top highlight. */
+export function SheetGlass() {
+  return (
+    <>
+      <LinearGradient colors={['rgba(64,72,86,0.92)', 'rgba(22,28,38,0.94)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <View style={styles.sheetShine} pointerEvents="none" />
+    </>
+  );
+}
+
+export const sheetStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    gap: 10,
+    overflow: 'hidden',
+    borderTopWidth: 1,
+    borderTopColor: '#0b0f15',
+  },
+  title: {
+    fontFamily,
+    fontSize: 14,
+    color: '#d6dbe3',
+    textAlign: 'center',
+    marginBottom: 2,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: -1 },
+    textShadowRadius: 0,
+  },
+  cancel: { marginTop: 8 },
+});
 
 const FACES = {
   default: { colors: ['#ffffff', '#f3f3f3', '#e4e4e4', '#dadada'], text: '#141922', shadow: '#ffffff', shadowY: 1 },
@@ -60,7 +96,8 @@ const FACES = {
   cancel: { colors: ['#737373', '#454545', '#2c2c2c', '#232323'], text: '#ffffff', shadow: 'rgba(0,0,0,0.6)', shadowY: -1 },
 } as const;
 
-function SheetButton({ label, kind, onPress, style }: { label: string; kind: keyof typeof FACES; onPress: () => void; style?: object }) {
+/** A button on the dark glass sheet: white, red (destructive) or the dark Cancel. */
+export function SheetButton({ label, kind, onPress, style }: { label: string; kind: keyof typeof FACES; onPress: () => void; style?: object }) {
   const face = FACES[kind];
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.button, pressed && styles.pressed, style]}>
@@ -77,30 +114,7 @@ function SheetButton({ label, kind, onPress, style }: { label: string; kind: key
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingTop: 16,
-    paddingHorizontal: 20,
-    gap: 10,
-    overflow: 'hidden',
-    borderTopWidth: 1,
-    borderTopColor: '#0b0f15',
-  },
   sheetShine: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.35)' },
-  title: {
-    fontFamily,
-    fontSize: 14,
-    color: '#d6dbe3',
-    textAlign: 'center',
-    marginBottom: 2,
-    textShadowColor: 'rgba(0,0,0,0.6)',
-    textShadowOffset: { width: 0, height: -1 },
-    textShadowRadius: 0,
-  },
   button: {
     height: 46,
     borderRadius: 9,
@@ -114,5 +128,4 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.75 },
   face: { borderRadius: 8 },
   label: { fontFamily, fontSize: 19, fontWeight: '700' },
-  cancel: { marginTop: 8 },
 });

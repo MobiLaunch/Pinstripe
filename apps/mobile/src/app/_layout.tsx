@@ -36,6 +36,7 @@ function RootStack() {
         <Stack.Screen name="videos/[accountId]" />
         <Stack.Screen name="tag/[name]" />
         <Stack.Screen name="new-video" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="camera" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="sign-in" />

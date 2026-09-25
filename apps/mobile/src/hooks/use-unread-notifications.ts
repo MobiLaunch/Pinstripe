@@ -1,6 +1,7 @@
+import * as Notifications from 'expo-notifications';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import { useAuth } from '@/auth/session';
 
@@ -42,6 +43,11 @@ export function useUnreadNotifications(): number {
       };
     }, [check]),
   );
+
+  // The red badge on the app icon matches (iOS shows it once notifications are allowed).
+  useEffect(() => {
+    if (Platform.OS !== 'web') Notifications.setBadgeCountAsync(count).catch(() => {});
+  }, [count]);
 
   return count;
 }

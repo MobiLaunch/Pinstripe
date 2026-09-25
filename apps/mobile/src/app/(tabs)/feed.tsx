@@ -14,11 +14,13 @@ import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
+import { PickerSheet } from '@/components/picker';
 import { PostCard } from '@/components/post-card';
 import { ProgressBar } from '@/components/progress-bar';
 import { usePullToRefresh } from '@/components/pull-refresh';
 import { publishPostEvent, usePostList } from '@/hooks/use-post-list';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
+import { play } from '@/sound/sounds';
 import { colors, fontFamily } from '@/theme/aqua';
 
 const TIMELINES = [
@@ -172,10 +174,7 @@ function Composer() {
     }
   };
 
-  const cycleVisibility = () => {
-    const i = VISIBILITIES.findIndex((v) => v.value === visibility);
-    setVisibility(VISIBILITIES[(i + 1) % VISIBILITIES.length]!.value);
-  };
+  const [choosing, setChoosing] = useState(false);
 
   const submit = async () => {
     if (state.status !== 'signedIn') return;
@@ -190,6 +189,7 @@ function Composer() {
       setDraft('');
       setAttachments([]);
       publishPostEvent({ type: 'created', post: toPost(status, state.server) });
+      play('sent');
       refreshAccount();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Couldn’t post. Please try again.');
@@ -249,7 +249,15 @@ function Composer() {
           small
           title={current.label}
           accessibilityLabel={`Visibility: ${current.label}. Tap to change.`}
-          onPress={cycleVisibility}
+          onPress={() => setChoosing(true)}
+        />
+        <PickerSheet
+          visible={choosing}
+          title="Who Can See It"
+          options={VISIBILITIES}
+          value={visibility}
+          onChange={setVisibility}
+          onClose={() => setChoosing(false)}
         />
         <Text style={[aquaText.handle, styles.push, remaining < 0 && styles.over]}>{remaining}</Text>
         <GelButton

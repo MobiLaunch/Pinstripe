@@ -42,6 +42,13 @@ export function showHud(label: string): HudHandle {
   };
 }
 
+/** Shows a check mark and `label` for a moment ("Copied"). */
+export function flashHud(label: string) {
+  clearTimeout(timer);
+  set?.({ label, done: true });
+  timer = setTimeout(() => set?.(null), 900);
+}
+
 /** Mounted once, over everything else at the root of the app. */
 export function HudHost() {
   const [state, setState] = useState<State | null>(null);

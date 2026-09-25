@@ -53,6 +53,38 @@ const ICONS = {
   ),
   chevronLeft: <Path d="M15 5l-7 7 7 7" />,
   chevronRight: <Path d="M9 5l7 7-7 7" />,
+  flash: <Path d="M13 2L5 13.5h6L10 22l8-11.5h-6z" />,
+  flip: (
+    <>
+      <Path d="M4 8h3l2-3h6l2 3h3v11H4z" />
+      <Path d="M9 12.5a3 3 0 0 1 5.2-2M15 13.5a3 3 0 0 1-5.2 2M14.6 8.6v2.1h-2.1M9.4 17.4v-2.1h2.1" strokeWidth={1.6} />
+    </>
+  ),
+  video: (
+    <>
+      <Rect x={3} y={7} width={12} height={10} rx={2} />
+      <Path d="M15 11l6-3.5v9L15 13" />
+    </>
+  ),
+  mail: (
+    <>
+      <Rect x={3} y={6} width={18} height={13} rx={1.5} />
+      <Path d="M3.5 6.5l8.5 7 8.5-7" />
+    </>
+  ),
+  copy: (
+    <>
+      <Rect x={8} y={8} width={12} height={13} rx={1.5} />
+      <Path d="M16 8V4.5A1.5 1.5 0 0 0 14.5 3h-9A1.5 1.5 0 0 0 4 4.5v11A1.5 1.5 0 0 0 5.5 17H8" />
+    </>
+  ),
+  compass: (
+    <>
+      <Circle cx={12} cy={12} r={9} />
+      <Path d="M15.5 8.5l-2 5-5 2 2-5z" />
+    </>
+  ),
+  bubble: <Path d="M12 4c4.97 0 9 3.13 9 7s-4.03 7-9 7c-.9 0-1.8-.1-2.6-.3L5 20l1.2-3.6C4.2 15.1 3 13.2 3 11c0-3.87 4.03-7 9-7z" />,
   gear: (
     <>
       <Circle cx={12} cy={12} r={3.2} />

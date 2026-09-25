@@ -20,6 +20,7 @@ import {
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { Spinner } from '@/components/ios6';
+import { play } from '@/sound/sounds';
 
 const RADIUS = 15;
 const TOP = 8;
@@ -67,6 +68,7 @@ export function usePullToRefresh(onRefresh: () => unknown, busy = false): { list
     // It refreshes the moment it snaps, while your finger is still down.
     if (dragging.current && !fired.current && !refreshing && distance >= SNAP) {
       fired.current = true;
+      play('pop');
       run();
     }
   };

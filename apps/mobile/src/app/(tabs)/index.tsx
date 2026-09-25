@@ -1,5 +1,4 @@
 import { isVideoPost, type Post } from '@pinstripe/core';
-import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useIsFocused } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -7,7 +6,7 @@ import { FlatList, Platform, StyleSheet, Text, View, type ViewToken } from 'reac
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { TimelineKind } from '@/api/mastodon';
-import { checkPicked } from '@/api/upload';
+import { pickVideoFromLibrary } from '@/api/pick-video';
 import { ActionMenu } from '@/components/action-menu';
 import { GelButton, Orb, Segmented } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
@@ -46,31 +45,16 @@ export default function VideosScreen() {
     if (first?.index !== undefined && first.index !== null) setActive(first.index);
   }, []);
 
-  const newVideo = async (source: 'camera' | 'library') => {
+  const fromLibrary = async () => {
     setError(null);
-    const options: ImagePicker.ImagePickerOptions = {
-      mediaTypes: ['videos'],
-      videoMaxDuration: 60,
-      videoQuality: ImagePicker.UIImagePickerControllerQualityType.High,
-      preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
-    };
-    if (source === 'camera') {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) return setError('Pinstripe needs the camera to record. You can allow it in Settings.');
-    }
-    const result = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    const problem = checkPicked(asset);
-    if (problem) return setError(problem);
-    const { uri, type, mimeType, fileSize, width, height: h, duration, fileName } = asset;
-    router.push({ pathname: '/new-video', params: { asset: JSON.stringify({ uri, type, mimeType, fileSize, width, height: h, duration, fileName }) } });
+    const problem = await pickVideoFromLibrary();
+    if (problem) setError(problem);
   };
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const record = () => {
     // On web the file picker is the camera too, so there's nothing to choose.
-    if (Platform.OS === 'web') return newVideo('library');
+    if (Platform.OS === 'web') return fromLibrary();
     setSheetOpen(true);
   };
 
@@ -131,8 +115,8 @@ export default function VideosScreen() {
         visible={sheetOpen}
         title="New video · up to 60 seconds"
         actions={[
-          { label: 'Take Video', onPress: () => newVideo('camera') },
-          { label: 'Choose From Library', onPress: () => newVideo('library') },
+          { label: 'Take Video', onPress: () => router.push('/camera') },
+          { label: 'Choose From Library', onPress: fromLibrary },
         ]}
         onClose={() => setSheetOpen(false)}
       />

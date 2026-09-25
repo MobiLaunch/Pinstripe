@@ -8,12 +8,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type MastodonMedia, toMastodonVisibility, toPost } from '@/api/mastodon';
 import { type Picked, uploadMedia, waitForMedia } from '@/api/upload';
 import { useAuth, useSource } from '@/auth/session';
-import { aquaText, Card, GelButton, Segmented } from '@/components/aqua';
+import { aquaText, Card, GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
+import { BarButton, TableBackground, TableRow } from '@/components/ios6';
+import { PickerSheet } from '@/components/picker';
 import { ProgressBar } from '@/components/progress-bar';
-import { BarButton, TableBackground } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
 import { publishPostEvent } from '@/hooks/use-post-list';
+import { play } from '@/sound/sounds';
 import { colors, fontFamily } from '@/theme/aqua';
 
 const VISIBILITIES = [
@@ -46,6 +48,7 @@ export default function NewVideoScreen() {
   const [stage, setStage] = useState<Stage>({ kind: 'uploading', progress: 0 });
   const [attempt, setAttempt] = useState(0);
   const [posting, setPosting] = useState(false);
+  const [choosing, setChoosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const player = useVideoPlayer(asset?.uri ?? null, (p) => {
     p.loop = true;
@@ -87,6 +90,7 @@ export default function NewVideoScreen() {
         media_ids: [stage.media.id],
       });
       publishPostEvent({ type: 'created', post: toPost(status, state.server) });
+      play('sent');
       refreshAccount();
       // Opened directly (a link, a reload) there's nothing to go back to.
       if (router.canGoBack()) router.back();
@@ -160,8 +164,22 @@ export default function NewVideoScreen() {
             />
             <Text style={[aquaText.handle, styles.count, remaining < 0 && styles.over]}>{remaining}</Text>
           </Card>
-          <Text style={[aquaText.body, styles.strong]}>Who can see this</Text>
-          <Segmented options={VISIBILITIES} value={visibility as (typeof VISIBILITIES)[number]['value']} onChange={setVisibility} />
+          <View style={styles.group}>
+            <TableRow
+              title="Who Can See It"
+              detail={VISIBILITIES.find((v) => v.value === visibility)?.label ?? 'Public'}
+              accessory="chevron"
+              onPress={() => setChoosing(true)}
+            />
+          </View>
+          <PickerSheet
+            visible={choosing}
+            title="Who Can See It"
+            options={VISIBILITIES}
+            value={visibility as (typeof VISIBILITIES)[number]['value']}
+            onChange={setVisibility}
+            onClose={() => setChoosing(false)}
+          />
         </ScrollView>
       </KeyboardAvoidingView>
     </TableBackground>
@@ -169,6 +187,14 @@ export default function NewVideoScreen() {
 }
 
 const styles = StyleSheet.create({
+  group: {
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#aaaeb3',
+    overflow: 'hidden',
+    boxShadow: '0 1px 0 rgba(255,255,255,0.7)',
+  },
   flex: { flex: 1 },
   body: { padding: 16, gap: 12 },
   previewRow: { flexDirection: 'row', gap: 14, alignItems: 'center' },
