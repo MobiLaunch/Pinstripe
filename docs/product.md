@@ -65,12 +65,25 @@ glossy gel buttons with a specular highlight, glass orbs, blue segmented
 controls, barber-pole progress bars, Lucida Grande type. Tokens live in
 `apps/mobile/src/theme/aqua.ts`.
 
+## Decisions
+
+- **One server.** Pinstripe runs as a single flagship instance
+  (`pinstripe.social`); self-hosting is not a goal for now.
+- **Mastodon-compatible sign-in.** "Use an account on another server" works
+  with any server that speaks the Mastodon client API (Mastodon, and the many
+  servers that implement its API). Pinstripe's own server exposes the same
+  API, so the app has one client for both.
+- **Video limits.** Up to **60 seconds**, up to **1080p** in either
+  orientation (1920×1080 or 1080×1920), MP4 / MOV / WebM, at most 200 MB per
+  upload (a minute of 1080p at ~25 Mbps; adjustable).
+- **Photo limits.** At most **15 MB**, JPEG / PNG / WebP / HEIC / GIF.
+
+The limits live in `packages/core/src/media.ts`; the server enforces them and
+the app checks them before uploading.
+
 ## Open questions
 
-- Which servers ship first: one flagship instance (`pinstripe.social`) or
-  self-hostable from day one?
-- Video pipeline: transcoding (HLS ladders?), max length, storage/CDN.
-- Remote sign-in: pure Mastodon-API client for other servers, or only
-  Pinstripe servers?
+- Video pipeline details: transcoding ladder (e.g. 1080p/720p/480p HLS),
+  storage/CDN provider.
 - Moderation tooling and reporting flows (not on the canvas yet).
 - Comments UI, record/upload flow and notifications (not on the canvas yet).
