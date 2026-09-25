@@ -17,6 +17,7 @@ import {
   Update,
 } from "@fedify/vocab";
 import { Temporal } from "@js-temporal/polyfill";
+import { escapeHtml, plainToHtml } from "./mastodon.ts";
 import { persistActor, resolveActorUri } from "./remote/actors.ts";
 import { deliver } from "./remote/deliver.ts";
 import { persistNote, statusByUri } from "./remote/notes.ts";
@@ -83,7 +84,8 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
         id: ctx.getActorUri(identifier),
         preferredUsername: account.username,
         name: account.displayName,
-        summary: account.bio,
+        // Other servers treat these as HTML; ours are plain text.
+        summary: plainToHtml(account.bio),
         url: new URL(`/@${account.username}`, ctx.canonicalOrigin),
         published: Temporal.Instant.fromEpochMilliseconds(account.createdAt.getTime()),
         inbox: ctx.getInboxUri(identifier),
@@ -92,7 +94,7 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
         outbox: ctx.getOutboxUri(identifier),
         manuallyApprovesFollowers: account.settings.approveFollowers,
         discoverable: account.settings.listInDirectory,
-        attachments: account.fields.map((f) => new PropertyValue({ name: f.name, value: f.value })),
+        attachments: account.fields.map((f) => new PropertyValue({ name: f.name, value: escapeHtml(f.value) })),
         publicKey: keys[0]?.cryptographicKey,
         assertionMethods: keys.map((k) => k.multikey),
       });

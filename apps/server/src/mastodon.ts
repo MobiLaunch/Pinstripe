@@ -37,7 +37,7 @@ export interface MastodonAccount {
   fields: { name: string; value: string; verified_at: string | null }[];
 }
 
-const escapeHtml = (s: string) =>
+export const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
 
 /** Local bios are plain text; Mastodon's `note` is HTML. */

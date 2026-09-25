@@ -164,3 +164,21 @@ describe("posts across servers", () => {
     expect(await a.get("/api/v1/timelines/home", carol.headers)).toEqual([]);
   });
 });
+
+describe("profiles across servers", () => {
+  it("sends profile edits to followers' servers", async () => {
+    const { a, b } = servers;
+    const alice = await a.user("alice");
+    const bob = await b.user("bob");
+    const remoteBob = await discover(a, alice, bob.actor);
+    await a.post(`/api/v1/accounts/${remoteBob.id}/follow`, {}, alice.headers);
+
+    const res = await fetch(new URL("/api/v1/accounts/update_credentials", b.origin), {
+      method: "PATCH",
+      headers: { ...bob.headers, "content-type": "application/json" },
+      body: JSON.stringify({ display_name: "Bob B.", note: "New bio" }),
+    });
+    expect(res.status).toBe(200);
+    expect(await a.get(`/api/v1/accounts/${remoteBob.id}`)).toMatchObject({ display_name: "Bob B.", note: "<p>New bio</p>" });
+  });
+});

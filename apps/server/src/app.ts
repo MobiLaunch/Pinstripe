@@ -8,7 +8,8 @@ import type { FailureLimiter } from "./auth/rate-limit.ts";
 import { authRoutes } from "./auth/routes.ts";
 import type { AuthStore } from "./auth/store.ts";
 import type { ContextData } from "./federation.ts";
-import { serializeAccount } from "./mastodon.ts";
+import { profileRoutes } from "./accounts/profile.ts";
+import { serializeAccount, toMastodonVisibility } from "./mastodon.ts";
 import { actorUri } from "./statuses/activitypub.ts";
 import { statusRenderer } from "./statuses/render.ts";
 import { statusRoutes } from "./statuses/routes.ts";
@@ -74,6 +75,22 @@ export function buildApp({ federation, store, statuses, auth, domain, loginLimit
     );
   }
 
+  async function renderCredentialAccount(c: Context, account: AccountRow) {
+    const json = await renderAccount(c, account);
+    return {
+      ...json,
+      source: {
+        privacy: toMastodonVisibility(account.settings.defaultVisibility),
+        sensitive: false,
+        language: null,
+        // The plain text as typed, for editing.
+        note: account.bio,
+        fields: json.fields,
+        follow_requests_count: (await store.followCounts(account.id)).requests,
+      },
+    };
+  }
+
   const render = statusRenderer({ statuses, renderAccount, federationContext });
 
   // Token-based, never cookie-based, so any origin may call these (as on Mastodon).
@@ -86,7 +103,8 @@ export function buildApp({ federation, store, statuses, auth, domain, loginLimit
 
   // Fixed paths (verify_credentials, lookup, relationships…) are registered
   // before /api/v1/accounts/:id so they aren't read as ids.
-  app.route("/", authRoutes({ auth, store, renderAccount, loginLimiter }));
+  app.route("/", authRoutes({ auth, renderCredentialAccount, loginLimiter }));
+  app.route("/", profileRoutes({ store, renderCredentialAccount, federationContext }));
   app.route("/", statusRoutes({ store, statuses, domain, render, federationContext }));
   app.route(
     "/",

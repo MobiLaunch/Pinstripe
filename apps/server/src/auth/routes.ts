@@ -12,8 +12,9 @@
  */
 import { isValidUsername, USERNAME_MAX_LENGTH } from "@pinstripe/core";
 import { type Context, Hono } from "hono";
-import { type MastodonAccount, toMastodonVisibility } from "../mastodon.ts";
-import { type LocalAccount, type Store, UsernameTakenError } from "../store.ts";
+import { readParams } from "../http.ts";
+import type { MastodonAccount } from "../mastodon.ts";
+import { type LocalAccount, UsernameTakenError } from "../store.ts";
 import { type AuthorizeParams, authorizePage, codePage, errorPage } from "./authorize-page.ts";
 import { type AuthEnv, requireToken, requireUser } from "./middleware.ts";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./passwords.ts";
@@ -26,33 +27,11 @@ export const OOB_REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob";
 
 export interface AuthRoutesOptions {
   auth: AuthStore;
-  store: Store;
   /** Renders a local account as Mastodon's Account entity. */
-  renderAccount: (c: Context, account: LocalAccount) => Promise<MastodonAccount>;
+  /** Mastodon's CredentialAccount: the account plus its editable `source`. */
+  renderCredentialAccount: (c: Context, account: LocalAccount) => Promise<MastodonAccount>;
   /** 10 failed logins per 15 minutes per username/email by default. */
   loginLimiter?: FailureLimiter;
-}
-
-/** Mastodon clients send parameters as a query string, a form, or JSON. */
-async function readParams(c: Context): Promise<Record<string, string>> {
-  const params: Record<string, string> = { ...c.req.query() };
-  const type = c.req.header("content-type") ?? "";
-  if (c.req.method !== "GET") {
-    if (type.includes("application/json")) {
-      const body = await c.req.json().catch(() => ({}));
-      for (const [k, v] of Object.entries(body ?? {})) {
-        if (Array.isArray(v)) params[k] = v.join("\n");
-        else if (v !== null && v !== undefined) params[k] = String(v);
-      }
-    } else if (type.includes("form")) {
-      const body = await c.req.parseBody({ all: true });
-      for (const [k, v] of Object.entries(body)) {
-        const key = k.replace(/\[\]$/, "");
-        params[key] = Array.isArray(v) ? v.map(String).join("\n") : String(v);
-      }
-    }
-  }
-  return params;
 }
 
 function validRedirectUri(uri: string): boolean {
@@ -89,7 +68,7 @@ function appResponse(app: OAuthApp) {
 const oauthError = (c: Context, error: string, description: string, status: 400 | 401 = 400) =>
   c.json({ error, error_description: description }, status);
 
-export function authRoutes({ auth, store, renderAccount, loginLimiter = new FailureLimiter(10, 15 * 60 * 1000) }: AuthRoutesOptions) {
+export function authRoutes({ auth, renderCredentialAccount, loginLimiter = new FailureLimiter(10, 15 * 60 * 1000) }: AuthRoutesOptions) {
   const app = new Hono<AuthEnv>();
 
   /** Checks a login, counting failures per username/email. */
@@ -350,19 +329,7 @@ export function authRoutes({ auth, store, renderAccount, loginLimiter = new Fail
   app.get("/api/v1/accounts/verify_credentials", async (c) => {
     const result = requireUser(c, "read:accounts", "profile");
     if (!result.ok) return result.response;
-    const { account } = result.value;
-    const json = await renderAccount(c, account);
-    return c.json({
-      ...json,
-      source: {
-        privacy: toMastodonVisibility(account.settings.defaultVisibility),
-        sensitive: false,
-        language: null,
-        note: account.bio,
-        fields: json.fields.map((f) => ({ name: f.name, value: f.value, verified_at: f.verified_at })),
-        follow_requests_count: (await store.followCounts(account.id)).requests,
-      },
-    });
+    return c.json(await renderCredentialAccount(c, result.value.account));
   });
 
   return app;
