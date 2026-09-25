@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 
 import { AuthProvider, useAuth } from '@/auth/session';
+import { DesktopFrame } from '@/components/desktop-frame';
 import { DialogHost } from '@/components/dialog';
 import { HudHost } from '@/components/hud';
 import { usePushNotifications } from '@/push/push';
@@ -61,9 +62,11 @@ export default function RootLayout() {
       <ThemeProvider>
         <StatusBar style="dark" />
         <PushNotifications />
-        <RootStack />
+        <DesktopFrame>
+          <RootStack />
+          <HudHost />
+        </DesktopFrame>
         <DialogHost />
-        <HudHost />
       </ThemeProvider>
     </AuthProvider>
   );

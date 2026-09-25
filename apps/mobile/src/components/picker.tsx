@@ -124,7 +124,7 @@ function Wheel<T extends string>({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', maxWidth: 440, marginHorizontal: 'auto' },
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8 },
   barTitle: {
     fontFamily,

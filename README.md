@@ -49,6 +49,11 @@ $env:TEST_DATABASE_URL = "postgres://pinstripe:pinstripe@localhost:5432/pinstrip
 They last until the window closes; `setx DATABASE_URL "…"` keeps them for new
 windows. Docker Desktop must be running for `docker compose up -d`.
 
+To use the app on a computer, press `w` in the `pnpm dev:mobile` terminal
+(or open http://localhost:8081): it runs in the browser in a phone-width
+column. http://localhost:8000 is the server's own read-only public page, not
+the app.
+
 In development, emails (confirmation and password-reset links) are printed
 in the server's output. To make yourself a moderator:
 `pnpm --filter @pinstripe/server role <username> moderator`, then sign in again.

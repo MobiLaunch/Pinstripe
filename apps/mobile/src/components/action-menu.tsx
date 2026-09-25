@@ -70,6 +70,10 @@ export const sheetStyles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    // On a wide browser window, as wide as the app's column.
+    width: '100%',
+    maxWidth: 440,
+    marginHorizontal: 'auto',
     paddingTop: 16,
     paddingHorizontal: 20,
     gap: 10,

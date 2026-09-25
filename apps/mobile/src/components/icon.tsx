@@ -110,7 +110,7 @@ export function Icon({
 }) {
   // The View keeps the icon above absolutely-positioned gradient layers on web.
   return (
-    <View style={{ width: size, height: size }} pointerEvents="none">
+    <View style={{ width: size, height: size }} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <Svg
         width={size}
         height={size}
@@ -119,8 +119,7 @@ export function Icon({
         stroke={color}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
-        strokeLinejoin="round"
-        accessible={false}>
+        strokeLinejoin="round">
         {ICONS[name]}
       </Svg>
     </View>

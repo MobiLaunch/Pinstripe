@@ -360,7 +360,7 @@ export function Spinner({
       <Animated.View style={{ width: px, height: px, transform: [{ rotate }] }}>
         <Svg width={px} height={px}>
           {Array.from({ length: SPOKES }, (_, i) => (
-            <G key={i} rotation={-i * (360 / SPOKES)} origin={`${c}, ${c}`}>
+            <G key={i} transform={`rotate(${-i * (360 / SPOKES)} ${c} ${c})`}>
               <Rect x={c - w / 2} y={px * 0.02} width={w} height={px * 0.27} rx={w / 2} fill={color} opacity={1 - (i / SPOKES) * 0.8} />
             </G>
           ))}
