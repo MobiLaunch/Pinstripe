@@ -6,10 +6,13 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import {
+  Platform,
   Pressable,
   type PressableProps,
   type StyleProp,
   StyleSheet,
+  Switch,
+  type SwitchProps,
   Text,
   TextInput,
   type TextInputProps,
@@ -20,6 +23,7 @@ import {
 import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 
 import { colors, fontFamily, type Gradient, gelBorders, gradients, radii, touchTarget } from '@/theme/aqua';
+import { useAccent } from '@/theme/theme';
 
 function Fill({ gradient, style }: { gradient: Gradient; style?: ViewStyle }) {
   return (
@@ -83,7 +87,8 @@ export function GelButton({
   icon?: ReactNode;
   style?: ViewStyle;
 }) {
-  const t = GEL[tone];
+  const accent = useAccent();
+  const t = tone === 'blue' ? { gradient: accent.gel, border: accent.gelBorder, text: '#ffffff' } : GEL[tone];
   return (
     <Pressable
       accessibilityRole="button"
@@ -119,12 +124,13 @@ export function Orb({
   size?: number;
   style?: ViewStyle;
 }) {
+  const accent = useAccent();
   return (
     <Pressable
       accessibilityRole="button"
-      style={[styles.orb, { width: size, height: size, borderColor: active ? '#0a3a80' : 'rgba(0,0,0,0.6)' }, style]}
+      style={[styles.orb, { width: size, height: size, borderColor: active ? accent.orbActiveBorder : 'rgba(0,0,0,0.6)' }, style]}
       {...rest}>
-      <Fill gradient={active ? gradients.orbBlue : gradients.orb} />
+      <Fill gradient={active ? accent.orbActive : gradients.orb} />
       <Fill gradient={gradients.gloss} style={styles.orbGloss} />
       {children}
     </Pressable>
@@ -143,6 +149,7 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
   style?: StyleProp<ViewStyle>;
 }) {
+  const accent = useAccent();
   return (
     <View style={[styles.seg, style]} accessibilityRole="tablist">
       {options.map((o, i) => {
@@ -154,7 +161,7 @@ export function Segmented<T extends string>({
             accessibilityState={{ selected: on }}
             onPress={() => onChange(o.value)}
             style={[styles.segItem, i > 0 && styles.segDivider]}>
-            <Fill gradient={on ? gradients.segmentOn : gradients.segment} />
+            <Fill gradient={on ? accent.segmentOn : gradients.segment} />
             <Text style={[styles.segText, on && styles.segTextOn]}>{o.label}</Text>
           </Pressable>
         );
@@ -164,9 +171,10 @@ export function Segmented<T extends string>({
 }
 
 export function Avatar({ initials, size = 40, uri }: { initials: string; size?: number; uri?: string | null }) {
+  const accent = useAccent();
   return (
-    <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]} accessibilityElementsHidden>
-      <Fill gradient={gradients.avatar} />
+    <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, borderColor: accent.bannerEdge }]} accessibilityElementsHidden>
+      <Fill gradient={accent.avatar} />
       {uri ? (
         <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
       ) : (
@@ -174,6 +182,13 @@ export function Avatar({ initials, size = 40, uri }: { initials: string; size?: 
       )}
     </View>
   );
+}
+
+/** A switch in the theme's accent. React Native Web colours the "on" knob separately, so it's set here too. */
+export function AquaSwitch(props: Omit<SwitchProps, 'trackColor' | 'thumbColor'>) {
+  const accent = useAccent();
+  const web = Platform.OS === 'web' ? { activeThumbColor: '#ffffff' } : {};
+  return <Switch trackColor={{ true: accent.color }} thumbColor="#ffffff" {...web} {...props} />;
 }
 
 export function Card({ style, ...rest }: ViewProps) {
@@ -263,7 +278,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#0e3f86',
   },
   avatarText: { fontFamily, color: '#ffffff', fontWeight: '700' },
   card: {

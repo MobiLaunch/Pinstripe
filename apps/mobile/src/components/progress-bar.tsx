@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Defs, Pattern, Polygon, Rect } from 'react-native-svg';
 
-import { colors } from '@/theme/aqua';
+import { useAccent } from '@/theme/theme';
 
 const STRIPE = 14;
 
@@ -12,6 +12,7 @@ const STRIPE = 14;
  * stops when the system asks for reduced motion.
  */
 export function ProgressBar({ progress, label }: { progress: number | null; label: string }) {
+  const accent = useAccent();
   const shift = useRef(new Animated.Value(0)).current;
   const [reduceMotion, setReduceMotion] = useState(false);
 
@@ -42,8 +43,8 @@ export function ProgressBar({ progress, label }: { progress: number | null; labe
           <Svg width="200%" height="100%">
             <Defs>
               <Pattern id="barber" width={STRIPE * 2} height={STRIPE * 2} patternUnits="userSpaceOnUse">
-                <Rect width={STRIPE * 2} height={STRIPE * 2} fill="#8ac3ff" />
-                <Polygon points={`0,${STRIPE * 2} ${STRIPE},0 ${STRIPE * 2},0 ${STRIPE},${STRIPE * 2}`} fill={colors.accent} />
+                <Rect width={STRIPE * 2} height={STRIPE * 2} fill={accent.stripe} />
+                <Polygon points={`0,${STRIPE * 2} ${STRIPE},0 ${STRIPE * 2},0 ${STRIPE},${STRIPE * 2}`} fill={accent.color} />
               </Pattern>
             </Defs>
             <Rect width="100%" height="100%" fill="url(#barber)" />

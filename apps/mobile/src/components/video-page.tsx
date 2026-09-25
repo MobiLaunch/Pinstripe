@@ -16,6 +16,7 @@ import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
 import { target } from '@/hooks/use-post-list';
 import { colors, fontFamily, gradients } from '@/theme/aqua';
+import { useAccent } from '@/theme/theme';
 
 /** A video counts as viewed after this much playback. */
 const VIEW_AFTER_MS = 2000;
@@ -60,6 +61,7 @@ export function VideoPage({
   const { state } = useAuth();
   const client = state.status === 'signedIn' ? state.client : null;
   const viewerId = state.status === 'signedIn' ? state.account.id : null;
+  const accent = useAccent();
   const shown = target(post);
   const video = shown.media[0]!;
   const [started, setStarted] = useState(false);
@@ -156,7 +158,7 @@ export function VideoPage({
             <Avatar initials={initials(shown.account.displayName)} size={52} uri={shown.account.avatarUrl} />
           </Pressable>
           {canFollow ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={`Follow ${shown.account.displayName}`} onPress={follow} hitSlop={8} style={styles.follow}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Follow ${shown.account.displayName}`} onPress={follow} hitSlop={8} style={[styles.follow, { backgroundColor: accent.color }]}>
               <Icon name="plus" size={14} color="#fff" strokeWidth={3} />
             </Pressable>
           ) : null}
@@ -236,7 +238,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: colors.accent,
     borderWidth: 2,
     borderColor: '#fff',
     alignItems: 'center',

@@ -1,10 +1,10 @@
 import { isValidUsername } from '@pinstripe/core';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ApiError, type FieldErrors } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
-import { aquaText, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
+import { AquaSwitch, aquaText, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { PASSWORD_MIN, StrengthMeter } from '@/components/password-strength';
 import { ScreenHeader } from '@/components/screen-header';
@@ -89,12 +89,10 @@ export default function SignUpScreen() {
             {hint('password')}
           </View>
           <View style={styles.agree}>
-            <Switch
+            <AquaSwitch
               value={agreed}
               onValueChange={setAgreed}
               accessibilityLabel="I agree to the server rules and privacy policy"
-              trackColor={{ true: colors.accent }}
-              thumbColor="#ffffff"
             />
             <Text style={[aquaText.body, styles.flex]}>I agree to the server rules and privacy policy.</Text>
           </View>

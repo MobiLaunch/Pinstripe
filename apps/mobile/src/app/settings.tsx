@@ -1,14 +1,15 @@
 import { type AccountSettings, DEFAULT_SETTINGS, type Theme } from '@pinstripe/core';
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View, type ViewStyle } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { useAccount, useAuth, useSource } from '@/auth/session';
-import { aquaText, GelButton, Group, Pinstripes, Segmented } from '@/components/aqua';
+import { AquaSwitch, aquaText, GelButton, Group, Pinstripes, Segmented } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { ScreenHeader } from '@/components/screen-header';
 import { colors, fontFamily } from '@/theme/aqua';
+import { useAccent, useSetTheme } from '@/theme/theme';
 
 type Toggle = { [K in keyof AccountSettings]: AccountSettings[K] extends boolean ? K : never }[keyof AccountSettings];
 
@@ -31,8 +32,11 @@ export default function SettingsScreen() {
   const me = useAccount();
   const source = useSource();
   const { state, signOut, applyCredentials } = useAuth();
+  const accent = useAccent();
+  const setTheme = useSetTheme();
   const [settings, setSettings] = useState<AccountSettings>({
     ...DEFAULT_SETTINGS,
+    theme: accent.theme,
     approveFollowers: me.locked,
     listInDirectory: me.discoverable,
     defaultVisibility: source.defaultVisibility,
@@ -73,7 +77,9 @@ export default function SettingsScreen() {
       } else if (key in PREFERENCE_KEYS) {
         await client.updatePreferences({ [PREFERENCE_KEYS[key as keyof typeof PREFERENCE_KEYS]]: value });
       } else if (key === 'theme') {
-        await client.updatePreferences({ theme: value as Theme });
+        // The look changes on this device either way; Pinstripe servers also remember it.
+        setTheme(value as Theme);
+        if (preferencesAvailable) await client.updatePreferences({ theme: value as Theme });
       }
     } catch (e) {
       setSettings((s) => ({ ...s, [key]: before }));
@@ -89,13 +95,11 @@ export default function SettingsScreen() {
           <Text style={[aquaText.body, unavailable && styles.muted]}>{title}</Text>
           {sub ? <Text style={aquaText.handle}>{sub}</Text> : null}
         </View>
-        <Switch
+        <AquaSwitch
           value={settings[key]}
           onValueChange={(v) => change(key, v)}
           disabled={unavailable}
           accessibilityLabel={title}
-          trackColor={{ true: colors.accent }}
-          thumbColor="#ffffff"
         />
       </View>
     );

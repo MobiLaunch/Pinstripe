@@ -10,6 +10,7 @@ import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { ScreenHeader } from '@/components/screen-header';
 import { colors, fontFamily } from '@/theme/aqua';
+import { useAccent } from '@/theme/theme';
 
 const CATEGORIES: { value: ReportCategory; label: string }[] = [
   { value: 'spam', label: 'Spam' },
@@ -29,6 +30,7 @@ const COMMENT_MAX = 1000;
 
 /** Reporting an account (and some of its posts) to the moderators. */
 export default function ReportScreen() {
+  const accent = useAccent();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { state } = useAuth();
   const client = state.status === 'signedIn' ? state.client : null;
@@ -127,8 +129,8 @@ export default function ReportScreen() {
                     accessibilityState={{ checked: on }}
                     accessibilityLabel={p.content || 'Post with media'}
                     onPress={() => toggle(p.id)}>
-                    <Card style={[styles.post, on && styles.postOn]}>
-                      <View style={[styles.box, on && styles.boxOn]}>{on ? <Icon name="check" size={14} color="#fff" strokeWidth={3} /> : null}</View>
+                    <Card style={[styles.post, on && [styles.postOn, { borderColor: accent.color }]]}>
+                      <View style={[styles.box, on && { backgroundColor: accent.color, borderColor: accent.color }]}>{on ? <Icon name="check" size={14} color="#fff" strokeWidth={3} /> : null}</View>
                       <Text style={[aquaText.body, styles.flex]} numberOfLines={3}>
                         {p.content || (p.media.length ? `[${p.media[0]!.kind === 'video' ? 'Video' : 'Photo'}]` : '')}
                       </Text>
@@ -164,9 +166,8 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '700' },
   flex: { flex: 1 },
   post: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
-  postOn: { borderColor: colors.accent, borderWidth: 2 },
+  postOn: { borderWidth: 2 },
   box: { width: 22, height: 22, borderRadius: 4, borderWidth: 1, borderColor: '#8c8c8c', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  boxOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   input: {
     minHeight: 96,
     fontFamily,

@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 
 import { AuthProvider, useAuth } from '@/auth/session';
+import { ThemeProvider } from '@/theme/theme';
 
 // On web, the sign-in popup lands back on this app; this hands the result to the opener.
 WebBrowser.maybeCompleteAuthSession();
@@ -46,8 +47,10 @@ function RootStack() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <StatusBar style="dark" />
-      <RootStack />
+      <ThemeProvider>
+        <StatusBar style="dark" />
+        <RootStack />
+      </ThemeProvider>
     </AuthProvider>
   );
 }

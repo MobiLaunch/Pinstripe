@@ -12,7 +12,8 @@ import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
 import { PostCard } from '@/components/post-card';
 import { usePostList } from '@/hooks/use-post-list';
-import { colors, fontFamily, gradients } from '@/theme/aqua';
+import { colors, fontFamily } from '@/theme/aqua';
+import { useAccent } from '@/theme/theme';
 
 const TABS = [
   { value: 'videos', label: 'Videos' },
@@ -48,6 +49,7 @@ export function ProfileView({
   postsKey?: string;
 }) {
   const insets = useSafeAreaInsets();
+  const accent = useAccent();
   const [tab, setTab] = useState<(typeof TABS)[number]['value']>('posts');
   // One list of the account's posts and boosts; each tab shows its share.
   const list = usePostList((client, maxId) => client.accountStatuses(account.id, { maxId }), `${account.id}:${postsKey}`, {
@@ -65,9 +67,9 @@ export function ProfileView({
   const header = (
     <>
       <LinearGradient
-        colors={gradients.banner.colors}
-        locations={gradients.banner.locations}
-        style={[styles.banner, { paddingTop: insets.top }]}>
+        colors={accent.banner.colors}
+        locations={accent.banner.locations}
+        style={[styles.banner, { paddingTop: insets.top, borderBottomColor: accent.bannerEdge }]}>
         {corner}
       </LinearGradient>
       <View style={styles.identity}>

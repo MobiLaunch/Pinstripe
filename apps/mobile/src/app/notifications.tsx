@@ -13,6 +13,7 @@ import { relativeTime } from '@/components/relative-time';
 import { ScreenHeader } from '@/components/screen-header';
 import { setUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { colors } from '@/theme/aqua';
+import { useAccent } from '@/theme/theme';
 
 interface Item {
   id: string;
@@ -23,12 +24,15 @@ interface Item {
   unread: boolean;
 }
 
+/** Stands for the theme's accent colour, filled in when a row renders. */
+const ACCENT = 'accent';
+
 const KINDS: Record<string, { icon: IconName; color: string; text: string }> = {
-  follow: { icon: 'person', color: colors.accent, text: 'followed you' },
-  follow_request: { icon: 'lock', color: colors.accent, text: 'asked to follow you' },
+  follow: { icon: 'person', color: ACCENT, text: 'followed you' },
+  follow_request: { icon: 'lock', color: ACCENT, text: 'asked to follow you' },
   favourite: { icon: 'heart', color: '#d6336c', text: 'liked your post' },
   reblog: { icon: 'boost', color: '#2b8a3e', text: 'boosted your post' },
-  mention: { icon: 'at', color: colors.accent, text: 'mentioned you' },
+  mention: { icon: 'at', color: ACCENT, text: 'mentioned you' },
 };
 
 /** Follows, requests, likes, boosts, mentions and replies. Opening it marks everything read. */
@@ -131,12 +135,14 @@ export default function NotificationsScreen() {
 }
 
 function Row({ item, onAnswer }: { item: Item; onAnswer: (action: 'authorize' | 'reject') => void }) {
-  const kind = KINDS[item.type] ?? { icon: 'bell' as const, color: colors.accent, text: 'did something' };
+  const accent = useAccent();
+  const found = KINDS[item.type] ?? { icon: 'bell' as const, color: ACCENT, text: 'did something' };
+  const kind = { ...found, color: found.color === ACCENT ? accent.color : found.color };
   const reply = item.type === 'mention' && item.post?.inReplyToId;
   const open = () => (item.post ? router.push(`/status/${item.post.id}`) : router.push(`/profile/${item.account.id}`));
   const label = `${item.account.displayName} ${reply ? 'replied to you' : kind.text}`;
   return (
-    <Card style={[styles.row, item.unread && styles.unread]}>
+    <Card style={[styles.row, item.unread && [styles.unread, { borderColor: accent.color }]]}>
       <Pressable accessibilityRole="link" accessibilityLabel={label} onPress={open} style={styles.main}>
         <View style={[styles.badge, { backgroundColor: kind.color }]}>
           <Icon name={reply ? 'reply' : kind.icon} size={14} color="#fff" filled={kind.icon === 'heart'} />
@@ -169,7 +175,7 @@ function Row({ item, onAnswer }: { item: Item; onAnswer: (action: 'authorize' | 
 const styles = StyleSheet.create({
   list: { padding: 12, gap: 8, flexGrow: 1 },
   row: { gap: 10 },
-  unread: { borderColor: colors.accent, borderWidth: 2 },
+  unread: { borderWidth: 2 },
   main: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   badge: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   flex: { flex: 1, minWidth: 0, gap: 2 },

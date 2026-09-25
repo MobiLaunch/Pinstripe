@@ -325,6 +325,16 @@ then `new-video`, which uploads while the caption is written.
   videos as a 3-column grid of posters with view counts, and tapping one
   opens a full-screen player of that account's videos.
 
+### Appearance
+
+Blue and Graphite differ only in the accent, as in Mac OS X: gel buttons,
+active orbs, the selected segment and tab, avatars, the profile banner,
+progress bars, switches and selection outlines. `theme/theme.tsx` provides
+it through `useAccent()`, and the Aqua primitives read it, so screens
+rarely need to. The choice is saved on the device (so it applies before
+the network answers, and on servers without Pinstripe preferences). On
+Pinstripe it's also saved with the account and followed on sign-in.
+
 ## What's intentionally temporary
 
 - Login lockouts live in process memory.
@@ -352,8 +362,8 @@ then `new-video`, which uploads while the caption is written.
    ~~notifications, blocks and mutes, domain blocks, reporting, basic
    moderation~~ (done). Still to do: push notifications, report forwarding,
    server-wide blocks.
-8. **Polish:** Graphite theme, barber-pole progress, gel pulse animation,
-   sound credits, share sheet.
+8. **Polish:** ~~Graphite theme, barber-pole progress, share sheet~~ (done);
+   gel pulse animation, sound credits.
 
 ## Conventions
 

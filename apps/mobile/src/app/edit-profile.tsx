@@ -3,15 +3,14 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { checkPicked, type Picked, updateProfileImages } from '@/api/upload';
 import { useAccount, useAuth, useSource } from '@/auth/session';
-import { aquaText, Avatar, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
+import { AquaSwitch, aquaText, Avatar, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { initials } from '@/components/initials';
 import { ScreenHeader } from '@/components/screen-header';
-import { colors } from '@/theme/aqua';
 
 const DISPLAY_NAME_MAX = 30;
 
@@ -134,7 +133,7 @@ function Toggle({ title, sub, value, onChange }: { title: string; sub?: string; 
         <Text style={aquaText.body}>{title}</Text>
         {sub ? <Text style={aquaText.handle}>{sub}</Text> : null}
       </View>
-      <Switch value={value} onValueChange={onChange} accessibilityLabel={title} trackColor={{ true: colors.accent }} thumbColor="#ffffff" />
+      <AquaSwitch value={value} onValueChange={onChange} accessibilityLabel={title} />
     </View>
   );
 }
