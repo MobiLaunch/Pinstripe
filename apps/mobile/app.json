@@ -43,7 +43,13 @@
           "microphonePermission": "Pinstripe records sound with your videos."
         }
       ],
-      "expo-video"
+      "expo-video",
+      [
+        "expo-notifications",
+        {
+          "color": "#2a74d6"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -445,6 +445,21 @@ export class MastodonClient {
     return (await this.request<MastodonNotification[]>('GET', `/api/v1/notifications${query({ since_id: lastRead, limit: 40 })}`)).length;
   }
 
+  /** Pinstripe: sends notifications to this phone (an Expo push token). */
+  registerPush(expoToken: string, platform: string) {
+    return this.request<object>('POST', '/api/v1/pinstripe/push', { expo_token: expoToken, platform });
+  }
+
+  #pushSupport: Promise<boolean> | null = null;
+  /** Whether this server sends Expo pushes (Pinstripe does; Mastodon uses Web Push instead). */
+  supportsPush(): Promise<boolean> {
+    this.#pushSupport ??= this.preferences().then(
+      () => true,
+      () => false,
+    );
+    return this.#pushSupport;
+  }
+
   /** Marks notifications up to `lastReadId` as read, on every device. */
   markNotificationsRead(lastReadId: string) {
     return this.request<object>('POST', '/api/v1/markers', { notifications: { last_read_id: lastReadId } });

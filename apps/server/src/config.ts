@@ -15,6 +15,8 @@ export interface Config {
   smtpUrl: string | null;
   /** MAIL_FROM, e.g. `Pinstripe <noreply@pinstripe.social>`. */
   mailFrom: string;
+  /** EXPO_ACCESS_TOKEN: only needed if the Expo project requires authenticated pushes. */
+  expoAccessToken: string | null;
 }
 
 /**
@@ -55,5 +57,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     storage: loadStorage(env),
     smtpUrl: env.SMTP_URL || null,
     mailFrom: env.MAIL_FROM || `Pinstripe <noreply@${new URL(origin).hostname}>`,
+    expoAccessToken: env.EXPO_ACCESS_TOKEN || null,
   };
 }

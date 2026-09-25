@@ -218,8 +218,22 @@ and would otherwise show stale copies.
 - Undoing removes the notification: boosts and mentions through the status
   cascade, unfollows, unfavourites and answered requests explicitly.
 - The app polls the unread count (on focus, on return to the foreground and
-  every minute) for the badge on Feed's bell. Push notifications are still
-  to come.
+  every minute) for the badge on Feed's bell.
+- **Push** (`push/`): the app registers its Expo push token at
+  `POST /api/v1/pinstripe/push` (the `push` scope). Mastodon uses Web Push,
+  which Expo apps can't receive, hence Pinstripe's own endpoint. The
+  device is tied to the sign-in that registered it, so signing out stops
+  it.
+  - Each new notification is sent through Expo's push service half a
+    second after it's recorded. The same blocks, mutes and limits as the
+    in-app list apply, and the badge shows the unread count.
+  - Tokens Expo reports as `DeviceNotRegistered` are dropped.
+  - Only `main.ts` starts the sender (`EXPO_ACCESS_TOKEN` is optional).
+  - The app asks permission from the Notifications screen ("Turn On"),
+    re-registers quietly on later launches, and opens the post or profile
+    when one is tapped.
+  - Phones need an EAS project id (`eas init`) and APNs/FCM credentials
+    (EAS manages them). Without them the app just doesn't offer push.
 
 ### Safety and moderation
 
@@ -392,7 +406,7 @@ Pinstripe it's also saved with the account and followed on sign-in.
 7. **Settings & safety:** ~~settings endpoint, follow requests~~ (done);
    ~~notifications, blocks and mutes, domain blocks, reporting, basic
    moderation, report forwarding, server-wide blocks, moderation log~~
-   (done). Still to do: push notifications.
+   (done), push notifications (done).
 8. **Polish:** ~~Graphite theme, barber-pole progress, share sheet~~ (done);
    gel pulse animation, sound credits.
 

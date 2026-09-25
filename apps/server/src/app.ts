@@ -14,6 +14,8 @@ import { LinkVerifier } from "./accounts/verify-links.ts";
 import { serializeAccount, serializeRelationship, toMastodonVisibility } from "./mastodon.ts";
 import { ConsoleMailer, type Mailer } from "./mail/mailer.ts";
 import { mediaRoutes } from "./media/routes.ts";
+import { pushRoutes } from "./push/routes.ts";
+import { PushService } from "./push/service.ts";
 import { webRoutes } from "./web/routes.ts";
 import { notificationRoutes } from "./notifications/routes.ts";
 import { NotificationStore } from "./notifications/store.ts";
@@ -39,6 +41,8 @@ export interface AppOptions {
   mailer?: Mailer;
   /** Emails per address per hour. */
   emailLimiter?: FailureLimiter;
+  /** Push notifications. Without one, phones can register but nothing is sent (tests). */
+  push?: PushService;
   /** Blocks, mutes, reports and moderation; made here unless given (tests pass their own). */
   safety?: SafetyStore;
   /** Checks profile links (rel="me"); by default one that only fetches public addresses. */
@@ -56,7 +60,7 @@ function roleJson(role: Role) {
  * requests first; everything else falls through to OAuth and the
  * Mastodon-compatible client API.
  */
-export function buildApp({ federation, store, statuses, media, auth, domain, loginLimiter, mailer = new ConsoleMailer(), emailLimiter, linkVerifier = new LinkVerifier(store), safety = new SafetyStore(store.db, store) }: AppOptions) {
+export function buildApp({ federation, store, statuses, media, auth, domain, loginLimiter, mailer = new ConsoleMailer(), emailLimiter, linkVerifier = new LinkVerifier(store), safety = new SafetyStore(store.db, store), push }: AppOptions) {
   const app = new Hono<AuthEnv>();
 
   const contextData = { store, statuses, media, safety };
@@ -146,6 +150,7 @@ export function buildApp({ federation, store, statuses, media, auth, domain, log
   app.route("/", security.app);
   app.route("/", profileRoutes({ store, media, renderCredentialAccount, federationContext, linkVerifier }));
   app.route("/", mediaRoutes({ media }));
+  app.route("/", pushRoutes({ push: push ?? new PushService(store.db, new NotificationStore(store.db)) }));
   app.route(
     "/",
     notificationRoutes({

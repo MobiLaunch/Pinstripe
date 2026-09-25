@@ -12,6 +12,7 @@ import { initials } from '@/components/initials';
 import { relativeTime } from '@/components/relative-time';
 import { ScreenHeader } from '@/components/screen-header';
 import { setUnreadNotifications } from '@/hooks/use-unread-notifications';
+import { usePushStatus } from '@/push/push';
 import { useAccent } from '@/theme/theme';
 
 interface Item {
@@ -44,6 +45,7 @@ export default function NotificationsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [end, setEnd] = useState(false);
   const loadingMore = useRef(false);
+  const [push, turnOnPush] = usePushStatus();
 
   const toItem = useCallback(
     (n: MastodonNotification, unread: boolean): Item => ({
@@ -119,7 +121,18 @@ export default function NotificationsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
-        ListHeaderComponent={<FormError message={error} />}
+        ListHeaderComponent={
+          <>
+            <FormError message={error} />
+            {push === 'ask' ? (
+              <Card style={styles.pushCard}>
+                <Text style={[aquaText.body, styles.bold]}>Get notified on this phone</Text>
+                <Text style={aquaText.handle}>Likes, follows, replies and mentions, even when Pinstripe is closed.</Text>
+                <GelButton small title="Turn On Notifications" onPress={turnOnPush} />
+              </Card>
+            ) : null}
+          </>
+        }
         ListEmptyComponent={
           items === null ? (
             error ? null : <ActivityIndicator style={styles.empty} />
@@ -182,4 +195,5 @@ const styles = StyleSheet.create({
   snippet: { color: '#444', marginTop: 4 },
   buttons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
   empty: { textAlign: 'center', marginTop: 32, paddingHorizontal: 24 },
+  pushCard: { gap: 8, marginBottom: 4 },
 });

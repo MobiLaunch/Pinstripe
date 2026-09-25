@@ -473,3 +473,23 @@ export const moderationLog = pgTable(
   },
   (t) => [index("moderation_log_created_idx").on(t.createdAt)],
 );
+
+/**
+ * Phones to send push notifications to (Expo push tokens). Tied to the
+ * sign-in that registered them, so signing out stops them.
+ */
+export const pushDevices = pgTable(
+  "push_devices",
+  {
+    expoToken: text("expo_token").primaryKey(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    oauthTokenId: uuid("oauth_token_id")
+      .notNull()
+      .references(() => oauthTokens.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("push_devices_account_idx").on(t.accountId)],
+);

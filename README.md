@@ -52,6 +52,7 @@ Server settings, all optional in development:
 | `MEDIA_DIR` | `./media-data` | Where uploads go when local |
 | `SMTP_URL` | unset (print to console) | e.g. `smtp://user:pass@smtp.example.com:587` |
 | `MAIL_FROM` | `Pinstripe <noreply@host>` | |
+| `EXPO_ACCESS_TOKEN` | unset | Only if the Expo project requires authenticated pushes |
 
 See [docs/product.md](docs/product.md) for what we're building and
 [docs/architecture.md](docs/architecture.md) for how, including the roadmap.

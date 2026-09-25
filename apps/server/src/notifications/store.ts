@@ -11,6 +11,13 @@ export const NOTIFICATION_TYPES: readonly NotificationType[] = ["mention", "rebl
 /** The database, or a transaction on it. */
 type Executor = Pick<Db, "execute" | "delete">;
 
+/** Listeners told about each new notification (push delivery), by id. */
+const created = new Set<(id: string) => void>();
+export function onNotificationCreated(listener: (id: string) => void): () => void {
+  created.add(listener);
+  return () => created.delete(listener);
+}
+
 /**
  * Records that `from` did something to `to`. Nothing happens unless `to` is
  * a local account other than `from`; a repeat of the same thing is ignored.
@@ -20,11 +27,14 @@ export async function notify(
   n: { to: string | null; from: string; type: NotificationType; statusId?: string | null },
 ): Promise<void> {
   if (!n.to || n.to === n.from) return;
-  await db.execute(sql`
+  const id = uuidv7();
+  const rows = await db.execute(sql`
     insert into ${notifications} (id, account_id, from_account_id, type, status_id)
-    select ${uuidv7()}, ${n.to}, ${n.from}, ${n.type}, ${n.statusId ?? null}
+    select ${id}, ${n.to}, ${n.from}, ${n.type}, ${n.statusId ?? null}
     where exists (select 1 from ${accounts} where ${accounts.id} = ${n.to} and ${accounts.domain} is null)
-    on conflict do nothing`);
+    on conflict do nothing
+    returning id`);
+  if (rows.length) for (const listener of created) listener(id);
 }
 
 /** Removes the notification for something undone (an unfollow, an unfavourite, an answered request). */
@@ -87,6 +97,17 @@ export class NotificationStore {
       .where(and(...conditions))
       .orderBy(desc(notifications.id))
       .limit(page.limit);
+  }
+
+  /** A notification as its recipient would see it (not hidden by blocks, mutes or limits). */
+  async getShown(id: string, hidden: (accountId: string) => SQL): Promise<NotificationRow | null> {
+    const [row] = await this.db.select().from(notifications).where(eq(notifications.id, id));
+    if (!row) return null;
+    const [shown] = await this.db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(and(eq(notifications.id, id), sql`not (${hidden(row.accountId)})`));
+    return shown ? row : null;
   }
 
   async get(accountId: string, id: string): Promise<NotificationRow | null> {

@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 
 import { AuthProvider, useAuth } from '@/auth/session';
+import { usePushNotifications } from '@/push/push';
 import { ThemeProvider } from '@/theme/theme';
 
 // On web, the sign-in popup lands back on this app; this hands the result to the opener.
@@ -45,11 +46,18 @@ function RootStack() {
   );
 }
 
+/** Registers for push notifications and opens what a tapped one points at. */
+function PushNotifications() {
+  usePushNotifications();
+  return null;
+}
+
 export default function RootLayout() {
   return (
     <AuthProvider>
       <ThemeProvider>
         <StatusBar style="dark" />
+        <PushNotifications />
         <RootStack />
       </ThemeProvider>
     </AuthProvider>
