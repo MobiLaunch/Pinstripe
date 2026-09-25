@@ -6,22 +6,10 @@ import { ApiError, type FieldErrors } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
 import { aquaText, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
+import { PASSWORD_MIN, StrengthMeter } from '@/components/password-strength';
 import { ScreenHeader } from '@/components/screen-header';
 import { PINSTRIPE_DOMAIN, PINSTRIPE_SERVER } from '@/config';
 import { colors, fontFamily } from '@/theme/aqua';
-
-const PASSWORD_MIN = 8;
-
-/** A rough guide, not a gate: the server only enforces the minimum length. */
-function strength(password: string): { label: string; color: string } | null {
-  if (!password) return null;
-  if (password.length < PASSWORD_MIN) return { label: 'Too short', color: colors.danger };
-  const variety = [/[a-z]/, /[A-Z]/, /\d/, /[^\w\s]/, /\s/].filter((r) => r.test(password)).length;
-  const score = (password.length >= 12 ? 1 : 0) + (password.length >= 16 ? 1 : 0) + (variety >= 3 ? 1 : 0);
-  if (score >= 2) return { label: 'Strong', color: colors.verified };
-  if (score === 1) return { label: 'Good', color: colors.verified };
-  return { label: 'Fair', color: '#9a6a08' };
-}
 
 const FIELD_LABELS: Record<string, string> = { username: 'Username', email: 'Email', password: 'Password', agreement: 'Agreement' };
 
@@ -35,7 +23,6 @@ export default function SignUpScreen() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  const meter = strength(password);
   const ready = isValidUsername(username) && email.includes('@') && password.length >= PASSWORD_MIN && agreed;
   const fieldError = (field: string) => fieldErrors[field]?.[0]?.description;
 
@@ -98,7 +85,7 @@ export default function SignUpScreen() {
           </View>
           <View style={styles.group}>
             <Field label="Password" secureTextEntry autoComplete="new-password" value={password} onChangeText={setPassword} />
-            {meter ? <Text style={[styles.meter, { color: meter.color }]}>{meter.label}</Text> : null}
+            <StrengthMeter password={password} />
             {hint('password')}
           </View>
           <View style={styles.agree}>
@@ -126,7 +113,6 @@ const styles = StyleSheet.create({
   content: { padding: 16, gap: 14 },
   card: { gap: 14, padding: 16 },
   group: { gap: 4 },
-  meter: { fontFamily, fontSize: 12, fontWeight: '700', textAlign: 'right' },
   fieldError: { fontFamily, fontSize: 12, color: colors.danger },
   agree: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   flex: { flex: 1 },

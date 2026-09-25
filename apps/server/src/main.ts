@@ -6,6 +6,7 @@ import { AuthStore } from "./auth/store.ts";
 import { loadConfig } from "./config.ts";
 import { connect, runMigrations } from "./db/client.ts";
 import { buildFederation } from "./federation.ts";
+import { ConsoleMailer, SmtpMailer } from "./mail/mailer.ts";
 import { MediaService } from "./media/service.ts";
 import { LocalDiskStorage, S3Storage } from "./media/storage.ts";
 import { MediaStore } from "./media/store.ts";
@@ -38,7 +39,10 @@ if (config.allowPrivateAddress) {
   console.warn("PINSTRIPE_ALLOW_PRIVATE_ADDRESS is on: this server will fetch private addresses. Development only.");
 }
 
-const app = buildApp({ federation, store, statuses, media, auth, domain: new URL(config.origin).host });
+const mailer = config.smtpUrl ? new SmtpMailer(config.smtpUrl, config.mailFrom) : new ConsoleMailer();
+if (!config.smtpUrl) console.warn("SMTP_URL is not set: emails (confirmations, password resets) are printed here instead of sent.");
+
+const app = buildApp({ federation, store, statuses, media, auth, mailer, domain: new URL(config.origin).host });
 
 serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
   console.log(`Pinstripe listening on :${port} as ${config.origin}`);

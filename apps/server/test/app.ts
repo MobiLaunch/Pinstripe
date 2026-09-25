@@ -7,6 +7,7 @@ import { buildApp } from "../src/app.ts";
 import { FailureLimiter } from "../src/auth/rate-limit.ts";
 import { AuthStore } from "../src/auth/store.ts";
 import { buildFederation } from "../src/federation.ts";
+import { MemoryMailer } from "../src/mail/mailer.ts";
 import { MediaService } from "../src/media/service.ts";
 import { LocalDiskStorage } from "../src/media/storage.ts";
 import { MediaStore } from "../src/media/store.ts";
@@ -27,15 +28,18 @@ export function testApp() {
   afterAll(() => rmSync(mediaDir, { recursive: true, force: true }));
   const media = new MediaService(new MediaStore(db), new LocalDiskStorage(mediaDir, ORIGIN));
   const loginLimiter = new FailureLimiter(3, 60_000);
+  const emailLimiter = new FailureLimiter(5, 60_000);
   const reset = async () => {
     await resetDb();
     loginLimiter.clear();
+    emailLimiter.clear();
   };
   // Fedify's cache can stay in memory in tests; nothing reads it across runs.
   // No queue: deliveries happen inline, so tests can observe them. Private
   // addresses are allowed so a local server can stand in for a remote inbox.
   const federation = buildFederation({ kv: new MemoryKvStore(), origin: ORIGIN, version: "0.0.0", allowPrivateAddress: true });
-  const app = buildApp({ federation, store, statuses, media, auth, domain: "pinstripe.test", loginLimiter });
+  const mailer = new MemoryMailer();
+  const app = buildApp({ federation, store, statuses, media, auth, domain: "pinstripe.test", loginLimiter, mailer, emailLimiter });
 
   const request = (path: string, init: RequestInit = {}) => app.request(new URL(path, ORIGIN), init);
   const get = (path: string, accept = "application/activity+json", headers: Record<string, string> = {}) =>
@@ -82,5 +86,5 @@ export function testApp() {
 
   const del = (path: string, headers: Record<string, string> = {}) => request(path, { method: "DELETE", headers });
 
-  return { app, db, store, statuses, media, auth, reset, signedInUser, remoteFollower, del, request, get, postJson, postForm };
+  return { app, db, store, statuses, media, auth, mailer, reset, signedInUser, remoteFollower, del, request, get, postJson, postForm };
 }

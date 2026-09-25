@@ -5,11 +5,13 @@ import { cors } from "hono/cors";
 import { accountRoutes } from "./accounts/routes.ts";
 import { type AuthEnv, bearerAuth } from "./auth/middleware.ts";
 import type { FailureLimiter } from "./auth/rate-limit.ts";
+import { accountSecurityRoutes } from "./auth/account-routes.ts";
 import { authRoutes } from "./auth/routes.ts";
 import type { AuthStore } from "./auth/store.ts";
 import type { ContextData } from "./federation.ts";
 import { profileRoutes } from "./accounts/profile.ts";
 import { serializeAccount, serializeRelationship, toMastodonVisibility } from "./mastodon.ts";
+import { ConsoleMailer, type Mailer } from "./mail/mailer.ts";
 import { mediaRoutes } from "./media/routes.ts";
 import { notificationRoutes } from "./notifications/routes.ts";
 import { NotificationStore } from "./notifications/store.ts";
@@ -31,6 +33,10 @@ export interface AppOptions {
   auth: AuthStore;
   domain: string;
   loginLimiter?: FailureLimiter;
+  /** Confirmation and password-reset emails; printed to the console if not given. */
+  mailer?: Mailer;
+  /** Emails per address per hour. */
+  emailLimiter?: FailureLimiter;
 }
 
 /** Mastodon's Role entity. Permissions are Mastodon's bit flags: 1 administrator, 16 manage reports, 1024 manage users. */
@@ -44,7 +50,7 @@ function roleJson(role: Role) {
  * requests first; everything else falls through to OAuth and the
  * Mastodon-compatible client API.
  */
-export function buildApp({ federation, store, statuses, media, auth, domain, loginLimiter }: AppOptions) {
+export function buildApp({ federation, store, statuses, media, auth, domain, loginLimiter, mailer = new ConsoleMailer(), emailLimiter }: AppOptions) {
   const app = new Hono<AuthEnv>();
 
   const safety = new SafetyStore(store.db, store);
@@ -127,7 +133,12 @@ export function buildApp({ federation, store, statuses, media, auth, domain, log
 
   // Fixed paths (verify_credentials, lookup, relationships…) are registered
   // before /api/v1/accounts/:id so they aren't read as ids.
-  app.route("/", authRoutes({ auth, renderCredentialAccount, loginLimiter }));
+  const security = accountSecurityRoutes({ auth, mailer, emailLimiter, originOf: (c) => federationContext(c).canonicalOrigin });
+  app.route(
+    "/",
+    authRoutes({ auth, renderCredentialAccount, loginLimiter, onRegistered: (c, account, email) => security.sendConfirmation(c, account.id, email) }),
+  );
+  app.route("/", security.app);
   app.route("/", profileRoutes({ store, media, renderCredentialAccount, federationContext }));
   app.route("/", mediaRoutes({ media }));
   app.route(

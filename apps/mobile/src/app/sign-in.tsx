@@ -56,6 +56,9 @@ export default function SignInScreen() {
               onSubmitEditing={submit}
             />
             <GelButton title={busy ? 'Signing In…' : 'Sign In'} disabled={busy || !login || !password} onPress={submit} />
+            <Link href="/forgot-password" style={[aquaText.link, styles.center]}>
+              Forgot your password?
+            </Link>
           </Card>
           <GelButton tone="gray" title="Use an account on another server" onPress={() => router.push('/other-server')} />
           <Text style={[aquaText.body, styles.center]}>

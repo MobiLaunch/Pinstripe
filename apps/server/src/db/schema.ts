@@ -399,3 +399,23 @@ export const reports = pgTable(
   },
   (t) => [index("reports_open_idx").on(t.id).where(sql`${t.actionTakenAt} is null`), uniqueIndex("reports_uri_idx").on(t.uri)],
 );
+
+/**
+ * One-time links sent by email: confirming an address, resetting a
+ * password. Stored as digests; used once; they expire.
+ */
+export const emailTokens = pgTable(
+  "email_tokens",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<"confirm" | "reset">().notNull(),
+    /** The address the link was sent to; a confirmation only counts if it's still the account's. */
+    email: text("email").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("email_tokens_account_idx").on(t.accountId, t.kind)],
+);

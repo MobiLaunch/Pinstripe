@@ -142,8 +142,28 @@ same way everywhere:
   profile is cached with the session, so the app opens instantly and
   offline; only a 401 signs out.
 
-Not yet: email confirmation and password reset (need an email provider),
-signup rate limiting / CAPTCHA, a moderation approval mode.
+Email and password (Pinstripe's own endpoints; Mastodon does these on web pages):
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/v1/pinstripe/account` | `{ email, confirmed }` |
+| `POST /api/v1/pinstripe/account/password` | Needs the current password; signs out other sessions. |
+| `POST /api/v1/pinstripe/account/email` | Needs the current password; sends a confirmation link. |
+| `POST /api/v1/pinstripe/account/confirmation` | Sends the link again. |
+| `POST /api/v1/pinstripe/password_reset` | Emails a one-hour reset link; the same answer whether or not the address exists. |
+| `GET /auth/password/edit`, `POST /auth/password` | The reset page the link opens (server-rendered, works without the app). |
+| `GET /auth/confirmation` | Confirms an address. |
+
+- Links are one-time tokens stored as digests (`email_tokens`). A reset
+  signs out every session and also confirms the address.
+- Mail goes through `SMTP_URL` (any provider) from `MAIL_FROM`. Without
+  `SMTP_URL`, messages are printed to the server log, which is how you
+  get links in development.
+- At most 5 emails per address per hour (in memory, like the login
+  limiter).
+- Confirmation isn't required to use the app yet.
+
+Not yet: signup rate limiting / CAPTCHA, a moderation approval mode.
 
 ### Posts
 

@@ -3,7 +3,7 @@
  * Plain server-rendered HTML in the app's Aqua style; no scripts.
  */
 
-const escape = (s: string) =>
+export const escape = (s: string) =>
   s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -32,7 +32,7 @@ h1{margin:0 0 4px;text-align:center;font-size:32px;color:#0e4fae}
 .app{margin:0 0 12px;font-size:14px;line-height:1.45}
 ul{margin:0 0 16px;padding-left:18px;font-size:13px;line-height:1.6;color:#333}
 label{display:block;margin:0 0 5px 2px;font-size:12px;font-weight:bold;color:#333}
-input[type=text],input[type=password]{display:block;width:100%;min-height:44px;margin:0 0 14px;padding:10px 12px;font:inherit;font-size:15px;
+input[type=text],input[type=password],input[type=email]{display:block;width:100%;min-height:44px;margin:0 0 14px;padding:10px 12px;font:inherit;font-size:15px;
   border:1px solid #8c8c8c;border-top-color:#5e5e5e;border-radius:5px;box-shadow:inset 0 1px 3px rgba(0,0,0,.22)}
 input:focus{outline:none;border-color:#3a7fd8;box-shadow:0 0 0 3px rgba(84,152,240,.65),inset 0 1px 3px rgba(0,0,0,.22)}
 .row{display:flex;gap:10px}
@@ -40,11 +40,13 @@ button{flex:1;min-height:44px;border-radius:999px;font:inherit;font-weight:bold;
 .go{border:1px solid #13488f;color:#fff;text-shadow:0 -1px 0 rgba(0,0,0,.5);
   background:linear-gradient(180deg,#bfe0ff 0%,#74b1f3 14%,#2a74d6 50%,#175cbe 51%,#3585e6 85%,#79c0ff 100%)}
 .no{border:1px solid #777;color:#1a1a1a;background:linear-gradient(180deg,#fff 0%,#f1f1f1 48%,#d9d9d9 52%,#e8e8e8 85%,#fbfbfb 100%)}
+.ok{margin:0 0 14px;padding:10px 12px;border-radius:5px;background:#e6f6e6;border:1px solid #2f9e44;color:#1b5e20;font-size:14px}
+.hint{margin:-8px 0 14px 2px;font-size:12px;color:#555}
 .error{margin:0 0 14px;padding:10px 12px;border-radius:5px;background:#fde8e6;border:1px solid #d9392f;color:#86190f;font-size:13px}
 code{display:block;margin:10px 0 0;padding:12px;font-size:15px;word-break:break-all;background:#f4f4f4;border:1px solid #ccc;border-radius:5px}
 `;
 
-function layout(title: string, body: string): string {
+export function layout(title: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer">

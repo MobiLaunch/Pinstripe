@@ -27,11 +27,12 @@ export const OOB_REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob";
 
 export interface AuthRoutesOptions {
   auth: AuthStore;
-  /** Renders a local account as Mastodon's Account entity. */
   /** Mastodon's CredentialAccount: the account plus its editable `source`. */
   renderCredentialAccount: (c: Context, account: LocalAccount) => Promise<MastodonAccount>;
   /** 10 failed logins per 15 minutes per username/email by default. */
   loginLimiter?: FailureLimiter;
+  /** After sign-up: send the confirmation email. */
+  onRegistered?: (c: Context, account: LocalAccount, email: string) => Promise<void>;
 }
 
 function validRedirectUri(uri: string): boolean {
@@ -71,7 +72,7 @@ export const SUSPENDED = "This account has been suspended by the server's modera
 const oauthError = (c: Context, error: string, description: string, status: 400 | 401 = 400) =>
   c.json({ error, error_description: description }, status);
 
-export function authRoutes({ auth, renderCredentialAccount, loginLimiter = new FailureLimiter(10, 15 * 60 * 1000) }: AuthRoutesOptions) {
+export function authRoutes({ auth, renderCredentialAccount, loginLimiter = new FailureLimiter(10, 15 * 60 * 1000), onRegistered }: AuthRoutesOptions) {
   const app = new Hono<AuthEnv>();
 
   /** Checks a login, counting failures per username/email. */
@@ -314,6 +315,8 @@ export function authRoutes({ auth, renderCredentialAccount, loginLimiter = new F
         .join(", ");
       return c.json({ error: `Validation failed: ${summary}`, details }, 422);
     }
+
+    await onRegistered?.(c, account, email);
 
     // Like Mastodon, the new user's token inherits the app token's scopes.
     const { token: userToken, createdAt } = await auth.createToken({

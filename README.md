@@ -39,5 +39,19 @@ pnpm dev:server
 pnpm dev:mobile
 ```
 
+In development, emails (confirmation and password-reset links) are printed
+in the server's output. To make yourself a moderator:
+`pnpm --filter @pinstripe/server role <username> moderator`, then sign in again.
+
+Server settings, all optional in development:
+
+| Variable | Default | |
+| --- | --- | --- |
+| `PINSTRIPE_ORIGIN` | `http://localhost:8000` | Public URL, e.g. `https://pinstripe.social` |
+| `MEDIA_STORAGE` | `local` | `s3` for any S3-compatible bucket (see docs/architecture.md) |
+| `MEDIA_DIR` | `./media-data` | Where uploads go when local |
+| `SMTP_URL` | unset (print to console) | e.g. `smtp://user:pass@smtp.example.com:587` |
+| `MAIL_FROM` | `Pinstripe <noreply@host>` | |
+
 See [docs/product.md](docs/product.md) for what we're building and
 [docs/architecture.md](docs/architecture.md) for how, including the roadmap.

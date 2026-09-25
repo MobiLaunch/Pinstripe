@@ -115,7 +115,9 @@ export default function SettingsScreen() {
           <Link href="/edit-profile" asChild>
             <NavRow title="Edit profile" sub="Photo, banner, bio and profile fields" />
           </Link>
-          <NavRow title="Email & password" divider />
+          <Link href="/email-password" asChild>
+            <NavRow title="Email & password" divider />
+          </Link>
           {settings.approveFollowers || source.followRequests > 0 ? (
             <Link href="/follow-requests" asChild>
               <NavRow

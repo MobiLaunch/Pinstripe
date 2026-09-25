@@ -1,6 +1,6 @@
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import type { Db } from "../db/client.ts";
-import { accounts, oauthApps, oauthCodes, oauthTokens, users } from "../db/schema.ts";
+import { accounts, emailTokens, oauthApps, oauthCodes, oauthTokens, users } from "../db/schema.ts";
 import { isUniqueViolation, type LocalAccount, newAccount, UsernameTakenError } from "../store.ts";
 import { dummyPasswordHash, hashPassword, verifyPassword } from "./passwords.ts";
 import { digest, randomSecret, safeEqual } from "./secrets.ts";
@@ -188,8 +188,91 @@ export class AuthStore {
       .where(and(eq(oauthTokens.tokenHash, digest(token)), eq(oauthTokens.appId, appId), isNull(oauthTokens.revokedAt)));
   }
 
+  // Email and password
+
+  async getLogin(accountId: string): Promise<{ email: string; confirmed: boolean } | null> {
+    const [row] = await this.db.select().from(users).where(eq(users.accountId, accountId));
+    return row ? { email: row.email, confirmed: row.confirmedAt !== null } : null;
+  }
+
+  async checkPassword(accountId: string, password: string): Promise<boolean> {
+    const [row] = await this.db.select({ hash: users.passwordHash }).from(users).where(eq(users.accountId, accountId));
+    return verifyPassword(password, row?.hash ?? (await dummyPasswordHash())).then((ok) => ok && !!row);
+  }
+
+  /** Sets a new password and signs out every session except `keepTokenId`. */
+  async setPassword(accountId: string, password: string, keepTokenId: string | null = null) {
+    await this.db.update(users).set({ passwordHash: await hashPassword(password) }).where(eq(users.accountId, accountId));
+    await this.db
+      .update(oauthTokens)
+      .set({ revokedAt: new Date() })
+      .where(
+        and(
+          eq(oauthTokens.accountId, accountId),
+          isNull(oauthTokens.revokedAt),
+          keepTokenId ? sql`${oauthTokens.id} <> ${keepTokenId}` : undefined,
+        ),
+      );
+    // Any other reset links are now pointless.
+    await this.db.delete(emailTokens).where(and(eq(emailTokens.accountId, accountId), eq(emailTokens.kind, "reset")));
+  }
+
+  /** A new, unconfirmed address. Throws EmailTakenError if someone else has it. */
+  async setEmail(accountId: string, email: string) {
+    try {
+      await this.db.update(users).set({ email, confirmedAt: null }).where(eq(users.accountId, accountId));
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new EmailTakenError();
+      throw error;
+    }
+  }
+
+  async findLoginByEmail(email: string): Promise<{ accountId: string; email: string } | null> {
+    const [row] = await this.db
+      .select({ accountId: users.accountId, email: users.email })
+      .from(users)
+      .where(sql`lower(${users.email}) = ${email.trim().toLowerCase()}`);
+    return row ?? null;
+  }
+
+  /** A one-time link token for `email`. Returns the raw token (only its digest is stored). */
+  async createEmailToken(kind: "confirm" | "reset", accountId: string, email: string, ttlMs: number): Promise<string> {
+    const token = randomSecret();
+    await this.db.insert(emailTokens).values({ tokenHash: digest(token), accountId, kind, email, expiresAt: new Date(Date.now() + ttlMs) });
+    return token;
+  }
+
+  /** The token's row if it's valid, without using it up (to show the reset form). */
+  async peekEmailToken(kind: "confirm" | "reset", token: string) {
+    const [row] = await this.db
+      .select()
+      .from(emailTokens)
+      .where(and(eq(emailTokens.tokenHash, digest(token)), eq(emailTokens.kind, kind), gt(emailTokens.expiresAt, new Date())));
+    return row ?? null;
+  }
+
+  /** Uses up a valid token, returning what it was for. */
+  async useEmailToken(kind: "confirm" | "reset", token: string) {
+    const [row] = await this.db
+      .delete(emailTokens)
+      .where(and(eq(emailTokens.tokenHash, digest(token)), eq(emailTokens.kind, kind), gt(emailTokens.expiresAt, new Date())))
+      .returning();
+    return row ?? null;
+  }
+
+  /** Marks the address confirmed, if it's still the account's address. */
+  async confirmEmail(accountId: string, email: string): Promise<boolean> {
+    const rows = await this.db
+      .update(users)
+      .set({ confirmedAt: new Date() })
+      .where(and(eq(users.accountId, accountId), sql`lower(${users.email}) = ${email.toLowerCase()}`))
+      .returning({ id: users.accountId });
+    return rows.length > 0;
+  }
+
   async deleteExpiredCodes() {
     await this.db.delete(oauthCodes).where(sql`${oauthCodes.expiresAt} < now()`);
+    await this.db.delete(emailTokens).where(sql`${emailTokens.expiresAt} < now()`);
   }
 }
 

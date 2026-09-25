@@ -237,6 +237,28 @@ export class MastodonClient {
     return this.request<PinstripePreferences>('PATCH', '/api/v1/pinstripe/preferences', input);
   }
 
+  /** Pinstripe only: the sign-in email and whether it's confirmed. */
+  login() {
+    return this.request<{ email: string; confirmed: boolean }>('GET', '/api/v1/pinstripe/account');
+  }
+
+  changePassword(currentPassword: string, password: string) {
+    return this.request<object>('POST', '/api/v1/pinstripe/account/password', { current_password: currentPassword, password });
+  }
+
+  changeEmail(currentPassword: string, email: string) {
+    return this.request<{ email: string; confirmed: boolean }>('POST', '/api/v1/pinstripe/account/email', { current_password: currentPassword, email });
+  }
+
+  resendConfirmation() {
+    return this.request<object>('POST', '/api/v1/pinstripe/account/confirmation');
+  }
+
+  /** No token needed. The answer is the same whether or not the address has an account. */
+  requestPasswordReset(email: string) {
+    return this.request<object>('POST', '/api/v1/pinstripe/password_reset', { email });
+  }
+
   account(id: string) {
     return this.request<MastodonAccount>('GET', `/api/v1/accounts/${encodeURIComponent(id)}`);
   }

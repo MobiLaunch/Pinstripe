@@ -28,12 +28,14 @@ function RootStack() {
         <Stack.Screen name="blocked-accounts" />
         <Stack.Screen name="blocked-servers" />
         <Stack.Screen name="moderation" />
+        <Stack.Screen name="email-password" />
         <Stack.Screen name="new-video" options={{ presentation: 'modal' }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="sign-up" />
         <Stack.Screen name="other-server" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="forgot-password" />
       </Stack.Protected>
       <Stack.Screen name="oauth" />
     </Stack>

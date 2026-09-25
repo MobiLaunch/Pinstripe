@@ -11,6 +11,10 @@ export interface Config {
   /** Development only: lets two local servers federate over localhost. Never in production (SSRF). */
   allowPrivateAddress: boolean;
   storage: StorageConfig;
+  /** SMTP_URL (e.g. smtp://user:pass@smtp.example.com:587); unset prints mail to the console. */
+  smtpUrl: string | null;
+  /** MAIL_FROM, e.g. `Pinstripe <noreply@pinstripe.social>`. */
+  mailFrom: string;
 }
 
 /**
@@ -49,5 +53,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     databaseUrl: env.DATABASE_URL,
     allowPrivateAddress: env.PINSTRIPE_ALLOW_PRIVATE_ADDRESS === "true",
     storage: loadStorage(env),
+    smtpUrl: env.SMTP_URL || null,
+    mailFrom: env.MAIL_FROM || `Pinstripe <noreply@${new URL(origin).hostname}>`,
   };
 }

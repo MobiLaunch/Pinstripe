@@ -57,6 +57,13 @@
       "when": 1790355075875,
       "tag": "0007_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790355981126,
+      "tag": "0008_email_tokens",
+      "breakpoints": true
     }
   ]
 }
