@@ -78,3 +78,17 @@ export function checkImage(image: ImageInfo): MediaProblem[] {
   }
   return problems;
 }
+
+/** A person-readable explanation, the same in the app and from the server. */
+export function describeMediaProblem(p: MediaProblem): string {
+  switch (p.code) {
+    case "unsupported_type":
+      return `That file type (${p.mimeType}) isn't supported.`;
+    case "too_large":
+      return `That file is too large (limit ${Math.round(p.maxBytes / 1024 / 1024)} MB).`;
+    case "too_long":
+      return `Videos can be up to ${p.maxDurationSeconds} seconds long.`;
+    case "resolution_too_high":
+      return "Videos can be up to 1080p.";
+  }
+}

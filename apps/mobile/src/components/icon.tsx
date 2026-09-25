@@ -36,6 +36,8 @@ const ICONS = {
       <Path d="M16 16l4.5 4.5" />
     </>
   ),
+  sound: <Path d="M4 9h4l5-4v14l-5-4H4zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />,
+  soundOff: <Path d="M4 9h4l5-4v14l-5-4H4zM17 9l5 6M22 9l-5 6" />,
   trash: <Path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
   lock: (
     <>

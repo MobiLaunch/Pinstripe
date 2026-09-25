@@ -23,6 +23,7 @@ function RootStack() {
         <Stack.Screen name="status/[id]" />
         <Stack.Screen name="search" />
         <Stack.Screen name="follow-requests" />
+        <Stack.Screen name="new-video" options={{ presentation: 'modal' }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="sign-in" />

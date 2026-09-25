@@ -34,7 +34,16 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Pinstripe uses your photos and videos so you can post them.",
+          "cameraPermission": "Pinstripe uses the camera so you can record videos.",
+          "microphonePermission": "Pinstripe records sound with your videos."
+        }
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -83,7 +83,9 @@ the app checks them before uploading.
 
 ## Open questions
 
-- Video pipeline details: transcoding ladder (e.g. 1080p/720p/480p HLS),
-  storage/CDN provider.
+- Video delivery: when to add an HLS ladder (e.g. 1080p/720p/480p), and
+  which S3-compatible provider and CDN to use in production (the server
+  works with any of them; local disk in development).
 - Moderation tooling and reporting flows (not on the canvas yet).
-- Comments UI, record/upload flow and notifications (not on the canvas yet).
+- Notifications (not on the canvas yet). The record/upload screen and
+  comments reuse the Aqua primitives until they get a design.

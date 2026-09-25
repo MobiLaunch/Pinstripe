@@ -1,11 +1,15 @@
 import { BIO_MAX_LENGTH, PROFILE_FIELDS_MAX } from '@pinstripe/core';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
+import { checkPicked, type Picked, updateProfileImages } from '@/api/upload';
 import { useAccount, useAuth, useSource } from '@/auth/session';
-import { aquaText, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
+import { aquaText, Avatar, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
+import { initials } from '@/components/initials';
 import { ScreenHeader } from '@/components/screen-header';
 import { colors } from '@/theme/aqua';
 
@@ -24,8 +28,25 @@ export default function EditProfileScreen() {
     while (rows.length < PROFILE_FIELDS_MAX) rows.push({ name: '', value: '' });
     return rows;
   });
+  // New images are only sent on Save, so Cancel really cancels.
+  const [images, setImages] = useState<{ avatar?: Picked; header?: Picked }>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const pick = async (kind: 'avatar' | 'header') => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: kind === 'avatar' ? [1, 1] : [3, 1],
+      preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+      quality: 0.9,
+    });
+    const asset = result.canceled ? undefined : result.assets[0];
+    if (!asset) return;
+    const problem = checkPicked(asset);
+    setError(problem);
+    if (!problem) setImages((current) => ({ ...current, [kind]: asset }));
+  };
 
   const setField = (i: number, key: 'name' | 'value', text: string) =>
     setFields((rows) => rows.map((r, j) => (j === i ? { ...r, [key]: text } : r)));
@@ -35,6 +56,7 @@ export default function EditProfileScreen() {
     setSaving(true);
     setError(null);
     try {
+      if (images.avatar || images.header) await updateProfileImages(state.client, state.token, images);
       const json = await state.client.updateCredentials({
         display_name: displayName,
         note: bio,
@@ -43,7 +65,9 @@ export default function EditProfileScreen() {
         fields_attributes: fields.filter((f) => f.name.trim() || f.value.trim()),
       });
       await applyCredentials(json);
-      router.back();
+      // Opened directly (a link, a reload) there's nothing to go back to.
+      if (router.canGoBack()) router.back();
+      else router.replace('/account');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Couldn’t save your profile.');
       setSaving(false);
@@ -60,10 +84,15 @@ export default function EditProfileScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <FormError message={error} />
         <Card style={styles.card}>
-          {/* Image uploads arrive with the media pipeline. */}
-          <GelButton tone="gray" small title="Change Banner" disabled />
+          <View style={styles.banner}>
+            {images.header || me.bannerUrl ? (
+              <Image source={{ uri: images.header?.uri ?? me.bannerUrl! }} style={styles.fill} contentFit="cover" accessibilityLabel="Banner" />
+            ) : null}
+          </View>
+          <GelButton tone="gray" small title="Change Banner" disabled={saving} onPress={() => pick('header')} />
           <Text style={aquaText.handle}>1500 × 500 recommended</Text>
-          <GelButton tone="gray" small title="Change Photo" disabled />
+          <Avatar initials={initials(displayName || me.username)} size={72} uri={images.avatar?.uri ?? me.avatarUrl} />
+          <GelButton tone="gray" small title="Change Photo" disabled={saving} onPress={() => pick('avatar')} />
           <Text style={aquaText.handle}>Square image, at least 400 × 400</Text>
         </Card>
         <Card style={styles.card}>
@@ -115,6 +144,8 @@ const styles = StyleSheet.create({
   card: { gap: 10, padding: 16 },
   right: { textAlign: 'right' },
   bold: { fontWeight: '700' },
+  banner: { height: 90, borderRadius: 6, overflow: 'hidden', backgroundColor: '#b9cde3', borderWidth: 1, borderColor: '#8f8f8f' },
+  fill: { width: '100%', height: '100%' },
   pair: { flexDirection: 'row', gap: 8 },
   flex: { flex: 1 },
   flex2: { flex: 2 },

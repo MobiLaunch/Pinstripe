@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { aquaText, Avatar, Card, GelButton } from '@/components/aqua';
 import { Icon, type IconName } from '@/components/icon';
 import { initials } from '@/components/initials';
+import { MediaGrid } from '@/components/media-grid';
 import { relativeTime } from '@/components/relative-time';
 import { colors, fontFamily } from '@/theme/aqua';
 
@@ -73,11 +74,7 @@ export function PostCard({ post, viewerId, onFavourite, onBoost, onDelete, focus
             </Pressable>
           ) : null}
 
-          {shown.media[0]?.kind === 'image' ? (
-            <View style={styles.photo} accessibilityLabel={shown.media[0].description || 'Photo'}>
-              <Icon name="photo" color="#0b2f60" />
-            </View>
-          ) : null}
+          <MediaGrid media={shown.media} />
 
           <View style={styles.actions}>
             <Action
@@ -155,16 +152,6 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '700' },
   content: { marginTop: 4 },
   spoiler: { marginTop: 4, gap: 6, alignItems: 'flex-start' },
-  photo: {
-    marginTop: 10,
-    height: 170,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: '#8f8f8f',
-    backgroundColor: '#8fc0f0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   actions: { flexDirection: 'row', gap: 4, marginTop: 6, marginLeft: -8 },
   action: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, minWidth: 44, paddingHorizontal: 8 },
   actionText: { fontFamily, fontSize: 12 },

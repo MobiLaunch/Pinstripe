@@ -31,7 +31,8 @@ export type MastodonVisibility = 'public' | 'unlisted' | 'private' | 'direct';
 export interface MastodonMedia {
   id: string;
   type: 'image' | 'video' | 'gifv' | 'audio' | 'unknown';
-  url: string;
+  /** Null while a video is still processing. */
+  url: string | null;
   preview_url: string | null;
   description: string | null;
   blurhash: string | null;
@@ -245,7 +246,7 @@ export class MastodonClient {
     );
   }
 
-  postStatus(input: { status: string; visibility: MastodonVisibility; in_reply_to_id?: string; spoiler_text?: string }) {
+  postStatus(input: { status: string; visibility: MastodonVisibility; in_reply_to_id?: string; spoiler_text?: string; media_ids?: string[] }) {
     return this.request<MastodonStatus>('POST', '/api/v1/statuses', input);
   }
 
@@ -258,10 +259,29 @@ export class MastodonClient {
     return this.request<MastodonStatus>('POST', `/api/v1/statuses/${encodeURIComponent(id)}/${action}`);
   }
 
-  /** Newest first; pass the last id you have as `maxId` for the next page. */
-  timeline(kind: TimelineKind, options: { maxId?: string; limit?: number } = {}) {
+  /**
+   * Newest first; pass the last id you have as `maxId` for the next page.
+   * `onlyVideo` asks for posts led by a video (Pinstripe; other servers
+   * ignore it, so it also sends Mastodon's `only_media` and the caller filters).
+   */
+  timeline(kind: TimelineKind, options: { maxId?: string; limit?: number; onlyVideo?: boolean } = {}) {
     const path = { home: '/api/v1/timelines/home', local: '/api/v1/timelines/public', federated: '/api/v1/timelines/public' }[kind];
-    return this.request<MastodonStatus[]>('GET', path + query({ local: kind === 'local' ? 'true' : undefined, max_id: options.maxId, limit: options.limit }));
+    return this.request<MastodonStatus[]>(
+      'GET',
+      path +
+        query({
+          local: kind === 'local' ? 'true' : undefined,
+          max_id: options.maxId,
+          limit: options.limit,
+          only_media: options.onlyVideo ? 'true' : undefined,
+          only_video: options.onlyVideo ? 'true' : undefined,
+        }),
+    );
+  }
+
+  /** An upload: `url` is null while a video is still processing. */
+  media(id: string) {
+    return this.request<MastodonMedia>('GET', `/api/v1/media/${encodeURIComponent(id)}`);
   }
 
   accountStatuses(accountId: string, options: { maxId?: string; excludeReblogs?: boolean; limit?: number } = {}) {
@@ -288,7 +308,7 @@ export function fromMastodonVisibility(v: MastodonVisibility): Visibility {
 
 function toMedia(m: MastodonMedia): MediaAttachment | null {
   const kind = m.type === 'image' ? 'image' : m.type === 'video' || m.type === 'gifv' ? 'video' : null;
-  if (!kind) return null;
+  if (!kind || !m.url) return null;
   const original = m.meta?.original;
   return {
     id: m.id,

@@ -178,13 +178,59 @@ with paging, pull-to-refresh and optimistic favourites/boosts. Changes are
 broadcast to every mounted list, because the swipeable tabs stay mounted
 and would otherwise show stale copies.
 
+### Media
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/v2/media` | Upload a photo or video (multipart `file`, optional `description`). 200 when ready, 202 while a video processes. |
+| `GET /api/v1/media/:id` | 206 while processing, 200 when ready, 422 if processing failed. |
+| `PUT /api/v1/media/:id` | Change the description before posting. |
+| `PATCH /api/v1/accounts/update_credentials` | Also takes `avatar` / `header` files. |
+| `GET /media/*` | Files, when stored on local disk (supports Range for video seeking). |
+
+- Uploads stream to a temp file (busboy) and are cut off at the size limit
+  with a 413, so a 2 GB file never reaches memory or disk in full.
+- **Photos** (`media/process.ts`, sharp): rotated upright, EXIF/GPS
+  stripped, fit within 1920 px, a 640 px preview and a blurhash. Done in
+  the request.
+- **Videos** (ffprobe + ffmpeg): checked against the limits (duration,
+  1080p either way, rotation taken into account), re-encoded to H.264/AAC MP4
+  with `faststart` and no metadata, plus a poster frame and blurhash. Done
+  one at a time in the background; the ffmpeg/ffprobe binaries come from
+  `@ffmpeg-installer` (`FFMPEG_PATH` / `FFPROBE_PATH` override).
+- Posts take `media_ids`: up to four photos, or one video on its own, all
+  ready, owned by the poster and not already used. `only_media` and the
+  Pinstripe `only_video` filter work on timelines; the Videos tab uses
+  `only_video`.
+- **Storage** (`media/storage.ts`) is an interface with two backends:
+  `LocalDiskStorage` for development (`MEDIA_DIR`, default `./media-data`)
+  and `S3Storage` for anything S3-compatible (AWS, Cloudflare R2, Backblaze,
+  MinIO): set `MEDIA_STORAGE=s3` plus `S3_BUCKET`, `S3_REGION`,
+  `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`,
+  `S3_PUBLIC_URL` (the CDN or bucket URL files are served from) and
+  optionally `S3_FORCE_PATH_STYLE=true`.
+- An hourly sweep deletes uploads never attached to a post after 24 hours
+  and marks processing stuck for an hour as failed. Deleting a post deletes
+  its files.
+- ActivityPub: attachments go out as `Document`s with `mediaType`, size,
+  blurhash and `name` (alt text); remote attachments are stored as links to
+  the origin server, not copied.
+
+In the app, `api/upload.ts` checks the limits before sending (same code as
+the server, from `packages/core`), uploads with progress over XHR and polls
+until processing is done. The Videos tab is a vertical pager over
+`only_video` timelines: the visible video plays (following the autoplay and
+start-muted settings), the rest pause, and everything pauses when another
+tab is showing. The record orb opens the camera or library (60 s max) and
+then `new-video`, which uploads while the caption is written.
+
 ## What's intentionally temporary
 
-- The Videos tab still renders a fixture (`src/data/fixtures.ts`) until
-  video upload exists. Feed and Account use the API.
 - Login lockouts live in process memory.
-- Avatar and banner uploads, and `rel="me"` link verification, come with
-  the media pipeline.
+- Video is served as one progressive MP4. An HLS ladder
+  (1080p/720p/480p) is the next step once there's real traffic; the
+  storage interface doesn't need to change for it.
+- `rel="me"` link verification isn't done yet.
 
 ## Roadmap
 
@@ -198,10 +244,10 @@ and would otherwise show stale copies.
 4. ~~**Following & inbound content:** follows both ways with requests,
    remote posts in Home and Federated, mentions, replies and threads,
    search.~~ Done.
-5. **Video pipeline:** `/api/v2/media` upload enforcing the limits, transcode
-   (ffmpeg → HLS), thumbnails, blurhash, object storage + CDN; player in the
-   Videos tab (expo-video).
-6. **Profile:** ~~`update_credentials`~~ (done); avatar/banner upload,
+5. ~~**Video pipeline:** `/api/v2/media` upload enforcing the limits,
+   transcode, thumbnails, blurhash, object storage; player in the Videos
+   tab.~~ Done. Still to do: HLS ladder, CDN in front of the bucket.
+6. **Profile:** ~~`update_credentials`, avatar/banner upload~~ (done);
    `rel="me"` verification.
 7. **Settings & safety:** ~~settings endpoint, follow requests~~ (done);
    blocks and mutes, domain blocks, reporting, moderation, notifications.

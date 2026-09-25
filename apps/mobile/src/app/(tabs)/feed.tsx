@@ -1,10 +1,13 @@
 import { POST_MAX_LENGTH, type Post, type Visibility } from '@pinstripe/core';
 import { Link } from 'expo-router';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { type TimelineKind, toMastodonVisibility, toPost } from '@/api/mastodon';
+import { type MastodonMedia, type TimelineKind, toMastodonVisibility, toPost } from '@/api/mastodon';
+import { checkPicked, uploadMedia } from '@/api/upload';
 import { useAccount, useAuth, useSource } from '@/auth/session';
 import { aquaText, Avatar, Card, GelButton, Metal, Pinstripes, Segmented } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
@@ -12,6 +15,7 @@ import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
 import { PostCard } from '@/components/post-card';
+import { ProgressBar } from '@/components/progress-bar';
 import { publishPostEvent, usePostList } from '@/hooks/use-post-list';
 import { colors, fontFamily } from '@/theme/aqua';
 
@@ -98,6 +102,14 @@ export default function FeedScreen() {
   );
 }
 
+/** A photo being attached: uploading until `media` is set. */
+interface Attachment {
+  key: string;
+  uri: string;
+  progress: number;
+  media?: MastodonMedia;
+}
+
 function Composer() {
   const me = useAccount();
   const { state, refreshAccount } = useAuth();
@@ -106,8 +118,41 @@ function Composer() {
   const [visibility, setVisibility] = useState<Visibility>(source.defaultVisibility);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const remaining = POST_MAX_LENGTH - [...draft].length;
   const current = VISIBILITIES.find((v) => v.value === visibility)!;
+  const uploading = attachments.some((a) => !a.media);
+  const ready = attachments.filter((a) => a.media);
+
+  const pickPhotos = async () => {
+    if (state.status !== 'signedIn') return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: 4 - attachments.length,
+      // JPEG rather than HEIC, so every server can show it.
+      preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+      quality: 0.9,
+    });
+    if (result.canceled) return;
+    setError(null);
+    for (const asset of result.assets.slice(0, 4 - attachments.length)) {
+      const problem = checkPicked(asset);
+      if (problem) {
+        setError(problem);
+        continue;
+      }
+      const key = `${asset.uri}-${Date.now()}`;
+      setAttachments((list) => [...list, { key, uri: asset.uri, progress: 0 }]);
+      const update = (patch: Partial<Attachment>) => setAttachments((list) => list.map((a) => (a.key === key ? { ...a, ...patch } : a)));
+      uploadMedia(state.client, state.token, asset, { onProgress: (progress) => update({ progress }) })
+        .then((media) => update({ media, progress: 1 }))
+        .catch((e) => {
+          setAttachments((list) => list.filter((a) => a.key !== key));
+          setError(e instanceof Error ? e.message : 'Couldn’t upload that photo.');
+        });
+    }
+  };
 
   const cycleVisibility = () => {
     const i = VISIBILITIES.findIndex((v) => v.value === visibility);
@@ -119,8 +164,13 @@ function Composer() {
     setPosting(true);
     setError(null);
     try {
-      const status = await state.client.postStatus({ status: draft.trim(), visibility: toMastodonVisibility(visibility) });
+      const status = await state.client.postStatus({
+        status: draft.trim(),
+        visibility: toMastodonVisibility(visibility),
+        media_ids: ready.map((a) => a.media!.id),
+      });
       setDraft('');
+      setAttachments([]);
       publishPostEvent({ type: 'created', post: toPost(status, state.server) });
       refreshAccount();
     } catch (e) {
@@ -145,9 +195,37 @@ function Composer() {
           style={styles.input}
         />
       </View>
+      {attachments.length ? (
+        <View style={styles.attachments}>
+          {attachments.map((a) => (
+            <View key={a.key} style={styles.thumbWrap}>
+              <Image source={{ uri: a.uri }} style={styles.thumb} contentFit="cover" accessibilityLabel="Attached photo" />
+              {a.media ? null : (
+                <View style={styles.thumbProgress}>
+                  <ProgressBar progress={a.progress} label="Uploading photo" />
+                </View>
+              )}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Remove photo"
+                hitSlop={10}
+                onPress={() => setAttachments((list) => list.filter((x) => x.key !== a.key))}
+                style={styles.remove}>
+                <Text style={styles.removeText}>×</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
       <View style={styles.composerBar}>
-        {/* Photo attachments arrive with the media pipeline. */}
-        <GelButton tone="gray" small accessibilityLabel="Attach photo" disabled icon={<Icon name="photo" size={18} color={colors.text} />} />
+        <GelButton
+          tone="gray"
+          small
+          accessibilityLabel="Attach photos"
+          disabled={attachments.length >= 4}
+          onPress={pickPhotos}
+          icon={<Icon name="photo" size={18} color={colors.text} />}
+        />
         <GelButton
           tone="gray"
           small
@@ -156,7 +234,12 @@ function Composer() {
           onPress={cycleVisibility}
         />
         <Text style={[aquaText.handle, styles.push, remaining < 0 && styles.over]}>{remaining}</Text>
-        <GelButton small title={posting ? 'Posting…' : 'Post'} disabled={posting || !draft.trim() || remaining < 0} onPress={submit} />
+        <GelButton
+          small
+          title={posting ? 'Posting…' : 'Post'}
+          disabled={posting || uploading || (!draft.trim() && !ready.length) || remaining < 0}
+          onPress={submit}
+        />
       </View>
     </Card>
   );
@@ -169,6 +252,22 @@ const styles = StyleSheet.create({
   sideRight: { alignItems: 'flex-end' },
   list: { padding: 12, gap: 12, flexGrow: 1 },
   composer: { gap: 10 },
+  attachments: { flexDirection: 'row', gap: 8, paddingLeft: 50, flexWrap: 'wrap' },
+  thumbWrap: { width: 72, height: 72, borderRadius: 6, overflow: 'hidden', borderWidth: 1, borderColor: '#8f8f8f' },
+  thumb: { width: '100%', height: '100%' },
+  thumbProgress: { position: 'absolute', left: 4, right: 4, bottom: 4 },
+  remove: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeText: { color: '#fff', fontSize: 16, lineHeight: 18, fontWeight: '700' },
   row: { flexDirection: 'row', gap: 10 },
   input: {
     flex: 1,

@@ -14,7 +14,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffprobeInstaller from "@ffprobe-installer/ffprobe";
-import { checkImage, checkVideo, IMAGE_LIMITS, type MediaProblem, VIDEO_LIMITS } from "@pinstripe/core";
+import { checkImage, checkVideo, describeMediaProblem as describeProblem, IMAGE_LIMITS, type MediaProblem, VIDEO_LIMITS } from "@pinstripe/core";
 import { encode } from "blurhash";
 import sharp from "sharp";
 
@@ -51,19 +51,7 @@ export class MediaRejected extends Error {
   }
 }
 
-/** A person-readable reason for the first problem. */
-export function describeProblem(p: MediaProblem): string {
-  switch (p.code) {
-    case "unsupported_type":
-      return `That file type (${p.mimeType}) isn't supported.`;
-    case "too_large":
-      return `That file is too large (limit ${Math.round(p.maxBytes / 1024 / 1024)} MB).`;
-    case "too_long":
-      return `Videos can be up to ${p.maxDurationSeconds} seconds long.`;
-    case "resolution_too_high":
-      return "Videos can be up to 1080p.";
-  }
-}
+export { describeMediaProblem as describeProblem } from "@pinstripe/core";
 
 export interface Processed {
   /** The file to store, and its type and extension. */
