@@ -1,12 +1,11 @@
-import { Alert, Platform } from 'react-native';
+import { showDialog } from '@/components/dialog';
 
-/** A yes/no question. Alert has no buttons on web, so the browser's confirm stands in there. */
-export function confirm(title: string, message: string, confirmLabel: string): Promise<boolean> {
-  if (Platform.OS === 'web') return Promise.resolve(globalThis.confirm?.(`${title}\n\n${message}`) ?? false);
-  return new Promise((resolve) =>
-    Alert.alert(title, message, [
-      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-      { text: confirmLabel, style: 'destructive', onPress: () => resolve(true) },
-    ]),
-  );
+/** A yes/no question in an iOS 6 alert. Resolves true for the confirming button. */
+export async function confirm(title: string, message: string, confirmLabel: string): Promise<boolean> {
+  const destructive = /delete|block|suspend|remove|sign out|report/i.test(confirmLabel);
+  const answer = await showDialog(title, message, [
+    { label: 'Cancel', style: 'cancel' },
+    { label: confirmLabel, style: destructive ? 'destructive' : 'default' },
+  ]);
+  return answer === 1;
 }

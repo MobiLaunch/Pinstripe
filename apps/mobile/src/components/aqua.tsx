@@ -6,13 +6,10 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import {
-  Platform,
   Pressable,
   type PressableProps,
   type StyleProp,
   StyleSheet,
-  Switch,
-  type SwitchProps,
   Text,
   TextInput,
   type TextInputProps,
@@ -23,6 +20,7 @@ import {
 import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 
 import { colors, fontFamily, type Gradient, gelBorders, gradients, radii, touchTarget } from '@/theme/aqua';
+import { Switch as Ios6Switch } from '@/components/ios6';
 import { useAccent } from '@/theme/theme';
 
 function Fill({ gradient, style }: { gradient: Gradient; style?: ViewStyle }) {
@@ -76,6 +74,7 @@ export function GelButton({
   title,
   tone = 'blue',
   small = false,
+  rect = false,
   icon,
   style,
   disabled,
@@ -84,6 +83,8 @@ export function GelButton({
   title?: string;
   tone?: GelTone;
   small?: boolean;
+  /** The iOS 6 rounded-rectangle "big button" (Sign Out, Delete Account…) instead of the pill. */
+  rect?: boolean;
   icon?: ReactNode;
   style?: ViewStyle;
 }) {
@@ -97,12 +98,13 @@ export function GelButton({
       style={({ pressed }) => [
         styles.gel,
         small && styles.gelSmall,
+        rect && styles.gelRect,
         { borderColor: t.border, opacity: disabled ? 0.5 : pressed ? 0.85 : 1 },
         style,
       ]}
       {...rest}>
       <Fill gradient={t.gradient} />
-      <Fill gradient={gradients.gloss} style={styles.gloss} />
+      <Fill gradient={gradients.gloss} style={rect ? styles.glossRect : styles.gloss} />
       {icon}
       {title ? (
         <Text style={[styles.gelText, small && styles.gelTextSmall, { color: t.text }]}>{title}</Text>
@@ -137,21 +139,27 @@ export function Orb({
   );
 }
 
-/** Aqua segmented control. */
+/**
+ * Segmented control. `bar` is the compact style that sits on a navigation
+ * bar or toolbar, tinted like the bar (UISegmentedControlStyleBar).
+ */
 export function Segmented<T extends string>({
   options,
   value,
   onChange,
   style,
+  variant = 'plain',
 }: {
   options: readonly { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
   style?: StyleProp<ViewStyle>;
+  variant?: 'plain' | 'bar';
 }) {
   const accent = useAccent();
+  const bar = variant === 'bar';
   return (
-    <View style={[styles.seg, style]} accessibilityRole="tablist">
+    <View style={[styles.seg, bar && [styles.segBar, { borderColor: accent.barButtonBorder }], style]} accessibilityRole="tablist">
       {options.map((o, i) => {
         const on = o.value === value;
         return (
@@ -160,9 +168,10 @@ export function Segmented<T extends string>({
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
             onPress={() => onChange(o.value)}
-            style={[styles.segItem, i > 0 && styles.segDivider]}>
-            <Fill gradient={on ? accent.segmentOn : gradients.segment} />
-            <Text style={[styles.segText, on && styles.segTextOn]}>{o.label}</Text>
+            style={[styles.segItem, bar && styles.segItemBar, i > 0 && (bar ? { borderLeftWidth: 1, borderLeftColor: accent.barButtonBorder } : styles.segDivider)]}>
+            <Fill gradient={bar ? (on ? accent.barButtonPressed : accent.barButton) : on ? accent.segmentOn : gradients.segment} />
+            {bar && on ? <View style={styles.segBarPressed} pointerEvents="none" /> : null}
+            <Text style={[styles.segText, (on || bar) && styles.segTextOn, bar && styles.segTextBar]}>{o.label}</Text>
           </Pressable>
         );
       })}
@@ -184,11 +193,9 @@ export function Avatar({ initials, size = 40, uri }: { initials: string; size?: 
   );
 }
 
-/** A switch in the theme's accent. React Native Web colours the "on" knob separately, so it's set here too. */
-export function AquaSwitch(props: Omit<SwitchProps, 'trackColor' | 'thumbColor'>) {
-  const accent = useAccent();
-  const web = Platform.OS === 'web' ? { activeThumbColor: '#ffffff' } : {};
-  return <Switch trackColor={{ true: accent.color }} thumbColor="#ffffff" {...web} {...props} />;
+/** The iOS 6 ON/OFF switch (see ios6.tsx). */
+export function AquaSwitch(props: { value: boolean; onValueChange?: (value: boolean) => void; disabled?: boolean; accessibilityLabel?: string }) {
+  return <Ios6Switch {...props} />;
 }
 
 export function Card({ style, ...rest }: ViewProps) {
@@ -205,6 +212,7 @@ export function Group({ title, children }: { title?: string; children: ReactNode
   );
 }
 
+/** A labelled iOS 6 rounded text field, recessed into the page. */
 export function Field({ label, ...rest }: TextInputProps & { label: string }) {
   // Never capitalise or autocorrect a password.
   const secret = rest.secureTextEntry ? { autoCapitalize: 'none' as const, autoCorrect: false } : {};
@@ -213,8 +221,30 @@ export function Field({ label, ...rest }: TextInputProps & { label: string }) {
       <Text style={styles.label}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
-        placeholderTextColor="#767676"
-        style={styles.field}
+        placeholderTextColor="#9a9a9a"
+        clearButtonMode="while-editing"
+        style={[styles.field, rest.multiline && styles.fieldMultiline]}
+        {...secret}
+        {...rest}
+      />
+    </View>
+  );
+}
+
+/**
+ * A text field inside a grouped-table cell: the label on the left in bold,
+ * the entry on the right, as in iOS 6's account forms.
+ */
+export function TableField({ label, ...rest }: TextInputProps & { label: string }) {
+  const secret = rest.secureTextEntry ? { autoCapitalize: 'none' as const, autoCorrect: false } : {};
+  return (
+    <View style={[styles.tableField, rest.multiline && styles.tableFieldTall]}>
+      <Text style={styles.tableFieldLabel}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        placeholderTextColor="#b3b3b3"
+        clearButtonMode="while-editing"
+        style={[styles.tableFieldInput, rest.multiline && styles.tableFieldInputTall]}
         {...secret}
         {...rest}
       />
@@ -244,6 +274,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   gelSmall: { minHeight: 34, paddingHorizontal: 14 },
+  gelRect: { borderRadius: 10, boxShadow: '0 1px 0 rgba(255,255,255,0.7)' },
+  glossRect: { left: 1, right: 1, top: 1, bottom: '50%', borderTopLeftRadius: 9, borderTopRightRadius: 9, opacity: 0.55 },
   gloss: { left: '9%', right: '9%', top: 2, bottom: '56%', borderRadius: radii.pill },
   gelText: {
     fontFamily,
@@ -273,6 +305,10 @@ const styles = StyleSheet.create({
   segDivider: { borderLeftWidth: 1, borderLeftColor: '#8a8a8a' },
   segText: { fontFamily, fontSize: 12, fontWeight: '700', color: '#222222' },
   segTextOn: { color: '#ffffff' },
+  segBar: { borderRadius: 5, boxShadow: '0 1px 0 rgba(255,255,255,0.3)' },
+  segItemBar: { minHeight: 30 },
+  segBarPressed: { ...StyleSheet.absoluteFill, boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.75)' },
+  segTextBar: { fontSize: 12, textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: -1 }, textShadowRadius: 0 },
   avatar: {
     overflow: 'hidden',
     alignItems: 'center',
@@ -280,12 +316,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   avatarText: { fontFamily, color: '#ffffff', fontWeight: '700' },
+  // An iOS 6 grouped-table cell: white, rounded, a fine grey rim and a white
+  // highlight underneath.
   card: {
     backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.card,
+    borderColor: '#aaaeb3',
+    borderRadius: 10,
     padding: 12,
+    boxShadow: '0 1px 0 rgba(255,255,255,0.8)',
   },
   groupTitle: { fontFamily, fontSize: 12, fontWeight: '700', color: '#3a3a3a', marginTop: 20, marginBottom: 6, marginLeft: 6 },
   group: {
@@ -296,18 +335,25 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fieldWrap: { gap: 5 },
-  label: { fontFamily, fontSize: 12, fontWeight: '700', color: '#333333', marginLeft: 2 },
+  label: { fontFamily, fontSize: 13, fontWeight: '700', color: '#4c566c', marginLeft: 4, textShadowColor: 'rgba(255,255,255,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 0 },
   field: {
     fontFamily,
     minHeight: touchTarget,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 15,
+    fontSize: 16,
     color: '#111111',
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#8c8c8c',
-    borderTopColor: '#5e5e5e',
-    borderRadius: radii.field,
+    borderColor: '#a2a2a2',
+    borderTopColor: '#7b7b7b',
+    borderRadius: 8,
+    boxShadow: 'inset 0 2px 3px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.8)',
   },
+  fieldMultiline: { minHeight: 90, textAlignVertical: 'top' },
+  tableField: { minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 10 },
+  tableFieldTall: { alignItems: 'flex-start', paddingVertical: 10 },
+  tableFieldLabel: { fontFamily, width: 104, fontSize: 16, fontWeight: '700', color: '#000000' },
+  tableFieldInput: { flex: 1, minHeight: 44, fontFamily, fontSize: 16, color: '#385487', paddingVertical: 10, outlineWidth: 0 },
+  tableFieldInputTall: { minHeight: 80, paddingVertical: 0, textAlignVertical: 'top' },
 });

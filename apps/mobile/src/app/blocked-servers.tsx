@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/auth/session';
-import { aquaText, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
+import { aquaText, Card, Field, GelButton } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
+import { TableBackground } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
 
 /** Servers whose people and posts you never want to see. */
@@ -58,7 +59,7 @@ export default function BlockedServersScreen() {
   };
 
   return (
-    <Pinstripes>
+    <TableBackground>
       <ScreenHeader title="Blocked Servers" back="Back" />
       <FlatList
         data={domains ?? []}
@@ -97,7 +98,7 @@ export default function BlockedServersScreen() {
           </Card>
         )}
       />
-    </Pinstripes>
+    </TableBackground>
   );
 }
 

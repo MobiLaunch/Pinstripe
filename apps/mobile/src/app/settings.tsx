@@ -1,14 +1,15 @@
 import { type AccountSettings, DEFAULT_SETTINGS, type Theme } from '@pinstripe/core';
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAccount, useAuth, useSource } from '@/auth/session';
-import { AquaSwitch, aquaText, GelButton, Group, Pinstripes, Segmented } from '@/components/aqua';
+import { AquaSwitch, GelButton } from '@/components/aqua';
+import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
-import { Icon } from '@/components/icon';
+import { TableBackground, TableGroup, TableRow } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
-import { colors, fontFamily } from '@/theme/aqua';
+import { fontFamily } from '@/theme/aqua';
 import { useAccent, useSetTheme } from '@/theme/theme';
 
 type Toggle = { [K in keyof AccountSettings]: AccountSettings[K] extends boolean ? K : never }[keyof AccountSettings];
@@ -90,125 +91,107 @@ export default function SettingsScreen() {
   const row = (key: Toggle, title: string, sub?: string) => {
     const unavailable = key in PREFERENCE_KEYS && preferencesAvailable !== true;
     return (
-      <View style={styles.row} key={key}>
-        <View style={styles.flex}>
-          <Text style={[aquaText.body, unavailable && styles.muted]}>{title}</Text>
-          {sub ? <Text style={aquaText.handle}>{sub}</Text> : null}
-        </View>
-        <AquaSwitch
-          value={settings[key]}
-          onValueChange={(v) => change(key, v)}
-          disabled={unavailable}
-          accessibilityLabel={title}
-        />
-      </View>
+      <TableRow
+        key={key}
+        title={title}
+        sub={unavailable ? 'Not available on your server' : sub}
+        right={<AquaSwitch value={settings[key]} onValueChange={(v) => change(key, v)} disabled={unavailable} accessibilityLabel={title} />}
+      />
     );
   };
 
+  const confirmSignOut = async () => {
+    if (await confirm('Sign Out?', 'You can sign back in any time.', 'Sign Out')) signOut();
+  };
+
   return (
-    <Pinstripes>
+    <TableBackground>
       <ScreenHeader title="Settings" back="Account" />
       <ScrollView contentContainerStyle={styles.content}>
-        <FormError message={error} />
-        {preferencesAvailable === false ? (
-          <Text style={[aquaText.handle, styles.note]}>
-            Some settings are Pinstripe features your server doesn’t have, so they’re turned off here.
-          </Text>
+        {error ? (
+          <View style={styles.pad}>
+            <FormError message={error} />
+          </View>
         ) : null}
-        <Group title="Account">
+        <TableGroup title="Account">
           <Link href="/edit-profile" asChild>
-            <NavRow title="Edit profile" sub="Photo, banner, bio and profile fields" />
+            <TableRow title="Edit Profile" sub="Photo, banner, bio and profile fields" accessory="chevron" />
           </Link>
           <Link href="/email-password" asChild>
-            <NavRow title="Email & password" divider />
+            <TableRow title="Email & Password" accessory="chevron" />
           </Link>
           {settings.approveFollowers || source.followRequests > 0 ? (
             <Link href="/follow-requests" asChild>
-              <NavRow
-                title="Follow requests"
-                sub={source.followRequests ? `${source.followRequests} waiting` : 'None waiting'}
-                divider
-              />
+              <TableRow title="Follow Requests" detail={String(source.followRequests)} accessory="chevron" />
             </Link>
           ) : null}
-        </Group>
-        <Group title="Privacy">
-          {row('approveFollowers', 'Approve new followers', 'People must request to follow you')}
-          {row('listInDirectory', 'List me in the server directory', 'Helps people on other servers find you')}
-          {row('allowVideoDownloads', 'Allow video downloads', 'Others can save your videos')}
-          {row('hideFollowerCounts', 'Hide follower counts')}
+        </TableGroup>
+        <TableGroup title="Privacy">
+          {row('approveFollowers', 'Approve Followers', 'People must request to follow you')}
+          {row('listInDirectory', 'Server Directory', 'Helps people on other servers find you')}
+          {row('allowVideoDownloads', 'Video Downloads', 'Others can save your videos')}
+          {row('hideFollowerCounts', 'Hide Follower Counts')}
           <Link href={{ pathname: '/blocked-accounts', params: { kind: 'mutes' } }} asChild>
-            <NavRow title="Muted accounts" divider />
+            <TableRow title="Muted Accounts" accessory="chevron" />
           </Link>
           <Link href={{ pathname: '/blocked-accounts', params: { kind: 'blocks' } }} asChild>
-            <NavRow title="Blocked accounts" divider />
+            <TableRow title="Blocked Accounts" accessory="chevron" />
           </Link>
-        </Group>
-        <Group title="Federation">
+        </TableGroup>
+        <TableGroup title="Federation" footer="Blocked servers are hidden from you completely: their posts, replies and notifications.">
           <Link href="/blocked-servers" asChild>
-            <NavRow title="Blocked servers" sub="Hide everything from domains you choose" />
+            <TableRow title="Blocked Servers" accessory="chevron" />
           </Link>
-        </Group>
+        </TableGroup>
         {source.moderator ? (
-          <Group title="Moderation">
+          <TableGroup title="Moderation">
             <Link href="/moderation" asChild>
-              <NavRow title="Moderation" sub="Reports, blocked servers and the log" />
+              <TableRow title="Moderation" sub="Reports, blocked servers and the log" accessory="chevron" />
             </Link>
-          </Group>
+          </TableGroup>
         ) : null}
-        <Group title="Playback">
-          {row('autoplayVideos', 'Autoplay videos')}
-          {row('startMuted', 'Start videos muted')}
-          {row('saveDataOnCellular', 'Save data on cellular')}
-        </Group>
-        <Group title="Appearance">
-          <View style={styles.row}>
-            <Segmented<Theme>
-              options={THEMES}
-              value={settings.theme}
-              onChange={(theme) => change('theme', theme)}
-              style={styles.flex}
+        <TableGroup title="Playback">
+          {row('autoplayVideos', 'Autoplay')}
+          {row('startMuted', 'Start Muted')}
+          {row('saveDataOnCellular', 'Save Data on Cellular')}
+        </TableGroup>
+        <TableGroup title="Appearance">
+          {THEMES.map((t) => (
+            <TableRow
+              key={t.value}
+              title={t.label}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: settings.theme === t.value }}
+              accessory={settings.theme === t.value ? 'check' : 'none'}
+              onPress={() => change('theme', t.value)}
             />
-          </View>
-        </Group>
-        <GelButton tone="red" title="Sign Out" style={styles.signOut} onPress={signOut} />
-        <Text style={[aquaText.handle, styles.footer]}>Pinstripe · ActivityPub</Text>
+          ))}
+        </TableGroup>
+        {preferencesAvailable === false ? (
+          <Text style={styles.footer}>Some settings are Pinstripe features your server doesn’t have, so they’re turned off here.</Text>
+        ) : null}
+        <View style={styles.pad}>
+          <GelButton tone="red" rect title="Sign Out" style={styles.signOut} onPress={confirmSignOut} />
+        </View>
+        <Text style={styles.footer}>Pinstripe · ActivityPub</Text>
       </ScrollView>
-    </Pinstripes>
-  );
-}
-
-function NavRow({
-  title,
-  sub,
-  divider,
-  style,
-  ...rest
-}: {
-  title: string;
-  sub?: string;
-  divider?: boolean;
-  style?: ViewStyle;
-  onPress?: () => void;
-}) {
-  return (
-    <Pressable accessibilityRole="button" {...rest} style={[styles.row, divider && styles.divider, style]}>
-      <View style={styles.flex}>
-        <Text style={aquaText.body}>{title}</Text>
-        {sub ? <Text style={aquaText.handle}>{sub}</Text> : null}
-      </View>
-      <Icon name="chevronRight" size={16} color="#777" />
-    </Pressable>
+    </TableBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, paddingBottom: 40 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 14, paddingVertical: 10 },
-  divider: { borderTopWidth: 1, borderTopColor: colors.hairline },
-  flex: { flex: 1 },
-  signOut: { marginTop: 24 },
-  muted: { color: '#8a8a8a' },
-  note: { marginBottom: 4, paddingHorizontal: 6 },
-  footer: { fontFamily, textAlign: 'center', marginTop: 16 },
+  content: { paddingBottom: 40 },
+  pad: { marginHorizontal: 10, marginTop: 14 },
+  signOut: { marginTop: 12 },
+  footer: {
+    fontFamily,
+    fontSize: 14,
+    color: '#4c566c',
+    textAlign: 'center',
+    marginTop: 14,
+    marginHorizontal: 20,
+    textShadowColor: '#ffffff',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 0,
+  },
 });

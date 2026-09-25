@@ -4,8 +4,9 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ApiError, type FieldErrors } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
-import { AquaSwitch, aquaText, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
+import { AquaSwitch, GelButton, TableField } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
+import { TableBackground, TableGroup, TableRow } from '@/components/ios6';
 import { PASSWORD_MIN, StrengthMeter } from '@/components/password-strength';
 import { ScreenHeader } from '@/components/screen-header';
 import { PINSTRIPE_DOMAIN, PINSTRIPE_SERVER } from '@/config';
@@ -53,66 +54,74 @@ export default function SignUpScreen() {
   };
 
   return (
-    <Pinstripes>
+    <TableBackground>
       <ScreenHeader title="Create Account" back="Sign In" />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Card style={styles.card}>
-          <FormError message={error} />
-          <View style={styles.group}>
-            <Field
-              label="Username"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="username-new"
-              value={username}
-              onChangeText={setUsername}
-            />
-            <Text style={aquaText.handle}>
-              @{username || 'you'}@{PINSTRIPE_DOMAIN}
-            </Text>
-            {hint('username')}
+        {error ? (
+          <View style={styles.pad}>
+            <FormError message={error} />
           </View>
-          <View style={styles.group}>
-            <Field
-              label="Email"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              value={email}
-              onChangeText={setEmail}
-            />
-            {hint('email')}
-          </View>
-          <View style={styles.group}>
-            <Field label="Password" secureTextEntry autoComplete="new-password" value={password} onChangeText={setPassword} />
-            <StrengthMeter password={password} />
-            {hint('password')}
-          </View>
-          <View style={styles.agree}>
-            <AquaSwitch
-              value={agreed}
-              onValueChange={setAgreed}
-              accessibilityLabel="I agree to the server rules and privacy policy"
-            />
-            <Text style={[aquaText.body, styles.flex]}>I agree to the server rules and privacy policy.</Text>
-          </View>
-          <GelButton title={busy ? 'Creating…' : 'Create Account'} disabled={busy || !ready} onPress={submit} />
-        </Card>
-        <Text style={[aquaText.handle, styles.note]}>
-          Your handle works across the fediverse. People on Mastodon, Pixelfed and other ActivityPub apps can follow @
-          {username || 'you'}@{PINSTRIPE_DOMAIN}.
+        ) : null}
+        <TableGroup footer={`@${username || 'you'}@${PINSTRIPE_DOMAIN}`}>
+          <TableField
+            label="Username"
+            placeholder="letters, numbers, _"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="username-new"
+            value={username}
+            onChangeText={setUsername}
+          />
+        </TableGroup>
+        {hint('username')}
+        <TableGroup>
+          <TableField
+            label="Email"
+            placeholder="you@example.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TableField label="Password" placeholder="8 characters or more" secureTextEntry autoComplete="new-password" value={password} onChangeText={setPassword} />
+        </TableGroup>
+        <View style={styles.meter}>
+          <StrengthMeter password={password} />
+        </View>
+        {hint('email')}
+        {hint('password')}
+        <TableGroup>
+          <TableRow
+            title="I agree to the server rules and privacy policy."
+            right={<AquaSwitch value={agreed} onValueChange={setAgreed} accessibilityLabel="I agree to the server rules and privacy policy" />}
+          />
+        </TableGroup>
+        <View style={styles.pad}>
+          <GelButton rect title={busy ? 'Creating…' : 'Create Account'} disabled={busy || !ready} onPress={submit} />
+        </View>
+        <Text style={styles.note}>
+          Your handle works across the fediverse. People on Mastodon, Pixelfed and other ActivityPub apps can follow @{username || 'you'}@
+          {PINSTRIPE_DOMAIN}.
         </Text>
       </ScrollView>
-    </Pinstripes>
+    </TableBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, gap: 14 },
-  card: { gap: 14, padding: 16 },
-  group: { gap: 4 },
-  fieldError: { fontFamily, fontSize: 12, color: colors.danger },
-  agree: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  flex: { flex: 1 },
-  note: { textAlign: 'center', paddingHorizontal: 8 },
+  content: { paddingBottom: 40 },
+  pad: { marginHorizontal: 10, marginTop: 14 },
+  meter: { marginHorizontal: 20, marginTop: 6 },
+  fieldError: { fontFamily, fontSize: 13, color: colors.danger, marginHorizontal: 20, marginTop: 6 },
+  note: {
+    fontFamily,
+    fontSize: 14,
+    color: '#4c566c',
+    textAlign: 'center',
+    margin: 20,
+    textShadowColor: '#ffffff',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 0,
+  },
 });

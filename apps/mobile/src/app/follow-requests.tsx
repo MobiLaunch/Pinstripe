@@ -5,9 +5,10 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 
 import { toAccount } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
-import { aquaText, Avatar, Card, GelButton, Pinstripes } from '@/components/aqua';
+import { aquaText, Avatar, Card, GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { initials } from '@/components/initials';
+import { TableBackground } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
 
 /** People waiting for you to approve their follow (when "Approve new followers" is on). */
@@ -44,7 +45,7 @@ export default function FollowRequestsScreen() {
   };
 
   return (
-    <Pinstripes>
+    <TableBackground>
       <ScreenHeader title="Follow Requests" back="Back" />
       <FlatList
         data={requests ?? []}
@@ -74,7 +75,7 @@ export default function FollowRequestsScreen() {
           </Card>
         )}
       />
-    </Pinstripes>
+    </TableBackground>
   );
 }
 

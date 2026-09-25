@@ -28,6 +28,23 @@ export interface Accent {
   bannerEdge: string;
   /** The light stripe of the barber-pole progress bar. */
   stripe: string;
+  // iOS 6 chrome
+  /** Navigation bars and toolbars (UIBarStyleDefault for Blue, UIBarStyleBlack for Graphite). */
+  navBar: Gradient;
+  navBarEdge: string;
+  /** Bordered bar buttons, and bar-style segmented controls. */
+  barButton: Gradient;
+  barButtonPressed: Gradient;
+  barButtonBorder: string;
+  /** UISwitch when on. */
+  switchOn: Gradient;
+  switchOnBorder: string;
+  /** A pressed table row. */
+  selection: Gradient;
+  /** UISearchBar's backdrop. */
+  searchBar: Gradient;
+  /** The selected tab's icon in the black tab bar. */
+  tabIcon: string;
 }
 
 export const ACCENTS: Record<Theme, Accent> = {
@@ -44,6 +61,16 @@ export const ACCENTS: Record<Theme, Accent> = {
     banner: gradients.banner,
     bannerEdge: '#0e3f86',
     stripe: '#8ac3ff',
+    navBar: { colors: ['#c3cedb', '#a3b3c7', '#889cb6', '#7a8fab', '#6d83a1'], locations: [0, 0.48, 0.5, 0.75, 1] },
+    navBarEdge: '#2d3642',
+    barButton: { colors: ['#9aabc1', '#7489a6', '#5d7495', '#58708f'], locations: [0, 0.49, 0.5, 1] },
+    barButtonPressed: { colors: ['#6f84a2', '#556b8b', '#47607f', '#415a79'], locations: [0, 0.49, 0.5, 1] },
+    barButtonBorder: '#3b4d68',
+    switchOn: { colors: ['#0a5fd6', '#2079ec', '#3c93f5'], locations: [0, 0.5, 1] },
+    switchOnBorder: '#1c4f99',
+    selection: { colors: ['#058cf5', '#015fe6'] },
+    searchBar: { colors: ['#d3dbe4', '#b7c2d0', '#a7b4c4'], locations: [0, 0.5, 1] },
+    tabIcon: '#3fb0ff',
   },
   graphite: {
     theme: 'graphite',
@@ -61,6 +88,16 @@ export const ACCENTS: Record<Theme, Accent> = {
     banner: { colors: ['#d4dbe3', '#94a2b2', '#627083'], locations: [0, 0.6, 1] },
     bannerEdge: '#4a5563',
     stripe: '#c4ccd6',
+    navBar: { colors: ['#5c5c5c', '#3a3a3a', '#252525', '#181818', '#0e0e0e'], locations: [0, 0.48, 0.5, 0.75, 1] },
+    navBarEdge: '#000000',
+    barButton: { colors: ['#555555', '#353535', '#242424', '#1c1c1c'], locations: [0, 0.49, 0.5, 1] },
+    barButtonPressed: { colors: ['#202020', '#121212', '#050505', '#000000'], locations: [0, 0.49, 0.5, 1] },
+    barButtonBorder: '#000000',
+    switchOn: { colors: ['#4d5a6a', '#6b7a8c', '#8392a3'], locations: [0, 0.5, 1] },
+    switchOnBorder: '#39434f',
+    selection: { colors: ['#9aa6b5', '#5d6b7c'] },
+    searchBar: { colors: ['#b9b9b9', '#9a9a9a', '#8a8a8a'], locations: [0, 0.5, 1] },
+    tabIcon: '#e8eef5',
   },
 };
 

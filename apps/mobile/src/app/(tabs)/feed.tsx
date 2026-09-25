@@ -4,12 +4,12 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { type MastodonMedia, type TimelineKind, toMastodonVisibility, toPost } from '@/api/mastodon';
 import { checkPicked, uploadMedia } from '@/api/upload';
 import { useAccount, useAuth, useSource } from '@/auth/session';
-import { aquaText, Avatar, Card, GelButton, Metal, Pinstripes, Segmented } from '@/components/aqua';
+import { aquaText, Avatar, Card, GelButton, Pinstripes, Segmented } from '@/components/aqua';
+import { Badge, BarButton, NavBar } from '@/components/ios6';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
@@ -35,7 +35,6 @@ const VISIBILITIES: { value: Visibility; label: string }[] = [
 
 /** Text and photo posts, Mastodon-style, with a composer on top. */
 export default function FeedScreen() {
-  const insets = useSafeAreaInsets();
   const me = useAccount();
   const { refreshAccount } = useAuth();
   const [timeline, setTimeline] = useState<TimelineKind>('home');
@@ -53,22 +52,16 @@ export default function FeedScreen() {
 
   return (
     <Pinstripes>
-      <Metal style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <View style={styles.titleRow}>
-          <View style={styles.side}>
-            <NotificationsButton />
-          </View>
-          <Text style={aquaText.title} accessibilityRole="header">
-            Feed
-          </Text>
-          <View style={[styles.side, styles.sideRight]}>
-            <Link href="/search" asChild>
-              <GelButton tone="gray" small accessibilityLabel="Find people" icon={<Icon name="search" size={16} color={colors.text} />} />
-            </Link>
-          </View>
-        </View>
-        <Segmented options={TIMELINES} value={timeline} onChange={setTimeline} />
-      </Metal>
+      <NavBar
+        title="Feed"
+        left={<NotificationsButton />}
+        right={
+          <Link href="/search" asChild>
+            <BarButton accessibilityLabel="Find people" icon={<Icon name="search" size={16} strokeWidth={2.6} color="#fff" />} />
+          </Link>
+        }>
+        <Segmented variant="bar" options={TIMELINES} value={timeline} onChange={setTimeline} />
+      </NavBar>
       <FlatList
         data={list.posts}
         keyExtractor={(p) => p.id}
@@ -112,13 +105,9 @@ function NotificationsButton() {
   return (
     <View style={styles.bell}>
       <Link href="/notifications" asChild>
-        <GelButton tone="gray" small accessibilityLabel={label} icon={<Icon name="bell" size={16} color={colors.text} />} />
+        <BarButton accessibilityLabel={label} icon={<Icon name="bell" size={16} strokeWidth={2.6} color="#fff" />} />
       </Link>
-      {unread ? (
-        <View style={styles.unread} pointerEvents="none">
-          <Text style={styles.unreadText}>{unread > 99 ? '99+' : unread}</Text>
-        </View>
-      ) : null}
+      <Badge count={unread} style={styles.unread} />
     </View>
   );
 }
@@ -267,26 +256,8 @@ function Composer() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 16, paddingBottom: 10, gap: 10, borderBottomWidth: 1 },
-  titleRow: { flexDirection: 'row', alignItems: 'center' },
-  side: { flex: 1 },
-  sideRight: { alignItems: 'flex-end' },
   bell: { alignSelf: 'flex-start' },
-  unread: {
-    position: 'absolute',
-    top: -6,
-    right: -8,
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 5,
-    borderRadius: 10,
-    backgroundColor: colors.danger,
-    borderWidth: 1.5,
-    borderColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  unread: { position: 'absolute', top: -9, right: -12 },
   list: { padding: 12, gap: 12, flexGrow: 1 },
   composer: { gap: 10 },
   attachments: { flexDirection: 'row', gap: 8, paddingLeft: 50, flexWrap: 'wrap' },
@@ -313,9 +284,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#8c8c8c',
-    borderRadius: 5,
+    borderColor: '#a2a2a2',
+    borderTopColor: '#7b7b7b',
+    borderRadius: 8,
     backgroundColor: '#ffffff',
+    boxShadow: 'inset 0 2px 3px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.8)',
     textAlignVertical: 'top',
   },
   composerBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 50 },

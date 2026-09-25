@@ -5,11 +5,12 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Tex
 
 import { type MastodonAdminReport, type MastodonClient, type MastodonServerBlock, toAccount, toPost } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
-import { aquaText, Avatar, Card, Field, GelButton, Pinstripes, Segmented } from '@/components/aqua';
+import { aquaText, Avatar, Card, Field, GelButton, Segmented } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { initials } from '@/components/initials';
 import { relativeTime } from '@/components/relative-time';
+import { TableBackground } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
 
 const VIEWS = [
@@ -29,13 +30,13 @@ const PANES = [
 export default function ModerationScreen() {
   const [pane, setPane] = useState<(typeof PANES)[number]['value']>('reports');
   return (
-    <Pinstripes>
+    <TableBackground>
       <ScreenHeader title="Moderation" back="Back" />
       <View style={styles.tabs}>
         <Segmented options={PANES} value={pane} onChange={setPane} />
       </View>
       {pane === 'reports' ? <ReportsPane /> : pane === 'servers' ? <ServersPane /> : <LogPane />}
-    </Pinstripes>
+    </TableBackground>
   );
 }
 

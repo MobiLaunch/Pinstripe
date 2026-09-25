@@ -3,11 +3,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useIsFocused } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Platform, StyleSheet, Text, View, type ViewToken } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, StyleSheet, Text, View, type ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { TimelineKind } from '@/api/mastodon';
 import { checkPicked } from '@/api/upload';
+import { ActionMenu } from '@/components/action-menu';
 import { GelButton, Orb, Segmented } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
@@ -65,14 +66,11 @@ export default function VideosScreen() {
     router.push({ pathname: '/new-video', params: { asset: JSON.stringify({ uri, type, mimeType, fileSize, width, height: h, duration, fileName }) } });
   };
 
+  const [sheetOpen, setSheetOpen] = useState(false);
   const record = () => {
-    // No action sheet on web; there the library is the camera too.
+    // On web the file picker is the camera too, so there's nothing to choose.
     if (Platform.OS === 'web') return newVideo('library');
-    Alert.alert('New video', 'Up to 60 seconds.', [
-      { text: 'Record', onPress: () => newVideo('camera') },
-      { text: 'Choose from Library', onPress: () => newVideo('library') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setSheetOpen(true);
   };
 
   return (
@@ -128,6 +126,15 @@ export default function VideosScreen() {
           <FormError message={error} />
         </View>
       ) : null}
+      <ActionMenu
+        visible={sheetOpen}
+        title="New video · up to 60 seconds"
+        actions={[
+          { label: 'Take Video', onPress: () => newVideo('camera') },
+          { label: 'Choose From Library', onPress: () => newVideo('library') },
+        ]}
+        onClose={() => setSheetOpen(false)}
+      />
     </View>
   );
 }

@@ -5,9 +5,10 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 
 import { type ReportCategory, toAccount, toPost } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
-import { AquaSwitch, aquaText, Card, GelButton, Pinstripes, Segmented } from '@/components/aqua';
+import { AquaSwitch, aquaText, Card, GelButton, Segmented } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
+import { BarButton, TableBackground } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
 import { PINSTRIPE_DOMAIN } from '@/config';
 import { colors, fontFamily } from '@/theme/aqua';
@@ -82,7 +83,7 @@ export default function ReportScreen() {
 
   if (sent && account) {
     return (
-      <Pinstripes>
+      <TableBackground>
         <ScreenHeader title="Report" />
         <View style={styles.done}>
           <Icon name="check" size={40} color={colors.verified} strokeWidth={3} />
@@ -93,16 +94,16 @@ export default function ReportScreen() {
           </Text>
           <GelButton title="Done" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
         </View>
-      </Pinstripes>
+      </TableBackground>
     );
   }
 
   return (
-    <Pinstripes>
+    <TableBackground>
       <ScreenHeader
         title="Report"
         back="Cancel"
-        right={<GelButton small tone="red" title={sending ? 'Sending…' : 'Send'} disabled={!account || sending || [...comment].length > COMMENT_MAX} onPress={send} />}
+        right={<BarButton done title={sending ? 'Sending…' : 'Send'} disabled={!account || sending || [...comment].length > COMMENT_MAX} onPress={send} />}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <FormError message={error} />
@@ -171,7 +172,7 @@ export default function ReportScreen() {
           </>
         )}
       </ScrollView>
-    </Pinstripes>
+    </TableBackground>
   );
 }
 
@@ -188,9 +189,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#8c8c8c',
-    borderRadius: 5,
+    borderColor: '#a2a2a2',
+    borderTopColor: '#7b7b7b',
+    borderRadius: 8,
     backgroundColor: '#ffffff',
+    boxShadow: 'inset 0 2px 3px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.8)',
     textAlignVertical: 'top',
   },
   right: { textAlign: 'right' },

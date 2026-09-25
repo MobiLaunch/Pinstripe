@@ -5,14 +5,16 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Tex
 
 import { type MastodonNotification, toAccount, toPost } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
-import { aquaText, Avatar, Card, GelButton, Pinstripes } from '@/components/aqua';
+import { aquaText, Avatar, Card, GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon, type IconName } from '@/components/icon';
 import { initials } from '@/components/initials';
+import { Linen, LinenHeader } from '@/components/ios6';
 import { relativeTime } from '@/components/relative-time';
 import { ScreenHeader } from '@/components/screen-header';
 import { setUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { usePushStatus } from '@/push/push';
+import { fontFamily } from '@/theme/aqua';
 import { useAccent } from '@/theme/theme';
 
 interface Item {
@@ -112,7 +114,7 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <Pinstripes>
+    <Linen>
       <ScreenHeader title="Notifications" back="Back" />
       <FlatList
         data={items ?? []}
@@ -123,6 +125,7 @@ export default function NotificationsScreen() {
         onEndReachedThreshold={0.5}
         ListHeaderComponent={
           <>
+            <LinenHeader title="Pinstripe" />
             <FormError message={error} />
             {push === 'ask' ? (
               <Card style={styles.pushCard}>
@@ -137,12 +140,12 @@ export default function NotificationsScreen() {
           items === null ? (
             error ? null : <ActivityIndicator style={styles.empty} />
           ) : (
-            <Text style={[aquaText.handle, styles.empty]}>Nothing yet. Likes, boosts, follows and replies show up here.</Text>
+            <Text style={styles.empty}>No Notifications</Text>
           )
         }
         renderItem={({ item }) => <Row item={item} onAnswer={(action) => answer(item, action)} />}
       />
-    </Pinstripes>
+    </Linen>
   );
 }
 
@@ -154,21 +157,28 @@ function Row({ item, onAnswer }: { item: Item; onAnswer: (action: 'authorize' | 
   const open = () => (item.post ? router.push(`/status/${item.post.id}`) : router.push(`/profile/${item.account.id}`));
   const label = `${item.account.displayName} ${reply ? 'replied to you' : kind.text}`;
   return (
-    <Card style={[styles.row, item.unread && [styles.unread, { borderColor: accent.color }]]}>
-      <Pressable accessibilityRole="link" accessibilityLabel={label} onPress={open} style={styles.main}>
-        <View style={[styles.badge, { backgroundColor: kind.color }]}>
-          <Icon name={reply ? 'reply' : kind.icon} size={14} color="#fff" filled={kind.icon === 'heart'} />
+    <View style={styles.row}>
+      <Pressable accessibilityRole="link" accessibilityLabel={label} onPress={open} style={({ pressed }) => [styles.main, pressed && styles.pressed]}>
+        {/* Mail's unread dot. */}
+        <View style={styles.dotSpace}>{item.unread ? <View style={[styles.dot, { backgroundColor: accent.tabIcon }]} /> : null}</View>
+        <View>
+          <Avatar initials={initials(item.account.displayName)} uri={item.account.avatarUrl} size={40} />
+          <View style={[styles.badge, { backgroundColor: kind.color }]}>
+            <Icon name={reply ? 'reply' : kind.icon} size={11} strokeWidth={2.6} color="#fff" filled={kind.icon === 'heart'} />
+          </View>
         </View>
-        <Avatar initials={initials(item.account.displayName)} uri={item.account.avatarUrl} size={36} />
         <View style={styles.flex}>
-          <Text style={aquaText.body} numberOfLines={2}>
-            <Text style={styles.bold}>{item.account.displayName}</Text> {reply ? 'replied to you' : kind.text}
-          </Text>
-          <Text style={aquaText.handle} numberOfLines={1}>
-            {formatHandle(item.account)} · {relativeTime(item.createdAt)}
+          <View style={styles.titleLine}>
+            <Text style={styles.name} numberOfLines={1}>
+              {item.account.displayName}
+            </Text>
+            <Text style={styles.time}>{relativeTime(item.createdAt)}</Text>
+          </View>
+          <Text style={styles.what} numberOfLines={1}>
+            {reply ? 'Replied to you' : kind.text[0]!.toUpperCase() + kind.text.slice(1)} · {formatHandle(item.account)}
           </Text>
           {item.post?.content ? (
-            <Text style={[aquaText.body, styles.snippet]} numberOfLines={item.type === 'mention' ? 4 : 2}>
+            <Text style={styles.snippet} numberOfLines={item.type === 'mention' ? 4 : 2}>
               {item.post.content}
             </Text>
           ) : null}
@@ -180,20 +190,40 @@ function Row({ item, onAnswer }: { item: Item; onAnswer: (action: 'authorize' | 
           <GelButton small title="Approve" accessibilityLabel={`Approve ${item.account.displayName}`} onPress={() => onAnswer('authorize')} />
         </View>
       ) : null}
-    </Card>
+    </View>
   );
 }
 
+const shadow = { textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 0, height: -1 }, textShadowRadius: 0 } as const;
+
 const styles = StyleSheet.create({
-  list: { padding: 12, gap: 8, flexGrow: 1 },
-  row: { gap: 10 },
-  unread: { borderWidth: 2 },
-  main: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  badge: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
+  list: { flexGrow: 1, paddingBottom: 24 },
+  // Etched dividers: a dark line with a faint light one under it.
+  row: { borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.55)', boxShadow: '0 1px 0 rgba(255,255,255,0.07)' },
+  main: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 12, paddingRight: 14 },
+  pressed: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  dotSpace: { width: 16, alignItems: 'center', paddingTop: 16 },
+  dot: { width: 10, height: 10, borderRadius: 5, boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.6), 0 1px 1px rgba(0,0,0,0.6)' },
+  badge: {
+    position: 'absolute',
+    right: -5,
+    bottom: -3,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#2a2d32',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   flex: { flex: 1, minWidth: 0, gap: 2 },
+  titleLine: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  name: { flex: 1, fontFamily, fontSize: 16, fontWeight: '700', color: '#ffffff', ...shadow },
+  time: { fontFamily, fontSize: 12, color: '#9ca3ad', ...shadow },
+  what: { fontFamily, fontSize: 13, color: '#c9ced6', ...shadow },
+  snippet: { fontFamily, fontSize: 14, lineHeight: 19, color: '#e8ebef', marginTop: 4, ...shadow },
+  buttons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, paddingHorizontal: 14, paddingBottom: 12 },
+  empty: { fontFamily, fontSize: 17, fontWeight: '700', color: '#7c828b', textAlign: 'center', marginTop: 48, ...shadow },
+  pushCard: { gap: 8, margin: 12 },
   bold: { fontWeight: '700' },
-  snippet: { color: '#444', marginTop: 4 },
-  buttons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-  empty: { textAlign: 'center', marginTop: 32, paddingHorizontal: 24 },
-  pushCard: { gap: 8, marginBottom: 4 },
 });

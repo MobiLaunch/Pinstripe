@@ -4,8 +4,9 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 import { normalizeServer } from '@/api/mastodon';
 import { SignInCancelled } from '@/auth/oauth';
 import { useAuth } from '@/auth/session';
-import { aquaText, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
+import { aquaText, Card, Field, GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
+import { TableBackground } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
 
 /** Sign in with an account on Mastodon or any server that speaks its API. */
@@ -31,7 +32,7 @@ export default function OtherServerScreen() {
   };
 
   return (
-    <Pinstripes>
+    <TableBackground>
       <ScreenHeader title="Other Server" back="Cancel" />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Card style={styles.card}>
@@ -53,7 +54,7 @@ export default function OtherServerScreen() {
           other servers that support its apps.
         </Text>
       </ScrollView>
-    </Pinstripes>
+    </TableBackground>
   );
 }
 

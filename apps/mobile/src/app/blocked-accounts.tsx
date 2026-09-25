@@ -5,9 +5,10 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 
 import { toAccount } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
-import { aquaText, Avatar, Card, GelButton, Pinstripes } from '@/components/aqua';
+import { aquaText, Avatar, Card, GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { initials } from '@/components/initials';
+import { TableBackground } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
 
 /** Accounts you've muted or blocked, each with a way to undo it. */
@@ -47,7 +48,7 @@ export default function BlockedAccountsScreen() {
 
   const verb = kind === 'mutes' ? 'Unmute' : 'Unblock';
   return (
-    <Pinstripes>
+    <TableBackground>
       <ScreenHeader title={kind === 'mutes' ? 'Muted Accounts' : 'Blocked Accounts'} back="Back" />
       <FlatList
         data={accounts ?? []}
@@ -80,7 +81,7 @@ export default function BlockedAccountsScreen() {
           </Card>
         )}
       />
-    </Pinstripes>
+    </TableBackground>
   );
 }
 

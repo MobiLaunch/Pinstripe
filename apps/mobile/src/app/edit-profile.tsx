@@ -3,14 +3,16 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { checkPicked, type Picked, updateProfileImages } from '@/api/upload';
 import { useAccount, useAuth, useSource } from '@/auth/session';
-import { AquaSwitch, aquaText, Avatar, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
+import { AquaSwitch, Avatar, TableField } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { initials } from '@/components/initials';
+import { BarButton, TableBackground, TableGroup, TableRow } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
+import { fontFamily } from '@/theme/aqua';
 
 const DISPLAY_NAME_MAX = 30;
 
@@ -74,79 +76,103 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <Pinstripes>
+    <TableBackground>
       <ScreenHeader
         title="Edit Profile"
         back="Cancel"
-        right={<GelButton small title={saving ? 'Saving…' : 'Save'} disabled={saving} onPress={save} />}
+        right={<BarButton done title={saving ? 'Saving…' : 'Save'} disabled={saving} onPress={save} />}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <FormError message={error} />
-        <Card style={styles.card}>
+        {error ? (
+          <View style={styles.pad}>
+            <FormError message={error} />
+          </View>
+        ) : null}
+        <View style={styles.photos}>
           <View style={styles.banner}>
             {images.header || me.bannerUrl ? (
               <Image source={{ uri: images.header?.uri ?? me.bannerUrl! }} style={styles.fill} contentFit="cover" accessibilityLabel="Banner" />
             ) : null}
           </View>
-          <GelButton tone="gray" small title="Change Banner" disabled={saving} onPress={() => pick('header')} />
-          <Text style={aquaText.handle}>1500 × 500 recommended</Text>
-          <Avatar initials={initials(displayName || me.username)} size={72} uri={images.avatar?.uri ?? me.avatarUrl} />
-          <GelButton tone="gray" small title="Change Photo" disabled={saving} onPress={() => pick('avatar')} />
-          <Text style={aquaText.handle}>Square image, at least 400 × 400</Text>
-        </Card>
-        <Card style={styles.card}>
-          <Field label="Display name" maxLength={DISPLAY_NAME_MAX} value={displayName} onChangeText={setDisplayName} />
-          <Field label="Bio" multiline maxLength={BIO_MAX_LENGTH} value={bio} onChangeText={setBio} />
-          <Text style={[aquaText.handle, styles.right]}>
-            {bio.length} / {BIO_MAX_LENGTH}
-          </Text>
-        </Card>
-        <Card style={styles.card}>
-          <Text style={[aquaText.body, styles.bold]}>Profile fields</Text>
-          <Text style={aquaText.handle}>
-            Up to four, shown on your profile. Links that point back here with rel=“me” get a green check.
-          </Text>
+          {/* The Contacts photo well: a white-framed picture on the page. */}
+          <View style={styles.photoWell}>
+            <Avatar initials={initials(displayName || me.username)} size={74} uri={images.avatar?.uri ?? me.avatarUrl} />
+          </View>
+        </View>
+        <TableGroup footer="Photo: square, at least 400 × 400. Banner: 1500 × 500.">
+          <TableRow title="Change Photo" accessory="chevron" disabled={saving} onPress={() => pick('avatar')} />
+          <TableRow title="Change Banner" accessory="chevron" disabled={saving} onPress={() => pick('header')} />
+        </TableGroup>
+        <TableGroup footer={`${bio.length} / ${BIO_MAX_LENGTH}`}>
+          <TableField label="Name" placeholder={me.username} maxLength={DISPLAY_NAME_MAX} value={displayName} onChangeText={setDisplayName} />
+          <TableField label="Bio" placeholder="About you" multiline maxLength={BIO_MAX_LENGTH} value={bio} onChangeText={setBio} />
+        </TableGroup>
+        <TableGroup title="Profile Fields" footer="Up to four, shown on your profile. Links that point back here with rel=“me” get a green check.">
           {fields.map((f, i) => (
             <View key={i} style={styles.pair}>
-              <View style={styles.flex}>
-                <Field label={`Label ${i + 1}`} value={f.name} onChangeText={(t) => setField(i, 'name', t)} />
-              </View>
-              <View style={styles.flex2}>
-                <Field label={`Content ${i + 1}`} autoCapitalize="none" value={f.value} onChangeText={(t) => setField(i, 'value', t)} />
-              </View>
+              <TextInput
+                accessibilityLabel={`Label ${i + 1}`}
+                placeholder="label"
+                placeholderTextColor="#a7b4c8"
+                value={f.name}
+                onChangeText={(t) => setField(i, 'name', t)}
+                style={styles.pairLabel}
+              />
+              <TextInput
+                accessibilityLabel={`Content ${i + 1}`}
+                placeholder="Website or anything"
+                placeholderTextColor="#b3b3b3"
+                autoCapitalize="none"
+                value={f.value}
+                onChangeText={(t) => setField(i, 'value', t)}
+                style={styles.pairValue}
+              />
             </View>
           ))}
-        </Card>
-        <Card style={styles.card}>
-          <Toggle title="This is an automated account" sub="Marks the profile as a bot" value={bot} onChange={setBot} />
-          <Toggle title="Suggest my account to others" value={discoverable} onChange={setDiscoverable} />
-        </Card>
+        </TableGroup>
+        <TableGroup>
+          <TableRow title="Automated Account" sub="Marks the profile as a bot" right={<AquaSwitch value={bot} onValueChange={setBot} accessibilityLabel="This is an automated account" />} />
+          <TableRow
+            title="Suggest My Account"
+            sub="Shown to people looking for others to follow"
+            right={<AquaSwitch value={discoverable} onValueChange={setDiscoverable} accessibilityLabel="Suggest my account to others" />}
+          />
+        </TableGroup>
       </ScrollView>
-    </Pinstripes>
-  );
-}
-
-function Toggle({ title, sub, value, onChange }: { title: string; sub?: string; value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <View style={styles.toggle}>
-      <View style={styles.flex}>
-        <Text style={aquaText.body}>{title}</Text>
-        {sub ? <Text style={aquaText.handle}>{sub}</Text> : null}
-      </View>
-      <AquaSwitch value={value} onValueChange={onChange} accessibilityLabel={title} />
-    </View>
+    </TableBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, gap: 14 },
-  card: { gap: 10, padding: 16 },
-  right: { textAlign: 'right' },
-  bold: { fontWeight: '700' },
-  banner: { height: 90, borderRadius: 6, overflow: 'hidden', backgroundColor: '#b9cde3', borderWidth: 1, borderColor: '#8f8f8f' },
+  content: { paddingBottom: 40 },
+  pad: { marginHorizontal: 10, marginTop: 14 },
+  // Room for the photo well hanging off the banner.
+  photos: { marginHorizontal: 10, marginTop: 14, marginBottom: 22 },
+  banner: { height: 110, borderRadius: 10, overflow: 'hidden', backgroundColor: '#9fb3cc', borderWidth: 1, borderColor: '#8a95a3' },
   fill: { width: '100%', height: '100%' },
-  pair: { flexDirection: 'row', gap: 8 },
-  flex: { flex: 1 },
-  flex2: { flex: 2 },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
+  photoWell: {
+    position: 'absolute',
+    left: 14,
+    bottom: -26,
+    padding: 3,
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#a6adb6',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.35)',
+  },
+  pair: { flexDirection: 'row', minHeight: 44 },
+  pairLabel: {
+    width: 96,
+    fontFamily,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#385487',
+    textAlign: 'right',
+    paddingHorizontal: 10,
+    borderRightWidth: 1,
+    borderRightColor: '#e0e0e0',
+    outlineWidth: 0,
+  },
+  pairValue: { flex: 1, fontFamily, fontSize: 16, color: '#000000', paddingHorizontal: 10, outlineWidth: 0 },
 });

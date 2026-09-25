@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
-import { aquaText, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
+import { GelButton, TableField } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
+import { TableBackground, TableGroup, TableRow } from '@/components/ios6';
 import { PASSWORD_MIN, StrengthMeter } from '@/components/password-strength';
 import { ScreenHeader } from '@/components/screen-header';
-import { colors } from '@/theme/aqua';
 
 /** Your sign-in email (and its confirmation) and password. Pinstripe accounts only. */
 export default function EmailPasswordScreen() {
@@ -33,14 +33,18 @@ export default function EmailPasswordScreen() {
   }, [load]);
 
   return (
-    <Pinstripes>
+    <TableBackground>
       <ScreenHeader title="Email & Password" back="Settings" />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <FormError message={error} />
+        {error ? (
+          <View style={styles.pad}>
+            <FormError message={error} />
+          </View>
+        ) : null}
         {unavailable && state.status === 'signedIn' ? (
-          <Card style={styles.card}>
-            <Text style={aquaText.body}>Your account is on {new URL(state.server).host}. Change your email and password on its website.</Text>
-          </Card>
+          <TableGroup footer={`Your account is on ${new URL(state.server).host}. Change your email and password on its website.`}>
+            <TableRow title="Managed by your server" />
+          </TableGroup>
         ) : (
           <>
             <EmailCard login={login} onChanged={setLogin} />
@@ -48,7 +52,7 @@ export default function EmailPasswordScreen() {
           </>
         )}
       </ScrollView>
-    </Pinstripes>
+    </TableBackground>
   );
 }
 
@@ -89,30 +93,40 @@ function EmailCard({ login, onChanged }: { login: { email: string; confirmed: bo
   };
 
   return (
-    <Card style={styles.card}>
-      <Text style={[aquaText.body, styles.bold]}>Email</Text>
-      <FormError message={error} />
-      {login ? (
-        <View style={styles.row}>
-          <Text style={[aquaText.body, styles.flex]}>{login.email}</Text>
-          <Text style={[styles.badge, login.confirmed ? styles.confirmed : styles.unconfirmed]}>{login.confirmed ? 'Confirmed' : 'Not confirmed'}</Text>
+    <>
+      <TableGroup title="Email" footer={message ?? undefined}>
+        {login ? <TableRow title={login.email} detail={login.confirmed ? 'Confirmed' : 'Not Confirmed'} /> : null}
+        {login && !login.confirmed && !editing ? <TableRow title="Resend Confirmation" accessory="chevron" onPress={resend} /> : null}
+        {editing ? null : <TableRow title="Change Email" accessory="chevron" onPress={() => setEditing(true)} />}
+      </TableGroup>
+      {error ? (
+        <View style={styles.pad}>
+          <FormError message={error} />
         </View>
       ) : null}
-      {message ? <Text style={aquaText.handle}>{message}</Text> : null}
-      {login && !login.confirmed && !editing ? <GelButton tone="gray" small title="Resend Confirmation" onPress={resend} /> : null}
       {editing ? (
         <>
-          <Field label="New email" autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" value={email} onChangeText={setEmail} />
-          <Field label="Current password" secureTextEntry autoComplete="current-password" value={current} onChangeText={setCurrent} />
-          <View style={styles.buttons}>
-            <GelButton tone="gray" small title="Cancel" onPress={() => setEditing(false)} />
-            <GelButton small title={busy ? 'Saving…' : 'Change Email'} disabled={busy || !email.trim() || !current} onPress={save} />
+          <TableGroup>
+            <TableField
+              label="New Email"
+              accessibilityLabel="New email"
+              placeholder="you@example.com"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              autoComplete="email"
+              value={email}
+              onChangeText={setEmail}
+            />
+            <TableField label="Password" accessibilityLabel="Current password" placeholder="Required" secureTextEntry autoComplete="current-password" value={current} onChangeText={setCurrent} />
+          </TableGroup>
+          <View style={[styles.pad, styles.buttons]}>
+            <GelButton tone="gray" rect title="Cancel" onPress={() => setEditing(false)} style={styles.flex} />
+            <GelButton rect title={busy ? 'Saving…' : 'Change Email'} disabled={busy || !email.trim() || !current} onPress={save} style={styles.flex} />
           </View>
         </>
-      ) : (
-        <GelButton tone="gray" small title="Change Email" onPress={() => setEditing(true)} />
-      )}
-    </Card>
+      ) : null}
+    </>
   );
 }
 
@@ -145,35 +159,42 @@ function PasswordCard() {
   };
 
   return (
-    <Card style={styles.card}>
-      <Text style={[aquaText.body, styles.bold]}>Password</Text>
-      <FormError message={error} />
-      {done ? <Text style={[aquaText.body, styles.ok]}>Password changed. Your other devices have been signed out.</Text> : null}
-      <Field label="Current password" secureTextEntry autoComplete="current-password" value={current} onChangeText={setCurrent} />
-      <Field label="New password" secureTextEntry autoComplete="new-password" textContentType="newPassword" value={password} onChangeText={setPassword} />
-      <StrengthMeter password={password} />
-      <Field label="New password again" secureTextEntry autoComplete="new-password" value={again} onChangeText={setAgain} />
-      {mismatch ? <Text style={[aquaText.handle, styles.bad]}>The passwords don’t match.</Text> : null}
-      <GelButton
-        small
-        title={busy ? 'Saving…' : 'Change Password'}
-        disabled={busy || !current || password.length < PASSWORD_MIN || password !== again}
-        onPress={save}
-      />
-    </Card>
+    <>
+      <TableGroup
+        title="Password"
+        footer={done ? 'Password changed. Your other devices have been signed out.' : mismatch ? 'The new passwords don’t match.' : undefined}>
+        <TableField label="Current" accessibilityLabel="Current password" placeholder="Required" secureTextEntry autoComplete="current-password" value={current} onChangeText={setCurrent} />
+        <TableField
+          label="New"
+          accessibilityLabel="New password"
+          placeholder="8 characters or more"
+          secureTextEntry
+          autoComplete="new-password"
+          textContentType="newPassword"
+          value={password}
+          onChangeText={setPassword}
+        />
+        <TableField label="Verify" accessibilityLabel="New password again" placeholder="New password again" secureTextEntry autoComplete="new-password" value={again} onChangeText={setAgain} />
+      </TableGroup>
+      <View style={styles.meter}>
+        <StrengthMeter password={password} />
+      </View>
+      {error ? (
+        <View style={styles.pad}>
+          <FormError message={error} />
+        </View>
+      ) : null}
+      <View style={styles.pad}>
+        <GelButton rect title={busy ? 'Saving…' : 'Change Password'} disabled={busy || !current || password.length < PASSWORD_MIN || password !== again} onPress={save} />
+      </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, gap: 14, paddingBottom: 40 },
-  card: { gap: 10, padding: 16 },
-  bold: { fontWeight: '700' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  content: { paddingBottom: 40 },
+  pad: { marginHorizontal: 10, marginTop: 14 },
+  meter: { marginHorizontal: 20, marginTop: 6 },
+  buttons: { flexDirection: 'row', gap: 10 },
   flex: { flex: 1 },
-  badge: { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: 'hidden', color: '#fff' },
-  confirmed: { backgroundColor: colors.verified },
-  unconfirmed: { backgroundColor: '#9a6a08' },
-  buttons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-  ok: { color: colors.verified },
-  bad: { color: colors.danger },
 });

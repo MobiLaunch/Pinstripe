@@ -1,7 +1,7 @@
 import { type Account, formatHandle } from '@pinstripe/core';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { toAccount } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
@@ -9,8 +9,8 @@ import { aquaText, Avatar, Card, Pinstripes } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
+import { SearchBar } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
-import { colors, fontFamily } from '@/theme/aqua';
 
 /**
  * Find people here or anywhere on the fediverse: a name finds accounts we
@@ -49,22 +49,8 @@ export default function SearchScreen() {
   return (
     <Pinstripes>
       <ScreenHeader title="Find People" back="Back" />
-      <View style={styles.searchBar}>
-        <Icon name="search" size={18} color={colors.textMuted} />
-        <TextInput
-          accessibilityLabel="Search"
-          placeholder="Name, @user@server or profile link"
-          placeholderTextColor="#767676"
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoFocus
-          returnKeyType="search"
-          value={query}
-          onChangeText={setQuery}
-          style={styles.input}
-        />
-        {searching ? <ActivityIndicator /> : null}
-      </View>
+      <SearchBar accessibilityLabel="Search" placeholder="Name, @user@server or profile link" autoFocus value={query} onChangeText={setQuery} />
+      {searching ? <ActivityIndicator style={styles.searching} /> : null}
       <FlatList
         // Too short to search: nothing, rather than the last search's results.
         data={query.trim().length < 2 ? [] : results}
@@ -99,19 +85,7 @@ export default function SearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    margin: 12,
-    paddingHorizontal: 12,
-    minHeight: 44,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#8c8c8c',
-    borderRadius: 22,
-  },
-  input: { flex: 1, fontFamily, fontSize: 15, paddingVertical: 10, color: colors.text },
+  searching: { marginTop: 10 },
   list: { paddingHorizontal: 12, gap: 8, paddingBottom: 24 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   flex: { flex: 1, minWidth: 0 },

@@ -3,8 +3,9 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 
 import { MastodonClient } from '@/api/mastodon';
-import { aquaText, Card, Field, GelButton, Pinstripes } from '@/components/aqua';
+import { aquaText, Card, Field, GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
+import { TableBackground } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
 import { PINSTRIPE_DOMAIN, PINSTRIPE_SERVER } from '@/config';
 
@@ -31,7 +32,7 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <Pinstripes>
+    <TableBackground>
       <ScreenHeader title="Reset Password" back="Back" />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {sent ? (
@@ -62,7 +63,7 @@ export default function ForgotPasswordScreen() {
           </Card>
         )}
       </ScrollView>
-    </Pinstripes>
+    </TableBackground>
   );
 }
 

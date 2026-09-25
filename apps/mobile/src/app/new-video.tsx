@@ -8,9 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type MastodonMedia, toMastodonVisibility, toPost } from '@/api/mastodon';
 import { type Picked, uploadMedia, waitForMedia } from '@/api/upload';
 import { useAuth, useSource } from '@/auth/session';
-import { aquaText, Card, GelButton, Pinstripes, Segmented } from '@/components/aqua';
+import { aquaText, Card, GelButton, Segmented } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { ProgressBar } from '@/components/progress-bar';
+import { BarButton, TableBackground } from '@/components/ios6';
 import { ScreenHeader } from '@/components/screen-header';
 import { publishPostEvent } from '@/hooks/use-post-list';
 import { colors, fontFamily } from '@/theme/aqua';
@@ -98,21 +99,21 @@ export default function NewVideoScreen() {
 
   if (!asset) {
     return (
-      <Pinstripes>
+      <TableBackground>
         <ScreenHeader title="New Video" back="Cancel" />
         <View style={styles.body}>
           <FormError message="That video couldn’t be opened. Please choose it again." />
         </View>
-      </Pinstripes>
+      </TableBackground>
     );
   }
 
   return (
-    <Pinstripes>
+    <TableBackground>
       <ScreenHeader
         title="New Video"
         back="Cancel"
-        right={<GelButton small title={posting ? 'Posting…' : 'Post'} disabled={stage.kind !== 'ready' || posting || remaining < 0} onPress={post} />}
+        right={<BarButton done title={posting ? 'Posting…' : 'Post'} disabled={stage.kind !== 'ready' || posting || remaining < 0} onPress={post} />}
       />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
@@ -163,7 +164,7 @@ export default function NewVideoScreen() {
           <Segmented options={VISIBILITIES} value={visibility as (typeof VISIBILITIES)[number]['value']} onChange={setVisibility} />
         </ScrollView>
       </KeyboardAvoidingView>
-    </Pinstripes>
+    </TableBackground>
   );
 }
 
@@ -180,9 +181,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#8c8c8c',
-    borderRadius: 5,
+    borderColor: '#a2a2a2',
+    borderTopColor: '#7b7b7b',
+    borderRadius: 8,
     backgroundColor: '#ffffff',
+    boxShadow: 'inset 0 2px 3px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.8)',
     textAlignVertical: 'top',
   },
   strong: { fontWeight: '700' },

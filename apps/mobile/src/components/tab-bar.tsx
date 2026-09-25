@@ -1,10 +1,12 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import type { MaterialTopTabBarProps } from 'expo-router/js-top-tabs';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Metal } from '@/components/aqua';
 import { Icon, type IconName } from '@/components/icon';
-import { colors, fontFamily } from '@/theme/aqua';
+import { Badge } from '@/components/ios6';
+import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
+import { fontFamily } from '@/theme/aqua';
 import { useAccent } from '@/theme/theme';
 
 const TABS: Record<string, { label: string; icon: IconName }> = {
@@ -13,17 +15,22 @@ const TABS: Record<string, { label: string; icon: IconName }> = {
   account: { label: 'Account', icon: 'account' },
 };
 
-/** Metal tab bar pinned to the bottom of the swipeable Feed ← Videos → Account pager. */
+/**
+ * The iOS 6 tab bar: black glass, the selected tab lifted in a lighter box
+ * with its icon glowing. Pinned under the swipeable Feed ← Videos → Account pager.
+ */
 export function AquaTabBar({ state, navigation }: MaterialTopTabBarProps) {
   const accent = useAccent();
   const insets = useSafeAreaInsets();
+  const unread = useUnreadNotifications();
   return (
-    <Metal style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]} accessibilityRole="tablist">
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 4) }]} accessibilityRole="tablist">
+      <LinearGradient colors={['#3f3f3f', '#262626', '#131313', '#070707']} locations={[0, 0.5, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <View style={styles.shine} pointerEvents="none" />
       {state.routes.map((route: { key: string; name: string }, index: number) => {
         const tab = TABS[route.name];
         if (!tab) return null;
         const focused = state.index === index;
-        const color = focused ? accent.colorActive : '#3a3a3a';
         return (
           <Pressable
             key={route.key}
@@ -35,14 +42,16 @@ export function AquaTabBar({ state, navigation }: MaterialTopTabBarProps) {
               if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
             }}
             style={styles.tab}>
-            <View style={focused ? [styles.glow, { shadowColor: accent.color }] : undefined}>
-              <Icon name={tab.icon} size={26} color={color} />
+            {focused ? <View style={styles.selected} pointerEvents="none" /> : null}
+            <View style={focused ? [styles.glow, { boxShadow: `0 0 8px ${accent.tabIcon}` }] : undefined}>
+              <Icon name={tab.icon} size={28} strokeWidth={2.4} color={focused ? accent.tabIcon : '#8f8f8f'} filled={focused && tab.icon === 'play'} />
             </View>
-            <Text style={[styles.label, { color }]}>{tab.label}</Text>
+            <Text style={[styles.label, focused && styles.labelOn]}>{tab.label}</Text>
+            {route.name === 'feed' && unread ? <Badge count={unread} style={styles.badge} /> : null}
           </Pressable>
         );
       })}
-    </Metal>
+    </View>
   );
 }
 
@@ -50,11 +59,23 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingTop: 8,
+    paddingTop: 3,
+    paddingHorizontal: 4,
     borderTopWidth: 1,
-    borderTopColor: colors.borderStrong,
+    borderTopColor: '#000000',
+    overflow: 'hidden',
   },
-  tab: { minWidth: 84, minHeight: 52, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  glow: { shadowOpacity: 0.7, shadowRadius: 3, shadowOffset: { width: 0, height: 0 } },
-  label: { fontFamily, fontSize: 11, fontWeight: '700' },
+  shine: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.22)' },
+  tab: { flex: 1, minHeight: 50, alignItems: 'center', justifyContent: 'center', gap: 1 },
+  selected: {
+    ...StyleSheet.absoluteFill,
+    margin: 2,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18), 0 0 0 1px rgba(0,0,0,0.5)',
+  },
+  glow: { borderRadius: 14 },
+  label: { fontFamily, fontSize: 10, fontWeight: '700', color: '#9a9a9a' },
+  labelOn: { color: '#ffffff' },
+  badge: { position: 'absolute', top: 0, right: '22%' },
 });

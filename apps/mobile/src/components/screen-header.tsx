@@ -1,29 +1,20 @@
-import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { aquaText, GelButton, Metal } from '@/components/aqua';
+import { router } from 'expo-router';
 
-/** Metal title bar with an optional back button (left) and action (right). */
-export function ScreenHeader({ title, back, right }: { title: string; back?: string; right?: ReactNode }) {
-  const insets = useSafeAreaInsets();
+import { BackButton, BarButton, NavBar } from '@/components/ios6';
+
+const dismiss = () => (router.canGoBack() ? router.back() : router.replace('/'));
+
+/** An iOS 6 navigation bar with an optional back button (left) and action (right). */
+export function ScreenHeader({ title, back, right, children }: { title: string; back?: string; right?: ReactNode; children?: ReactNode }) {
   return (
-    <Metal style={[styles.bar, { paddingTop: insets.top }]}>
-      <View style={styles.inner}>
-        <View style={styles.side}>
-          {back ? <GelButton tone="gray" small title={back} onPress={() => router.back()} /> : null}
-        </View>
-        <Text style={aquaText.title} accessibilityRole="header">{title}</Text>
-        <View style={[styles.side, styles.right]}>{right}</View>
-      </View>
-    </Metal>
+    <NavBar
+      title={title}
+      // A modal's "Cancel" is a plain bordered button; going back is the pointed one.
+      left={back === 'Cancel' ? <BarButton title="Cancel" onPress={dismiss} /> : back ? <BackButton title={back} /> : null}
+      right={right}>
+      {children}
+    </NavBar>
   );
 }
-
-const styles = StyleSheet.create({
-  bar: { borderBottomWidth: 1 },
-  inner: { height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10 },
-  side: { flex: 1, flexDirection: 'row' },
-  right: { justifyContent: 'flex-end' },
-});

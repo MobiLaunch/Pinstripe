@@ -6,7 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { type MastodonClient, toMastodonVisibility, toPost } from '@/api/mastodon';
 import { useAccount, useAuth } from '@/auth/session';
-import { aquaText, GelButton, Metal, Pinstripes } from '@/components/aqua';
+import { Pinstripes } from '@/components/aqua';
+import { BarButton, Toolbar } from '@/components/ios6';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { PostCard } from '@/components/post-card';
@@ -103,24 +104,24 @@ function ReplyBox({ to, autoFocus, onPosted }: { to: Post; autoFocus: boolean; o
   };
 
   return (
-    <Metal style={[styles.replyBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+    <Toolbar style={[styles.replyBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       <FormError message={error} />
-      <Text style={aquaText.handle}>Replying to {to.account.displayName}</Text>
+      <Text style={styles.replying}>Replying to {to.account.displayName}</Text>
       <View style={styles.replyRow}>
         <TextInput
           accessibilityLabel="Write a reply"
           placeholder="Write a reply…"
-          placeholderTextColor="#767676"
+          placeholderTextColor="#9a9a9a"
           multiline
           autoFocus={autoFocus}
           value={draft}
           onChangeText={setDraft}
           style={styles.input}
         />
-        <GelButton small title={posting ? '…' : 'Reply'} disabled={posting || !draft.trim() || remaining < 0} onPress={submit} />
+        <BarButton done title={posting ? '…' : 'Reply'} disabled={posting || !draft.trim() || remaining < 0} onPress={submit} style={styles.send} />
       </View>
-      {remaining < 50 ? <Text style={[aquaText.handle, styles.count, remaining < 0 && styles.over]}>{remaining}</Text> : null}
-    </Metal>
+      {remaining < 50 ? <Text style={[styles.replying, styles.count, remaining < 0 && styles.over]}>{remaining}</Text> : null}
+    </Toolbar>
   );
 }
 
@@ -128,21 +129,35 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   list: { padding: 12, gap: 12, flexGrow: 1 },
   state: { marginTop: 32, alignItems: 'center' },
-  replyBar: { paddingHorizontal: 12, paddingTop: 8, gap: 6, borderTopWidth: 1, borderTopColor: colors.borderStrong },
+  replyBar: { gap: 6 },
+  replying: {
+    fontFamily,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginLeft: 4,
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: -1 },
+    textShadowRadius: 0,
+  },
   replyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  // The Messages-style rounded field, pressed into the bar.
   input: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 34,
     maxHeight: 120,
     fontFamily,
-    fontSize: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    fontSize: 15,
+    paddingHorizontal: 12,
+    paddingTop: 7,
+    paddingBottom: 7,
     borderWidth: 1,
-    borderColor: '#8c8c8c',
-    borderRadius: 5,
+    borderColor: '#58677d',
+    borderRadius: 17,
     backgroundColor: '#ffffff',
+    boxShadow: 'inset 0 2px 3px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.35)',
   },
+  send: { height: 34 },
   count: { textAlign: 'right' },
   over: { color: colors.danger, fontWeight: '700' },
 });
