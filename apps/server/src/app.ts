@@ -1,5 +1,6 @@
 import type { Federation } from "@fedify/fedify";
 import { federation as federationMiddleware } from "@fedify/hono";
+import { getConnInfo } from "@hono/node-server/conninfo";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { accountRoutes } from "./accounts/routes.ts";
@@ -16,6 +17,7 @@ import { ConsoleMailer, type Mailer } from "./mail/mailer.ts";
 import { mediaRoutes } from "./media/routes.ts";
 import { pushRoutes } from "./push/routes.ts";
 import { PushService } from "./push/service.ts";
+import { instanceRoutes } from "./web/instance.ts";
 import { webRoutes } from "./web/routes.ts";
 import { notificationRoutes } from "./notifications/routes.ts";
 import { NotificationStore } from "./notifications/store.ts";
@@ -41,6 +43,13 @@ export interface AppOptions {
   mailer?: Mailer;
   /** Emails per address per hour. */
   emailLimiter?: FailureLimiter;
+  /** REGISTRATIONS=closed: nobody new can sign up. Default open. */
+  registrationsOpen?: boolean;
+  /** Behind a reverse proxy, the client's address comes from X-Forwarded-For. */
+  trustProxy?: boolean;
+  /** Sign-ups per address per hour. */
+  signupLimiter?: FailureLimiter;
+  version?: string;
   /** Push notifications. Without one, phones can register but nothing is sent (tests). */
   push?: PushService;
   /** Blocks, mutes, reports and moderation; made here unless given (tests pass their own). */
@@ -56,11 +65,34 @@ function roleJson(role: Role) {
 }
 
 /**
+ * The client's network address, for rate limits. Behind a reverse proxy
+ * (TRUST_PROXY) it's the first X-Forwarded-For entry; otherwise the
+ * connection's own address. Tests have neither.
+ */
+function clientAddress(c: Context, trustProxy: boolean): string {
+  if (trustProxy) {
+    const forwarded = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
+    if (forwarded) return forwarded;
+  }
+  try {
+    return getConnInfo(c).remote.address ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+/**
  * HTTP entry point. Fedify answers ActivityPub, WebFinger and NodeInfo
  * requests first; everything else falls through to OAuth and the
  * Mastodon-compatible client API.
  */
-export function buildApp({ federation, store, statuses, media, auth, domain, loginLimiter, mailer = new ConsoleMailer(), emailLimiter, linkVerifier = new LinkVerifier(store), safety = new SafetyStore(store.db, store), push }: AppOptions) {
+export function buildApp({ federation, store, statuses, media, auth, domain, loginLimiter, mailer = new ConsoleMailer(), emailLimiter, linkVerifier = new LinkVerifier(store), safety = new SafetyStore(store.db, store),
+  push,
+  registrationsOpen = true,
+  trustProxy = false,
+  signupLimiter,
+  version = "0.0.0",
+}: AppOptions) {
   const app = new Hono<AuthEnv>();
 
   const contextData = { store, statuses, media, safety };
@@ -145,9 +177,18 @@ export function buildApp({ federation, store, statuses, media, auth, domain, log
   const security = accountSecurityRoutes({ auth, mailer, emailLimiter, originOf: (c) => federationContext(c).canonicalOrigin });
   app.route(
     "/",
-    authRoutes({ auth, renderCredentialAccount, loginLimiter, onRegistered: (c, account, email) => security.sendConfirmation(c, account.id, email) }),
+    authRoutes({
+      auth,
+      renderCredentialAccount,
+      loginLimiter,
+      onRegistered: (c, account, email) => security.sendConfirmation(c, account.id, email),
+      registrationsOpen,
+      signupLimiter,
+      clientAddress: (c) => clientAddress(c, trustProxy),
+    }),
   );
   app.route("/", security.app);
+  app.route("/", instanceRoutes({ store, domain, version, registrationsOpen, origin: (c) => federationContext(c).canonicalOrigin }));
   app.route("/", profileRoutes({ store, media, renderCredentialAccount, federationContext, linkVerifier }));
   app.route("/", mediaRoutes({ media }));
   app.route("/", pushRoutes({ push: push ?? new PushService(store.db, new NotificationStore(store.db)) }));

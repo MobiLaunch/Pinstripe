@@ -37,6 +37,7 @@ const federation = buildFederation({
   origin: config.origin,
   version: config.version,
   allowPrivateAddress: config.allowPrivateAddress,
+  openRegistrations: config.registrationsOpen,
 });
 if (config.allowPrivateAddress) {
   console.warn("PINSTRIPE_ALLOW_PRIVATE_ADDRESS is on: this server will fetch private addresses. Development only.");
@@ -47,7 +48,20 @@ if (!config.smtpUrl) console.warn("SMTP_URL is not set: emails (confirmations, p
 
 const linkVerifier = new LinkVerifier(store, { allowPrivateAddress: config.allowPrivateAddress });
 const push = new PushService(db, new NotificationStore(db), { accessToken: config.expoAccessToken }).start();
-const app = buildApp({ federation, store, statuses, media, auth, mailer, linkVerifier, push, domain: new URL(config.origin).host });
+const app = buildApp({
+  federation,
+  store,
+  statuses,
+  media,
+  auth,
+  mailer,
+  linkVerifier,
+  push,
+  domain: new URL(config.origin).host,
+  registrationsOpen: config.registrationsOpen,
+  trustProxy: config.trustProxy,
+  version: config.version,
+});
 
 serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
   console.log(`Pinstripe listening on :${port} as ${config.origin}`);

@@ -33,6 +33,12 @@ export interface AuthRoutesOptions {
   loginLimiter?: FailureLimiter;
   /** After sign-up: send the confirmation email. */
   onRegistered?: (c: Context, account: LocalAccount, email: string) => Promise<void>;
+  /** REGISTRATIONS=closed turns sign-up off. */
+  registrationsOpen?: boolean;
+  /** Sign-ups per network address, by default 5 an hour. */
+  signupLimiter?: FailureLimiter;
+  /** The client's address (see TRUST_PROXY). */
+  clientAddress?: (c: Context) => string;
 }
 
 function validRedirectUri(uri: string): boolean {
@@ -72,7 +78,15 @@ export const SUSPENDED = "This account has been suspended by the server's modera
 const oauthError = (c: Context, error: string, description: string, status: 400 | 401 = 400) =>
   c.json({ error, error_description: description }, status);
 
-export function authRoutes({ auth, renderCredentialAccount, loginLimiter = new FailureLimiter(10, 15 * 60 * 1000), onRegistered }: AuthRoutesOptions) {
+export function authRoutes({
+  auth,
+  renderCredentialAccount,
+  loginLimiter = new FailureLimiter(10, 15 * 60 * 1000),
+  onRegistered,
+  registrationsOpen = true,
+  signupLimiter = new FailureLimiter(5, 60 * 60 * 1000),
+  clientAddress = () => "unknown",
+}: AuthRoutesOptions) {
   const app = new Hono<AuthEnv>();
 
   /** Checks a login, counting failures per username/email. */
@@ -283,6 +297,10 @@ export function authRoutes({ auth, renderCredentialAccount, loginLimiter = new F
     if (!result.ok) return result.response;
     const token = result.value;
     if (token.account) return c.json({ error: "This method requires an app token, not a user token" }, 403);
+    if (!registrationsOpen) return c.json({ error: "New sign-ups are closed on this server" }, 403);
+    // A few accounts per address per hour, against bulk sign-ups.
+    const address = clientAddress(c);
+    if (signupLimiter.isBlocked(address)) return c.json({ error: "Too many sign-ups from here. Try again later." }, 429);
 
     const p = await readParams(c);
     const username = (p.username ?? "").trim();
@@ -316,6 +334,7 @@ export function authRoutes({ auth, renderCredentialAccount, loginLimiter = new F
       return c.json({ error: `Validation failed: ${summary}`, details }, 422);
     }
 
+    signupLimiter.recordFailure(address);
     await onRegistered?.(c, account, email);
 
     // Like Mastodon, the new user's token inherits the app token's scopes.

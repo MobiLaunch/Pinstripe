@@ -51,6 +51,8 @@ export interface FederationOptions {
   version: string;
   /** Tests only: allow talking to localhost. Never in production (SSRF). */
   allowPrivateAddress?: boolean;
+  /** Whether anyone can sign up (NodeInfo says so). Default true. */
+  openRegistrations?: boolean;
 }
 
 /** The URI of the post a status replies to, if any. */
@@ -342,7 +344,7 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
       repository: new URL("https://github.com/mobilaunch/pinstripe"),
     },
     protocols: ["activitypub"],
-    openRegistrations: true,
+    openRegistrations: options.openRegistrations ?? true,
     usage: {
       users: { total: await ctx.data.store.countLocalAccounts() },
       localPosts: await ctx.data.statuses.countLocal(),

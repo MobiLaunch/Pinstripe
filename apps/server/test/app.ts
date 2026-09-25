@@ -4,7 +4,7 @@ import path from "node:path";
 import { MemoryKvStore } from "@fedify/fedify";
 import { afterAll } from "vitest";
 import { LinkVerifier } from "../src/accounts/verify-links.ts";
-import { buildApp } from "../src/app.ts";
+import { type AppOptions, buildApp } from "../src/app.ts";
 import { SafetyStore } from "../src/safety/store.ts";
 import { FailureLimiter } from "../src/auth/rate-limit.ts";
 import { AuthStore } from "../src/auth/store.ts";
@@ -20,7 +20,7 @@ import { testDb } from "./db.ts";
 export const ORIGIN = "https://pinstripe.test";
 
 /** The whole app against the test database. Call once per file; `reset()` in beforeEach. */
-export function testApp() {
+export function testApp(options: Partial<AppOptions> = {}) {
   const { db, reset: resetDb } = testDb();
   const store = new Store(db);
   const auth = new AuthStore(db);
@@ -31,11 +31,13 @@ export function testApp() {
   const media = new MediaService(new MediaStore(db), new LocalDiskStorage(mediaDir, ORIGIN));
   const loginLimiter = new FailureLimiter(3, 60_000);
   const emailLimiter = new FailureLimiter(5, 60_000);
+  const signupLimiter = new FailureLimiter(5, 60_000);
   const safety = new SafetyStore(db, store);
   const reset = async () => {
     await resetDb();
     loginLimiter.clear();
     emailLimiter.clear();
+    signupLimiter.clear();
     safety.forgetCache();
   };
   // Fedify's cache can stay in memory in tests; nothing reads it across runs.
@@ -45,7 +47,21 @@ export function testApp() {
   const mailer = new MemoryMailer();
   // Tests serve the pages being linked to from 127.0.0.1.
   const linkVerifier = new LinkVerifier(store, { allowPrivateAddress: true });
-  const app = buildApp({ federation, store, statuses, media, auth, domain: "pinstripe.test", loginLimiter, mailer, emailLimiter, linkVerifier, safety });
+  const app = buildApp({
+    federation,
+    store,
+    statuses,
+    media,
+    auth,
+    domain: "pinstripe.test",
+    loginLimiter,
+    mailer,
+    emailLimiter,
+    signupLimiter,
+    linkVerifier,
+    safety,
+    ...options,
+  });
 
   const request = (path: string, init: RequestInit = {}) => app.request(new URL(path, ORIGIN), init);
   const get = (path: string, accept = "application/activity+json", headers: Record<string, string> = {}) =>

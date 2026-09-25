@@ -1,0 +1,55 @@
+# Pinstripe in production: the server, Postgres, and Caddy for HTTPS.
+#
+#   cp .env.example .env   # then fill it in
+#   docker compose up -d --build
+#
+# Caddy gets a certificate for PINSTRIPE_HOST automatically (ports 80 and
+# 443 must reach this machine, and DNS must point at it).
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pinstripe
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: pinstripe
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "pinstripe"]
+      interval: 5s
+      retries: 10
+
+  server:
+    build: ..
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://pinstripe:${POSTGRES_PASSWORD}@postgres:5432/pinstripe
+      PINSTRIPE_ORIGIN: https://${PINSTRIPE_HOST:?set PINSTRIPE_HOST in .env}
+      # Caddy sits in front, so client addresses come from X-Forwarded-For.
+      TRUST_PROXY: "true"
+    volumes:
+      # Uploads, when MEDIA_STORAGE=local. With S3 this stays empty.
+      - media:/data/media
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [server]
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      PINSTRIPE_HOST: ${PINSTRIPE_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  media:
+  caddy_data:
+  caddy_config:

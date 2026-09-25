@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { S3Options } from "./media/storage.ts";
 
 export type StorageConfig = { kind: "local"; dir: string } | ({ kind: "s3" } & S3Options);
@@ -17,6 +18,10 @@ export interface Config {
   mailFrom: string;
   /** EXPO_ACCESS_TOKEN: only needed if the Expo project requires authenticated pushes. */
   expoAccessToken: string | null;
+  /** REGISTRATIONS=open (default) or closed. */
+  registrationsOpen: boolean;
+  /** TRUST_PROXY=true behind a reverse proxy: take the client's address from X-Forwarded-For. */
+  trustProxy: boolean;
 }
 
 /**
@@ -41,6 +46,15 @@ function loadStorage(env: Record<string, string | undefined>): StorageConfig {
   };
 }
 
+/** The server's version, from its package.json (npm/pnpm set npm_package_version; plain node doesn't). */
+function packageVersion(): string {
+  try {
+    return (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version?: string }).version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
 export function loadConfig(env: Record<string, string | undefined>): Config {
   const port = Number(env.PORT ?? 8000);
   if (!Number.isInteger(port) || port <= 0) throw new Error(`Invalid PORT: ${env.PORT}`);
@@ -51,12 +65,14 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   return {
     port,
     origin,
-    version: env.npm_package_version ?? "0.0.0",
+    version: env.npm_package_version ?? packageVersion(),
     databaseUrl: env.DATABASE_URL,
     allowPrivateAddress: env.PINSTRIPE_ALLOW_PRIVATE_ADDRESS === "true",
     storage: loadStorage(env),
     smtpUrl: env.SMTP_URL || null,
     mailFrom: env.MAIL_FROM || `Pinstripe <noreply@${new URL(origin).hostname}>`,
     expoAccessToken: env.EXPO_ACCESS_TOKEN || null,
+    registrationsOpen: (env.REGISTRATIONS ?? "open") !== "closed",
+    trustProxy: env.TRUST_PROXY === "true",
   };
 }

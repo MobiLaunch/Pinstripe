@@ -52,7 +52,11 @@ Server settings, all optional in development:
 | `MEDIA_DIR` | `./media-data` | Where uploads go when local |
 | `SMTP_URL` | unset (print to console) | e.g. `smtp://user:pass@smtp.example.com:587` |
 | `MAIL_FROM` | `Pinstripe <noreply@host>` | |
+| `REGISTRATIONS` | `open` | `closed` turns sign-up off |
+| `TRUST_PROXY` | `false` | `true` behind a reverse proxy (client addresses from X-Forwarded-For) |
 | `EXPO_ACCESS_TOKEN` | unset | Only if the Expo project requires authenticated pushes |
+
+For production, see [docs/deploy.md](docs/deploy.md) (Docker, Postgres, HTTPS).
 
 See [docs/product.md](docs/product.md) for what we're building and
 [docs/architecture.md](docs/architecture.md) for how, including the roadmap.
