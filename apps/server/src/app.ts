@@ -10,6 +10,8 @@ import type { AuthStore } from "./auth/store.ts";
 import type { ContextData } from "./federation.ts";
 import { profileRoutes } from "./accounts/profile.ts";
 import { serializeAccount, toMastodonVisibility } from "./mastodon.ts";
+import { mediaRoutes } from "./media/routes.ts";
+import type { MediaService } from "./media/service.ts";
 import { actorUri } from "./statuses/activitypub.ts";
 import { statusRenderer } from "./statuses/render.ts";
 import { statusRoutes } from "./statuses/routes.ts";
@@ -20,6 +22,7 @@ export interface AppOptions {
   federation: Federation<ContextData>;
   store: Store;
   statuses: StatusStore;
+  media: MediaService;
   auth: AuthStore;
   domain: string;
   loginLimiter?: FailureLimiter;
@@ -30,10 +33,10 @@ export interface AppOptions {
  * requests first; everything else falls through to OAuth and the
  * Mastodon-compatible client API.
  */
-export function buildApp({ federation, store, statuses, auth, domain, loginLimiter }: AppOptions) {
+export function buildApp({ federation, store, statuses, media, auth, domain, loginLimiter }: AppOptions) {
   const app = new Hono<AuthEnv>();
 
-  const contextData = { store, statuses };
+  const contextData = { store, statuses, media };
   app.use(federationMiddleware(federation, () => contextData));
   const federationContext = (c: Context) => federation.createContext(c.req.raw, contextData);
 
@@ -53,8 +56,8 @@ export function buildApp({ federation, store, statuses, auth, domain, loginLimit
         {
           profile: new URL(`/@${account.username}`, origin).href,
           actor: actorUri(ctx, account).href,
-          avatar: missingAvatar,
-          header: missingHeader,
+          avatar: account.avatarKey ? media.storage.url(account.avatarKey) : missingAvatar,
+          header: account.headerKey ? media.storage.url(account.headerKey) : missingHeader,
         },
         { followers: follows.followers, following: follows.following, statuses: statusCount },
       );
@@ -91,7 +94,7 @@ export function buildApp({ federation, store, statuses, auth, domain, loginLimit
     };
   }
 
-  const render = statusRenderer({ statuses, renderAccount, federationContext });
+  const render = statusRenderer({ statuses, media, renderAccount, federationContext });
 
   // Token-based, never cookie-based, so any origin may call these (as on Mastodon).
   // The /oauth/authorize page is deliberately excluded.
@@ -104,8 +107,9 @@ export function buildApp({ federation, store, statuses, auth, domain, loginLimit
   // Fixed paths (verify_credentials, lookup, relationships…) are registered
   // before /api/v1/accounts/:id so they aren't read as ids.
   app.route("/", authRoutes({ auth, renderCredentialAccount, loginLimiter }));
-  app.route("/", profileRoutes({ store, renderCredentialAccount, federationContext }));
-  app.route("/", statusRoutes({ store, statuses, domain, render, federationContext }));
+  app.route("/", profileRoutes({ store, media, renderCredentialAccount, federationContext }));
+  app.route("/", mediaRoutes({ media }));
+  app.route("/", statusRoutes({ store, statuses, media, domain, render, federationContext }));
   app.route(
     "/",
     accountRoutes({

@@ -3,10 +3,10 @@
  * deciding whether it's worth keeping.
  */
 import type { Context } from "@fedify/fedify";
-import { Hashtag, Mention, Note, PUBLIC_COLLECTION } from "@fedify/vocab";
+import { Document, Hashtag, Image, Mention, Note, PUBLIC_COLLECTION, Video } from "@fedify/vocab";
 import type { Visibility } from "@pinstripe/core";
 import type { ContextData } from "../federation.ts";
-import type { StatusRow } from "../statuses/store.ts";
+import type { RemoteMedia, StatusRow } from "../statuses/store.ts";
 import type { AccountRow } from "../store.ts";
 import { resolveActorUri } from "./actors.ts";
 import { htmlToPlain, sanitizeRemoteHtml } from "./sanitize.ts";
@@ -14,6 +14,41 @@ import { htmlToPlain, sanitizeRemoteHtml } from "./sanitize.ts";
 const PUBLIC = new Set([PUBLIC_COLLECTION.href, "as:Public", "Public"]);
 // A post mentioning hundreds of accounts is spam; don't resolve them all.
 const MAX_MENTIONS = 20;
+const MAX_ATTACHMENTS = 4;
+
+const httpUrl = (u: unknown): string | null => {
+  const url = u instanceof URL ? u : (u as { href?: URL } | null)?.href;
+  return url instanceof URL && /^https?:$/.test(url.protocol) ? url.href : null;
+};
+
+/** Photos and videos on a remote Note, linked where they live. */
+async function attachmentsOf(note: Note): Promise<RemoteMedia[]> {
+  const media: RemoteMedia[] = [];
+  try {
+    for await (const a of note.getAttachments()) {
+      if (media.length >= MAX_ATTACHMENTS) break;
+      if (!(a instanceof Document || a instanceof Image || a instanceof Video)) continue;
+      const url = httpUrl(a.url);
+      const mediaType = a.mediaType ?? (a instanceof Video ? "video/mp4" : a instanceof Image ? "image/jpeg" : "");
+      const type = mediaType.startsWith("video/") ? "video" : mediaType.startsWith("image/") ? "image" : null;
+      if (!url || !type) continue;
+      media.push({
+        type,
+        url,
+        previewUrl: null,
+        contentType: mediaType,
+        width: a.width ?? null,
+        height: a.height ?? null,
+        duration: null,
+        description: htmlToPlain(String(a.name ?? "")).slice(0, 1500),
+        blurhash: null,
+      });
+    }
+  } catch {
+    // A broken attachment shouldn't lose the post.
+  }
+  return media;
+}
 
 function visibilityOf(note: Note, author: AccountRow): Visibility {
   const to = note.toIds.map((u) => u.href);
@@ -102,6 +137,7 @@ export async function persistNote(ctx: Context<ContextData>, note: Note, options
     spoilerText,
     language: null,
     mentionIds: p.mentioned.map((a) => a.id),
+    remoteMedia: await attachmentsOf(note),
     publishedAt: note.published ? new Date(note.published.epochMilliseconds) : new Date(),
   });
 }

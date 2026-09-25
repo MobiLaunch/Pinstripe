@@ -28,11 +28,13 @@ import { type AccountRow, isLocal, type Store } from "../store.ts";
 import { activityFor, buildAnnounce, buildDelete, buildLike, buildUndo, noteUri } from "./activitypub.ts";
 import { renderContent } from "./content.ts";
 import type { StatusRenderer } from "./render.ts";
-import { DEFAULT_LIMIT, MAX_LIMIT, type Page, type StatusRow, type StatusStore, type StatusView } from "./store.ts";
+import type { MediaService } from "../media/service.ts";
+import { DEFAULT_LIMIT, MAX_LIMIT, type MediaFilter, type Page, type StatusRow, type StatusStore, type StatusView } from "./store.ts";
 
 export interface StatusRoutesOptions {
   store: Store;
   statuses: StatusStore;
+  media: MediaService;
   domain: string;
   render: StatusRenderer;
   federationContext: (c: Context) => FedifyContext<ContextData>;
@@ -47,7 +49,18 @@ function readPage(c: Context): Page {
   };
 }
 
-export function statusRoutes({ store, statuses, domain, render, federationContext }: StatusRoutesOptions) {
+/**
+ * `only_media=true` (Mastodon) keeps posts with photos or videos;
+ * `only_video=true` (Pinstripe, ignored elsewhere) keeps posts led by a
+ * video, for the Videos tab.
+ */
+function readMediaFilter(c: Context): MediaFilter | undefined {
+  if (truthy(c.req.query("only_video"))) return "video";
+  if (truthy(c.req.query("only_media"))) return "any";
+  return undefined;
+}
+
+export function statusRoutes({ store, statuses, media, domain, render, federationContext }: StatusRoutesOptions) {
   const app = new Hono<AuthEnv>();
   const viewerId = (c: Context<AuthEnv>) => c.get("token")?.account?.id ?? null;
 
@@ -75,7 +88,23 @@ export function statusRoutes({ store, statuses, domain, render, federationContex
     const p = await readParams(c);
 
     const text = (p.status ?? "").trim();
-    if (!text) return c.json({ error: "Validation failed: Text can't be blank" }, 422);
+    const mediaIds = [...new Set((p.media_ids ?? "").split(/[\s,]+/).filter(Boolean))];
+    if (!text && !mediaIds.length) return c.json({ error: "Validation failed: Text can't be blank" }, 422);
+
+    // Up to four photos, or one video on its own; all yours, processed and not yet posted.
+    if (mediaIds.length) {
+      const rows = await media.store.getMany(mediaIds);
+      if (rows.length !== mediaIds.length || rows.some((m) => m.accountId !== account.id || m.statusId)) {
+        return c.json({ error: "Validation failed: Media not found" }, 422);
+      }
+      if (rows.some((m) => m.state !== "ready")) {
+        return c.json({ error: "Validation failed: Cannot attach files that have not finished processing. Try again in a moment!" }, 422);
+      }
+      if (mediaIds.length > 4) return c.json({ error: "Validation failed: Can't attach more than 4 files" }, 422);
+      if (rows.some((m) => m.type === "video") && rows.length > 1) {
+        return c.json({ error: "Validation failed: Can't attach a video to a post that already contains images" }, 422);
+      }
+    }
     if ([...text].length > POST_MAX_LENGTH) {
       return c.json({ error: `Validation failed: Text character limit of ${POST_MAX_LENGTH} exceeded` }, 422);
     }
@@ -111,11 +140,12 @@ export function statusRoutes({ store, statuses, domain, render, federationContex
       spoilerText: (p.spoiler_text ?? "").trim(),
       language: p.language || null,
       mentionIds: rendered.mentions.map((m) => m.accountId).filter((id) => id !== account.id),
+      mediaIds,
     });
 
     const [view] = await statuses.hydrate([status], account.id);
     const replyTarget = parent ? noteUri(ctx, parent) : null;
-    await deliver(ctx, account.id, activityFor(ctx, view!, replyTarget), await audienceOf(view!));
+    await deliver(ctx, account.id, activityFor(ctx, view!, replyTarget, media), await audienceOf(view!));
     return c.json((await render.views(c, [view!]))[0]!);
   });
 
@@ -144,6 +174,7 @@ export function statusRoutes({ store, statuses, domain, render, federationContex
     const json = (await render.views(c, [view!]))[0]!;
     const audience = await audienceOf(view!);
     await statuses.delete(status.id);
+    await media.deleteFiles(view!.media);
     const ctx = federationContext(c);
     await deliver(ctx, status.accountId, buildDelete(ctx, view!), audience);
     return c.json({ ...json, text: status.text });
@@ -188,7 +219,7 @@ export function statusRoutes({ store, statuses, domain, render, federationContex
     const [view] = await statuses.hydrate([row], me);
     if (created) {
       const ctx = federationContext(c);
-      await deliver(ctx, me, activityFor(ctx, view!, null), { followers: true, to: [view!.reblog!.account] });
+      await deliver(ctx, me, activityFor(ctx, view!, null, media), { followers: true, to: [view!.reblog!.account] });
     }
     return c.json((await render.views(c, [view!]))[0]!);
   });
@@ -212,9 +243,8 @@ export function statusRoutes({ store, statuses, domain, render, federationContex
   app.get("/api/v1/accounts/:id/statuses", async (c) => {
     const account = await store.getAccount(c.req.param("id"));
     if (!account) return notFound(c);
-    // Media-only filtering needs media; until then nothing matches.
-    if (truthy(c.req.query("only_media"))) return c.json([]);
     const rows = await statuses.accountStatuses(account.id, readPage(c), {
+      media: readMediaFilter(c),
       viewerId: viewerId(c),
       excludeReblogs: truthy(c.req.query("exclude_reblogs")),
       excludeReplies: truthy(c.req.query("exclude_replies")),
@@ -225,12 +255,12 @@ export function statusRoutes({ store, statuses, domain, render, federationContex
   app.get("/api/v1/timelines/home", async (c) => {
     const auth = requireUser(c, "read:statuses");
     if (!auth.ok) return auth.response;
-    return respondWithPage(c, await statuses.homeTimeline(auth.value.account.id, readPage(c)));
+    return respondWithPage(c, await statuses.homeTimeline(auth.value.account.id, readPage(c), readMediaFilter(c)));
   });
 
   app.get("/api/v1/timelines/public", async (c) => {
     const scope = truthy(c.req.query("local")) ? "local" : truthy(c.req.query("remote")) ? "remote" : "all";
-    return respondWithPage(c, await statuses.publicTimeline(readPage(c), scope));
+    return respondWithPage(c, await statuses.publicTimeline(readPage(c), scope, readMediaFilter(c)));
   });
 
   async function respondWithPage(c: Context<AuthEnv>, rows: StatusRow[]) {

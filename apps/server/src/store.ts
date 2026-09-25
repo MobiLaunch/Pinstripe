@@ -182,7 +182,7 @@ export class Store {
   /** Updates a local account's profile and settings. */
   async updateAccount(
     id: string,
-    patch: Partial<Pick<AccountRow, "displayName" | "bio" | "fields" | "bot" | "settings">>,
+    patch: Partial<Pick<AccountRow, "displayName" | "bio" | "fields" | "bot" | "settings" | "avatarKey" | "headerKey">>,
   ): Promise<AccountRow> {
     const [row] = await this.db.update(accounts).set(patch).where(eq(accounts.id, id)).returning();
     return row!;

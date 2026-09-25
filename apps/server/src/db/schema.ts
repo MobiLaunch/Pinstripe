@@ -41,6 +41,9 @@ export const accounts = pgTable(
     followersUri: text("followers_uri"),
     avatarUrl: text("avatar_url"),
     headerUrl: text("header_url"),
+    /** Local accounts only: uploaded avatar and banner, as media storage keys. */
+    avatarKey: text("avatar_key"),
+    headerKey: text("header_key"),
     /** As reported by the remote server; local counts are computed instead. */
     followersCount: integer("followers_count"),
     followingCount: integer("following_count"),
@@ -222,4 +225,48 @@ export const mentions = pgTable(
       .references(() => accounts.id, { onDelete: "cascade" }),
   },
   (t) => [primaryKey({ columns: [t.statusId, t.accountId] }), index("mentions_account_idx").on(t.accountId)],
+);
+
+export interface MediaMeta {
+  width: number | null;
+  height: number | null;
+  /** Seconds; videos only. */
+  duration: number | null;
+  /** Bytes of the processed file. */
+  size: number | null;
+}
+
+/**
+ * Photos and videos. Local uploads live in media storage under `fileKey`
+ * (and `previewKey` for the thumbnail); remote ones are linked by URL.
+ * An upload belongs to no status until it's attached to a post.
+ */
+export const mediaAttachments = pgTable(
+  "media_attachments",
+  {
+    id: uuid("id").primaryKey(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    statusId: uuid("status_id").references(() => statuses.id, { onDelete: "cascade" }),
+    /** Order within the post. */
+    position: integer("position").notNull().default(0),
+    type: text("type").$type<"image" | "video">().notNull(),
+    state: text("state").$type<"processing" | "ready" | "failed">().notNull(),
+    contentType: text("content_type").notNull(),
+    fileKey: text("file_key"),
+    previewKey: text("preview_key"),
+    remoteUrl: text("remote_url"),
+    remotePreviewUrl: text("remote_preview_url"),
+    meta: jsonb("meta").$type<MediaMeta>().notNull().default({ width: null, height: null, duration: null, size: null }),
+    description: text("description").notNull().default(""),
+    blurhash: text("blurhash"),
+    /** Why processing failed, for the uploader. */
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("media_status_idx").on(t.statusId, t.position),
+    index("media_unattached_idx").on(t.createdAt).where(sql`${t.statusId} is null`),
+  ],
 );

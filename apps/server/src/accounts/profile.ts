@@ -10,11 +10,17 @@
  */
 import type { Context as FedifyContext, RequestContext } from "@fedify/fedify";
 import { Update } from "@fedify/vocab";
-import { type AccountSettings, BIO_MAX_LENGTH, PROFILE_FIELDS_MAX, type Theme } from "@pinstripe/core";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { type AccountSettings, BIO_MAX_LENGTH, checkImage, IMAGE_LIMITS, PROFILE_FIELDS_MAX, type Theme } from "@pinstripe/core";
 import { type Context, Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { type AuthEnv, requireUser } from "../auth/middleware.ts";
 import type { ContextData } from "../federation.ts";
 import { fromMastodonVisibility, type MastodonAccount } from "../mastodon.ts";
+import { describeProblem, MediaRejected } from "../media/process.ts";
+import type { MediaService } from "../media/service.ts";
 import { deliver } from "../remote/deliver.ts";
 import type { AccountRow, Store } from "../store.ts";
 
@@ -24,6 +30,7 @@ const FIELD_VALUE_MAX = 255;
 
 export interface ProfileRoutesOptions {
   store: Store;
+  media: MediaService;
   renderCredentialAccount: (c: Context, account: AccountRow) => Promise<MastodonAccount & { source: unknown }>;
   federationContext: (c: Context) => FedifyContext<ContextData>;
 }
@@ -45,7 +52,8 @@ async function readNested(c: Context): Promise<Body> {
     const path = key.replace(/\]/g, "").split("[").filter(Boolean);
     let node = out;
     path.forEach((part, i) => {
-      if (i === path.length - 1) node[part] = String(value);
+      // Files (avatar, header) stay files; everything else is text.
+      if (i === path.length - 1) node[part] = value instanceof File ? value : String(value);
       else node = (node[part] ??= {}) as Body;
     });
   }
@@ -65,7 +73,15 @@ function readFields(raw: unknown): { name: string; value: string }[] | undefined
     .filter((f) => f.name || f.value);
 }
 
-export function profileRoutes({ store, renderCredentialAccount, federationContext }: ProfileRoutesOptions) {
+/** Writes an uploaded image to a temp file for processing (MediaService removes it). */
+async function toTempFile(file: File): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), "pinstripe-upload-"));
+  const target = path.join(dir, "upload");
+  await writeFile(target, Buffer.from(await file.arrayBuffer()));
+  return target;
+}
+
+export function profileRoutes({ store, media, renderCredentialAccount, federationContext }: ProfileRoutesOptions) {
   const app = new Hono<AuthEnv>();
 
   /** Tells followers' servers the profile changed. */
@@ -120,13 +136,37 @@ export function profileRoutes({ store, renderCredentialAccount, federationContex
       if (!visibility) errors.push("Privacy is invalid");
       else settings.defaultVisibility = visibility;
     }
+    const images: { kind: "avatar" | "header"; file: File }[] = [];
+    for (const kind of ["avatar", "header"] as const) {
+      const file = body[kind];
+      if (!(file instanceof File)) continue;
+      const problems = checkImage({ mimeType: file.type, bytes: file.size });
+      if (problems.length) errors.push(`${kind === "avatar" ? "Avatar" : "Header"}: ${describeProblem(problems[0]!)}`);
+      else images.push({ kind, file });
+    }
     if (errors.length) return c.json({ error: `Validation failed: ${errors.join(", ")}` }, 422);
 
+    const replaced: string[] = [];
+    for (const { kind, file } of images) {
+      try {
+        const key = await media.profileImage(account.id, kind, await toTempFile(file));
+        if (kind === "avatar") patch.avatarKey = key;
+        else patch.headerKey = key;
+        const old = kind === "avatar" ? account.avatarKey : account.headerKey;
+        if (old) replaced.push(old);
+      } catch (error) {
+        if (error instanceof MediaRejected) return c.json({ error: `Validation failed: ${error.message}` }, 422);
+        throw error;
+      }
+    }
+
     const updated = await store.updateAccount(account.id, { ...patch, settings });
+    await media.storage.delete(replaced).catch(() => {});
     await announceProfile(c, updated);
     return c.json(await renderCredentialAccount(c, updated));
   };
-  app.patch("/api/v1/accounts/update_credentials", updateCredentials);
+  // Avatars and banners are at most 15 MB each; refuse anything bigger before reading it.
+  app.patch("/api/v1/accounts/update_credentials", bodyLimit({ maxSize: 2 * IMAGE_LIMITS.maxBytes + 64 * 1024 }), updateCredentials);
 
   const PREFS = ["allowVideoDownloads", "hideFollowerCounts", "autoplayVideos", "startMuted", "saveDataOnCellular"] as const;
   const THEMES: Theme[] = ["blue", "graphite"];

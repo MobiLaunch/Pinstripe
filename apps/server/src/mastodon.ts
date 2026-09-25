@@ -4,6 +4,7 @@
  * ours) can read them.
  */
 import type { Visibility } from "@pinstripe/core";
+import type { MastodonMedia } from "./media/serialize.ts";
 import type { AccountRow, Relationship } from "./store.ts";
 
 /** Mastodon calls followers-only posts "private". */
@@ -130,7 +131,7 @@ export interface MastodonStatus {
   muted?: boolean;
   bookmarked?: boolean;
   pinned?: boolean;
-  media_attachments: [];
+  media_attachments: MastodonMedia[];
   mentions: { id: string; username: string; acct: string; url: string }[];
   tags: { name: string; url: string }[];
   emojis: [];
@@ -168,6 +169,7 @@ export function serializeStatus(
   urls: StatusUrls,
   reblog: MastodonStatus | null,
   mentions: MastodonStatus["mentions"] = [],
+  media: MastodonMedia[] = [],
 ): MastodonStatus {
   const { status, counts, viewer } = view;
   return {
@@ -189,7 +191,7 @@ export function serializeStatus(
     reblogs_count: counts.reblogs,
     favourites_count: counts.favourites,
     ...(viewer ? { favourited: viewer.favourited, reblogged: viewer.reblogged, muted: false, bookmarked: false, pinned: false } : {}),
-    media_attachments: [],
+    media_attachments: media,
     mentions,
     tags: status.tags.map((name) => ({ name, url: urls.tagUrl(name) })),
     emojis: [],

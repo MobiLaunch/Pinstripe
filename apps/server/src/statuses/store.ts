@@ -1,7 +1,8 @@
 import type { Visibility } from "@pinstripe/core";
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt, type SQL, sql } from "drizzle-orm";
 import type { Db } from "../db/client.ts";
-import { accounts, favourites, follows, mentions, statuses } from "../db/schema.ts";
+import { accounts, favourites, follows, mediaAttachments, mentions, statuses } from "../db/schema.ts";
+import type { MediaRow } from "../media/store.ts";
 import { uuidv7 } from "../ids.ts";
 import { type AccountRow, isUniqueViolation, isUuid } from "../store.ts";
 
@@ -14,6 +15,8 @@ export interface StatusView {
   /** For boosts: the boosted status. */
   reblog: StatusView | null;
   mentions: AccountRow[];
+  /** Attachments, in order. */
+  media: MediaRow[];
   counts: { replies: number; reblogs: number; favourites: number };
   /** Null when nobody is signed in. */
   viewer: { favourited: boolean; reblogged: boolean } | null;
@@ -42,6 +45,8 @@ export interface NewStatus {
   spoilerText: string;
   language: string | null;
   mentionIds: string[];
+  /** Uploads to attach, in order. They must be the author's, ready and not yet attached. */
+  mediaIds?: string[];
 }
 
 /**
@@ -61,18 +66,47 @@ export function visibleTo(viewerId: string | null): SQL {
     or exists (select 1 from ${mentions} where ${mentions.statusId} = ${statuses.id} and ${mentions.accountId} = ${viewerId}))`;
 }
 
+/** An attachment on a post from another server. */
+export interface RemoteMedia {
+  type: "image" | "video";
+  url: string;
+  previewUrl: string | null;
+  contentType: string;
+  width: number | null;
+  height: number | null;
+  duration: number | null;
+  description: string;
+  blurhash: string | null;
+}
+
+/** "any": posts with photos or videos; "video": posts whose first attachment is a video (the Videos tab). */
+export type MediaFilter = "any" | "video";
+
+function hasMedia(filter: MediaFilter, options: { throughBoosts?: boolean } = {}): SQL {
+  const target = options.throughBoosts ? sql`coalesce(${statuses.reblogOfId}, ${statuses.id})` : sql`${statuses.id}`;
+  return filter === "video"
+    ? sql`exists (select 1 from ${mediaAttachments} m where m.status_id = ${target} and m.position = 0 and m.type = 'video' and m.state = 'ready')`
+    : sql`exists (select 1 from ${mediaAttachments} m where m.status_id = ${target} and m.state = 'ready')`;
+}
+
 const followedBy = (viewerId: string) =>
   sql`${statuses.accountId} in (select ${follows.followingId} from ${follows} where ${follows.followerId} = ${viewerId} and ${follows.state} = 'accepted')`;
 
 export class StatusStore {
   constructor(private readonly db: Db) {}
 
-  async create({ mentionIds, ...input }: NewStatus): Promise<StatusRow> {
+  async create({ mentionIds, mediaIds = [], ...input }: NewStatus): Promise<StatusRow> {
     return this.db.transaction(async (tx) => {
       const [row] = await tx
         .insert(statuses)
         .values({ id: uuidv7(), ...input })
         .returning();
+      for (const [position, id] of mediaIds.entries()) {
+        await tx
+          .update(mediaAttachments)
+          .set({ statusId: row!.id, position })
+          .where(and(eq(mediaAttachments.id, id), eq(mediaAttachments.accountId, input.accountId), isNull(mediaAttachments.statusId)));
+      }
       if (mentionIds.length) {
         await tx
           .insert(mentions)
@@ -88,8 +122,10 @@ export class StatusStore {
    * Its id is derived from when it was published (never later than now), so
    * timelines order it by time.
    */
-  async upsertRemote(input: NewStatus & { uri: string; url: string | null; publishedAt: Date }): Promise<StatusRow> {
-    const { mentionIds, publishedAt, ...values } = input;
+  async upsertRemote(
+    input: NewStatus & { uri: string; url: string | null; publishedAt: Date; remoteMedia?: RemoteMedia[] },
+  ): Promise<StatusRow> {
+    const { mentionIds, publishedAt, remoteMedia = [], mediaIds: _unused, ...values } = input;
     const createdAt = new Date(Math.min(publishedAt.getTime(), Date.now()));
     return this.db.transaction(async (tx) => {
       const [row] = await tx
@@ -104,6 +140,26 @@ export class StatusStore {
       await tx.delete(mentions).where(eq(mentions.statusId, row!.id));
       if (mentionIds.length) {
         await tx.insert(mentions).values([...new Set(mentionIds)].map((accountId) => ({ statusId: row!.id, accountId })));
+      }
+      // Remote attachments are links to the other server's files; replace them on edit.
+      await tx.delete(mediaAttachments).where(eq(mediaAttachments.statusId, row!.id));
+      if (remoteMedia.length) {
+        await tx.insert(mediaAttachments).values(
+          remoteMedia.map((m, position) => ({
+            id: uuidv7(),
+            accountId: values.accountId,
+            statusId: row!.id,
+            position,
+            type: m.type,
+            state: "ready" as const,
+            contentType: m.contentType,
+            remoteUrl: m.url,
+            remotePreviewUrl: m.previewUrl,
+            meta: { width: m.width, height: m.height, duration: m.duration, size: null },
+            description: m.description,
+            blurhash: m.blurhash,
+          })),
+        );
       }
       return row!;
     });
@@ -210,10 +266,15 @@ export class StatusStore {
   }
 
   /** A profile's posts and boosts, as far as the viewer may see them. */
-  accountStatuses(accountId: string, page: Page, options: { viewerId: string | null; excludeReblogs?: boolean; excludeReplies?: boolean }) {
+  accountStatuses(
+    accountId: string,
+    page: Page,
+    options: { viewerId: string | null; excludeReblogs?: boolean; excludeReplies?: boolean; media?: MediaFilter },
+  ) {
     return this.#page(
       and(
         eq(statuses.accountId, accountId),
+        options.media ? hasMedia(options.media) : undefined,
         visibleTo(options.viewerId),
         options.excludeReblogs ? isNull(statuses.reblogOfId) : undefined,
         options.excludeReplies ? isNull(statuses.inReplyToId) : undefined,
@@ -223,8 +284,9 @@ export class StatusStore {
   }
 
   /** Public posts, no boosts (as in Mastodon). `scope` picks Local (this server), remote only, or everything (Federated). */
-  publicTimeline(page: Page, scope: "local" | "remote" | "all") {
+  publicTimeline(page: Page, scope: "local" | "remote" | "all", media?: MediaFilter) {
     const where: SQL[] = [eq(statuses.visibility, "public"), isNull(statuses.reblogOfId)];
+    if (media) where.push(hasMedia(media));
     if (scope !== "all") {
       where.push(
         sql`${statuses.accountId} in (select ${accounts.id} from ${accounts} where ${accounts.domain} ${scope === "local" ? sql`is null` : sql`is not null`})`,
@@ -233,9 +295,19 @@ export class StatusStore {
     return this.#page(and(...where)!, page);
   }
 
-  /** Home: your posts and boosts, and those of everyone you follow, that you may see. */
-  homeTimeline(accountId: string, page: Page) {
-    return this.#page(and(sql`(${statuses.accountId} = ${accountId} or ${followedBy(accountId)})`, visibleTo(accountId))!, page);
+  /**
+   * Home: your posts and boosts, and those of everyone you follow, that you
+   * may see. With `media`, only posts (or boosts of posts) with photos/videos.
+   */
+  homeTimeline(accountId: string, page: Page, media?: MediaFilter) {
+    return this.#page(
+      and(
+        sql`(${statuses.accountId} = ${accountId} or ${followedBy(accountId)})`,
+        visibleTo(accountId),
+        media ? hasMedia(media, { throughBoosts: true }) : undefined,
+      )!,
+      page,
+    );
   }
 
   async #page(where: SQL, page: Page): Promise<StatusRow[]> {
@@ -299,7 +371,12 @@ export class StatusStore {
     const all = [...rows, ...originals];
     const ids = [...new Set(all.map((r) => r.id))];
 
-    const [mentionRows, replyCounts, reblogCounts, favCounts, myFavs, myReblogs] = await Promise.all([
+    const [mediaRows, mentionRows, replyCounts, reblogCounts, favCounts, myFavs, myReblogs] = await Promise.all([
+      this.db
+        .select()
+        .from(mediaAttachments)
+        .where(and(inArray(mediaAttachments.statusId, ids), eq(mediaAttachments.state, "ready")))
+        .orderBy(asc(mediaAttachments.position)),
       this.db
         .select({ statusId: mentions.statusId, accountId: mentions.accountId })
         .from(mentions)
@@ -335,6 +412,8 @@ export class StatusStore {
     const faved = new Set(myFavs.map((r) => r.id));
     const boosted = new Set(myReblogs.map((r) => r.id));
     const originalsById = new Map(originals.map((r) => [r.id, r]));
+    const mediaOf = new Map<string, MediaRow[]>();
+    for (const m of mediaRows) mediaOf.set(m.statusId!, [...(mediaOf.get(m.statusId!) ?? []), m]);
     const mentionsOf = new Map<string, AccountRow[]>();
     for (const m of mentionRows) {
       const account = byId.get(m.accountId);
@@ -348,6 +427,7 @@ export class StatusStore {
         account: byId.get(row.accountId)!,
         reblog: original ? view(original) : null,
         mentions: mentionsOf.get(row.id) ?? [],
+        media: mediaOf.get(row.id) ?? [],
         counts: { replies: replies.get(row.id) ?? 0, reblogs: reblogs.get(row.id) ?? 0, favourites: favs.get(row.id) ?? 0 },
         viewer: viewerId ? { favourited: faved.has(row.id), reblogged: boosted.has(row.id) } : null,
       };

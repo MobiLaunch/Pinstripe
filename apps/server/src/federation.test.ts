@@ -4,6 +4,7 @@
  */
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
+import { jpegBytes, uploadForm } from "../test/fixtures.ts";
 import { twoInstances } from "../test/instances.ts";
 import { accounts } from "./db/schema.ts";
 
@@ -180,5 +181,32 @@ describe("profiles across servers", () => {
     });
     expect(res.status).toBe(200);
     expect(await a.get(`/api/v1/accounts/${remoteBob.id}`)).toMatchObject({ display_name: "Bob B.", note: "<p>New bio</p>" });
+  });
+});
+
+describe("media across servers", () => {
+  it("delivers photos as links to the author's server", async () => {
+    const { a, b } = servers;
+    const alice = await a.user("alice");
+    const bob = await b.user("bob");
+    const remoteBob = await discover(a, alice, bob.actor);
+    await a.post(`/api/v1/accounts/${remoteBob.id}/follow`, {}, alice.headers);
+
+    const res = await fetch(new URL("/api/v2/media", b.origin), {
+      method: "POST",
+      headers: bob.headers,
+      body: uploadForm(await jpegBytes(800, 600), "image/jpeg", { description: "A photo from B" }),
+    });
+    const photo = await res.json();
+    const post = await b.post("/api/v1/statuses", { status: "look", media_ids: [photo.id] }, bob.headers);
+
+    const [copy] = await a.get("/api/v1/timelines/home", alice.headers);
+    expect(copy.uri).toBe(post.uri);
+    expect(copy.media_attachments).toEqual([
+      expect.objectContaining({ type: "image", url: photo.url, remote_url: photo.url, description: "A photo from B" }),
+    ]);
+    expect(copy.media_attachments[0].meta.original).toMatchObject({ width: 800, height: 600 });
+    // Alice's server links to B; it doesn't copy the file.
+    expect(new URL(copy.media_attachments[0].url).origin).toBe(b.origin);
   });
 });

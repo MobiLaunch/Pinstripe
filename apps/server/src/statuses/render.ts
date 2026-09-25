@@ -2,6 +2,8 @@ import type { Context as FedifyContext } from "@fedify/fedify";
 import type { Context } from "hono";
 import type { ContextData } from "../federation.ts";
 import type { MastodonAccount, MastodonStatus } from "../mastodon.ts";
+import { serializeMedia } from "../media/serialize.ts";
+import type { MediaService } from "../media/service.ts";
 import { serializeStatus } from "../mastodon.ts";
 import type { AccountRow } from "../store.ts";
 import { noteUri } from "./activitypub.ts";
@@ -16,6 +18,7 @@ export interface StatusRenderer {
 /** Serializes pages of statuses, rendering each account once per request. */
 export function statusRenderer(options: {
   statuses: StatusStore;
+  media: MediaService;
   renderAccount: (c: Context, account: AccountRow) => Promise<MastodonAccount>;
   federationContext: (c: Context) => FedifyContext<ContextData>;
 }): StatusRenderer {
@@ -46,6 +49,7 @@ export function statusRenderer(options: {
         },
         reblog,
         mentions,
+        view.media.map((m) => serializeMedia(m, options.media)),
       );
     };
     return Promise.all(list.map(one));

@@ -9,6 +9,7 @@ import {
   Announce,
   Create,
   Delete,
+  Document,
   Follow,
   Hashtag,
   Like,
@@ -56,8 +57,13 @@ function addressing(ctx: Context<unknown>, accountId: string, visibility: Visibi
   }
 }
 
+/** Public URLs for stored media, from the MediaService. */
+export interface MediaUrls {
+  url(row: StatusView["media"][number]): string | null;
+}
+
 /** A local status as a Note. `replyTarget` is the parent's URI, if it's a reply. */
-export function buildNote(ctx: Context<unknown>, view: StatusView, replyTarget: URL | null): Note {
+export function buildNote(ctx: Context<unknown>, view: StatusView, replyTarget: URL | null, media?: MediaUrls): Note {
   const { status, account } = view;
   const mentioned = view.mentions.map((m) => actorUri(ctx, m));
   return new Note({
@@ -70,6 +76,21 @@ export function buildNote(ctx: Context<unknown>, view: StatusView, replyTarget: 
     published: instant(status.createdAt),
     url: new URL(`/@${account.username}/${status.id}`, ctx.canonicalOrigin),
     replyTarget,
+    // Mastodon sends attachments as Documents with a media type; others read those too.
+    attachments: view.media.flatMap((m) => {
+      const url = media?.url(m);
+      return url
+        ? [
+            new Document({
+              url: new URL(url),
+              mediaType: m.contentType,
+              name: m.description || null,
+              width: m.meta.width,
+              height: m.meta.height,
+            }),
+          ]
+        : [];
+    }),
     tags: [
       ...status.tags.map(
         (tag) => new Hashtag({ name: `#${tag}`, href: new URL(`/tags/${encodeURIComponent(tag)}`, ctx.canonicalOrigin) }),
@@ -160,10 +181,10 @@ export function buildFollowResponse(
 }
 
 /** What a status looks like in an outbox: Create for posts, Announce for boosts. */
-export function activityFor(ctx: Context<unknown>, view: StatusView, replyTarget: URL | null): Create | Announce {
+export function activityFor(ctx: Context<unknown>, view: StatusView, replyTarget: URL | null, media?: MediaUrls): Create | Announce {
   if (view.reblog) {
     const original = view.reblog;
     return buildAnnounce(ctx, view.status, noteUri(ctx, original.status), actorUri(ctx, original.account));
   }
-  return buildCreate(ctx, buildNote(ctx, view, replyTarget), view);
+  return buildCreate(ctx, buildNote(ctx, view, replyTarget, media), view);
 }

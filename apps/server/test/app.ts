@@ -1,8 +1,15 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { MemoryKvStore } from "@fedify/fedify";
+import { afterAll } from "vitest";
 import { buildApp } from "../src/app.ts";
 import { FailureLimiter } from "../src/auth/rate-limit.ts";
 import { AuthStore } from "../src/auth/store.ts";
 import { buildFederation } from "../src/federation.ts";
+import { MediaService } from "../src/media/service.ts";
+import { LocalDiskStorage } from "../src/media/storage.ts";
+import { MediaStore } from "../src/media/store.ts";
 import { StatusStore } from "../src/statuses/store.ts";
 import { Store } from "../src/store.ts";
 import { testDb } from "./db.ts";
@@ -15,6 +22,10 @@ export function testApp() {
   const store = new Store(db);
   const auth = new AuthStore(db);
   const statuses = new StatusStore(db);
+  // Each test file gets its own media folder, removed afterwards.
+  const mediaDir = mkdtempSync(path.join(tmpdir(), "pinstripe-test-media-"));
+  afterAll(() => rmSync(mediaDir, { recursive: true, force: true }));
+  const media = new MediaService(new MediaStore(db), new LocalDiskStorage(mediaDir, ORIGIN));
   const loginLimiter = new FailureLimiter(3, 60_000);
   const reset = async () => {
     await resetDb();
@@ -24,7 +35,7 @@ export function testApp() {
   // No queue: deliveries happen inline, so tests can observe them. Private
   // addresses are allowed so a local server can stand in for a remote inbox.
   const federation = buildFederation({ kv: new MemoryKvStore(), origin: ORIGIN, version: "0.0.0", allowPrivateAddress: true });
-  const app = buildApp({ federation, store, statuses, auth, domain: "pinstripe.test", loginLimiter });
+  const app = buildApp({ federation, store, statuses, media, auth, domain: "pinstripe.test", loginLimiter });
 
   const request = (path: string, init: RequestInit = {}) => app.request(new URL(path, ORIGIN), init);
   const get = (path: string, accept = "application/activity+json", headers: Record<string, string> = {}) =>
@@ -71,5 +82,5 @@ export function testApp() {
 
   const del = (path: string, headers: Record<string, string> = {}) => request(path, { method: "DELETE", headers });
 
-  return { app, db, store, statuses, auth, reset, signedInUser, remoteFollower, del, request, get, postJson, postForm };
+  return { app, db, store, statuses, media, auth, reset, signedInUser, remoteFollower, del, request, get, postJson, postForm };
 }

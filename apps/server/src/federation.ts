@@ -6,6 +6,7 @@ import {
   Delete,
   Endpoints,
   Follow,
+  Image,
   isActor,
   Like,
   Note,
@@ -18,6 +19,7 @@ import {
 } from "@fedify/vocab";
 import { Temporal } from "@js-temporal/polyfill";
 import { escapeHtml, plainToHtml } from "./mastodon.ts";
+import type { MediaService } from "./media/service.ts";
 import { persistActor, resolveActorUri } from "./remote/actors.ts";
 import { deliver } from "./remote/deliver.ts";
 import { persistNote, statusByUri } from "./remote/notes.ts";
@@ -29,6 +31,7 @@ import type { AccountRow, Store } from "./store.ts";
 export interface ContextData {
   store: Store;
   statuses: StatusStore;
+  media: MediaService;
 }
 
 export interface FederationOptions {
@@ -95,6 +98,8 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
         manuallyApprovesFollowers: account.settings.approveFollowers,
         discoverable: account.settings.listInDirectory,
         attachments: account.fields.map((f) => new PropertyValue({ name: f.name, value: escapeHtml(f.value) })),
+        icon: account.avatarKey ? new Image({ url: new URL(ctx.data.media.storage.url(account.avatarKey)), mediaType: "image/jpeg" }) : null,
+        image: account.headerKey ? new Image({ url: new URL(ctx.data.media.storage.url(account.headerKey)), mediaType: "image/jpeg" }) : null,
         publicKey: keys[0]?.cryptographicKey,
         assertionMethods: keys.map((k) => k.multikey),
       });
@@ -126,7 +131,7 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
     const status = await ctx.data.statuses.getVisible(id, null);
     if (!status || status.accountId !== identifier || status.reblogOfId || status.uri) return null;
     const [view] = await ctx.data.statuses.hydrate([status], null);
-    return view ? buildNote(ctx, view, await replyTargetOf(ctx, status)) : null;
+    return view ? buildNote(ctx, view, await replyTargetOf(ctx, status), ctx.data.media) : null;
   });
 
   // Newest first; the cursor is the last id of the previous page.
@@ -141,7 +146,7 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
       );
       const views = await ctx.data.statuses.hydrate(rows, null);
       return {
-        items: await Promise.all(views.map(async (v) => activityFor(ctx, v, await replyTargetOf(ctx, v.status)))),
+        items: await Promise.all(views.map(async (v) => activityFor(ctx, v, await replyTargetOf(ctx, v.status), ctx.data.media))),
         nextCursor: rows.length === DEFAULT_LIMIT ? rows.at(-1)!.id : null,
       };
     })

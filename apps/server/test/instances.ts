@@ -4,7 +4,10 @@
  * Without a queue, deliveries and inbox processing happen inline, so by the
  * time an API call returns, the other server has handled what it was sent.
  */
+import { mkdtemp, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { MemoryKvStore } from "@fedify/fedify";
 import { getRequestListener } from "@hono/node-server";
@@ -13,6 +16,9 @@ import { buildApp } from "../src/app.ts";
 import { AuthStore } from "../src/auth/store.ts";
 import { connect } from "../src/db/client.ts";
 import { buildFederation } from "../src/federation.ts";
+import { MediaService } from "../src/media/service.ts";
+import { LocalDiskStorage } from "../src/media/storage.ts";
+import { MediaStore } from "../src/media/store.ts";
 import { StatusStore } from "../src/statuses/store.ts";
 import { Store } from "../src/store.ts";
 import { secondDatabaseUrl } from "./global-setup.ts";
@@ -35,6 +41,7 @@ async function start(databaseUrl: string): Promise<{ instance: Instance; close: 
   const store = new Store(conn.db);
   const statuses = new StatusStore(conn.db);
   const auth = new AuthStore(conn.db);
+  const mediaDir = await mkdtemp(path.join(tmpdir(), "pinstripe-test-media-"));
 
   let listener: ReturnType<typeof getRequestListener> | null = null;
   const server: Server = createServer((req, res) => listener!(req, res));
@@ -42,7 +49,8 @@ async function start(databaseUrl: string): Promise<{ instance: Instance; close: 
   const { port } = server.address() as AddressInfo;
   const origin = `http://127.0.0.1:${port}`;
   const federation = buildFederation({ kv: new MemoryKvStore(), origin, version: "0.0.0", allowPrivateAddress: true });
-  const app = buildApp({ federation, store, statuses, auth, domain: `127.0.0.1:${port}` });
+  const media = new MediaService(new MediaStore(conn.db), new LocalDiskStorage(mediaDir, origin));
+  const app = buildApp({ federation, store, statuses, media, auth, domain: `127.0.0.1:${port}` });
   listener = getRequestListener(app.fetch);
 
   const call = async (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
@@ -86,6 +94,7 @@ async function start(databaseUrl: string): Promise<{ instance: Instance; close: 
     close: async () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await conn.sql.end();
+      await rm(mediaDir, { recursive: true, force: true });
     },
   };
 }
