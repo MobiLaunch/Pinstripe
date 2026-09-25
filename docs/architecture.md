@@ -252,9 +252,11 @@ and would otherwise show stale copies.
   `pnpm --filter @pinstripe/server role <username> <role>`. The app asks
   Pinstripe's own server (and only it) for the admin scopes, and shows
   Settings → Reports to moderators.
-- Not yet: forwarding reports to the reported account's server (`Flag`
-  needs an instance actor), server-wide domain blocks, and more moderator
-  actions (silence, sensitive) with an audit log.
+- Reports about remote accounts can be forwarded (`forward`) to their
+  server as a `Flag`. The Flag comes from the **instance actor**
+  (`/users/instance`, an `Application` whose handle is the server's host,
+  as on Mastodon), so the reporter isn't revealed. Its keys live in
+  Fedify's key-value store.
 
 ### Media
 

@@ -5,10 +5,11 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 
 import { type ReportCategory, toAccount, toPost } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
-import { aquaText, Card, GelButton, Pinstripes, Segmented } from '@/components/aqua';
+import { AquaSwitch, aquaText, Card, GelButton, Pinstripes, Segmented } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { ScreenHeader } from '@/components/screen-header';
+import { PINSTRIPE_DOMAIN } from '@/config';
 import { colors, fontFamily } from '@/theme/aqua';
 import { useAccent } from '@/theme/theme';
 
@@ -40,6 +41,7 @@ export default function ReportScreen() {
   const [category, setCategory] = useState<ReportCategory>('spam');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [comment, setComment] = useState('');
+  const [forward, setForward] = useState(true);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +56,8 @@ export default function ReportScreen() {
       .catch((e) => setError(e instanceof Error ? e.message : 'Couldn’t load this account.'));
   }, [client, server, id]);
 
+  const remote = !!account?.domain && account.domain !== PINSTRIPE_DOMAIN;
+
   const toggle = (postId: string) =>
     setPicked((current) => {
       const next = new Set(current);
@@ -67,7 +71,7 @@ export default function ReportScreen() {
     setSending(true);
     setError(null);
     try {
-      await client.report({ account_id: account.id, status_ids: [...picked], comment: comment.trim(), category, forward: false });
+      await client.report({ account_id: account.id, status_ids: [...picked], comment: comment.trim(), category, forward: remote && forward });
       setSent(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Couldn’t send the report.');
@@ -154,6 +158,16 @@ export default function ReportScreen() {
               {[...comment].length} / {COMMENT_MAX}
             </Text>
 
+            {remote ? (
+              <View style={styles.forward}>
+                <View style={styles.flex}>
+                  <Text style={aquaText.body}>Also tell {account.domain}</Text>
+                  <Text style={aquaText.handle}>A copy goes to their moderators, from this server rather than from you.</Text>
+                </View>
+                <AquaSwitch value={forward} onValueChange={setForward} accessibilityLabel={`Also tell ${account.domain}`} />
+              </View>
+            ) : null}
+
           </>
         )}
       </ScrollView>
@@ -180,6 +194,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   right: { textAlign: 'right' },
+  forward: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   over: { color: colors.danger, fontWeight: '700' },
   done: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16 },
   center: { textAlign: 'center' },

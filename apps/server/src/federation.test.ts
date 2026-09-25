@@ -215,6 +215,36 @@ describe("blocks across servers", () => {
   });
 });
 
+describe("reports across servers", () => {
+  it("forwards a report to the reported account's server, from the server itself", async () => {
+    const { a, b } = servers;
+    const alice = await a.user("alice");
+    const bob = await b.user("bob");
+    const mod = await b.user("mod", { moderator: true });
+    const remoteBob = await discover(a, alice, bob.actor);
+    await a.post(`/api/v1/accounts/${remoteBob.id}/follow`, {}, alice.headers);
+    const post = await b.post("/api/v1/statuses", { status: "spam from B" }, bob.headers);
+    const [copy] = (await a.get("/api/v1/timelines/home", alice.headers)) as Json[];
+
+    const report = await a.post(
+      "/api/v1/reports",
+      { account_id: remoteBob.id, status_ids: [copy!.id], comment: "Spam", forward: true },
+      alice.headers,
+    );
+    expect(report.forwarded).toBe(true);
+
+    const [received] = await b.get("/api/v1/admin/reports", mod.headers);
+    expect(received).toMatchObject({ comment: "Spam", target_account: { username: "bob" } });
+    // Sent by A's instance actor, not by Alice.
+    expect(received.account.username).toBe(`127.0.0.1:${new URL(a.origin).port}`);
+    expect(received.statuses.map((s: Json) => s.id)).toEqual([post.id]);
+
+    // The instance actor is a real actor, with a handle.
+    const actor = await (await fetch(new URL("/users/instance", a.origin), { headers: { accept: "application/activity+json" } })).json();
+    expect(actor).toMatchObject({ type: "Application", preferredUsername: `127.0.0.1:${new URL(a.origin).port}` });
+  });
+});
+
 describe("profiles across servers", () => {
   it("sends profile edits to followers' servers", async () => {
     const { a, b } = servers;

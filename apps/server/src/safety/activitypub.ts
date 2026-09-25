@@ -3,8 +3,8 @@
  * blocks a remote account, and the follow cleanup it implies.
  */
 import type { Context } from "@fedify/fedify";
-import { Block } from "@fedify/vocab";
-import type { ContextData } from "../federation.ts";
+import { Block, Flag } from "@fedify/vocab";
+import { type ContextData, INSTANCE_ACTOR } from "../federation.ts";
 import { deliver } from "../remote/deliver.ts";
 import { actorUri, buildFollow, buildFollowResponse, buildUndo } from "../statuses/activitypub.ts";
 import { type AccountRow, isLocal } from "../store.ts";
@@ -30,4 +30,24 @@ export async function tellEndedFollows(ctx: Context<ContextData>, localId: strin
   if (isLocal(other)) return;
   if (ended.aToB) await deliver(ctx, localId, buildUndo(ctx, localId, buildFollow(ctx, ended.aToB, other)), { to: [other] });
   if (ended.bToA) await deliver(ctx, localId, buildFollowResponse(ctx, "reject", ended.bToA, other), { to: [other] });
+}
+
+/**
+ * A report passed on to the reported account's server, sent by the
+ * instance actor so the reporter stays anonymous (as Mastodon does).
+ */
+export async function forwardReport(
+  ctx: Context<ContextData>,
+  report: { id: string; comment: string },
+  target: AccountRow,
+  statusUris: string[],
+) {
+  if (isLocal(target)) return;
+  const flag = new Flag({
+    id: new URL(`/reports/${report.id}`, ctx.canonicalOrigin),
+    actor: ctx.getActorUri(INSTANCE_ACTOR),
+    content: report.comment,
+    objects: [actorUri(ctx, target), ...statusUris.map((u) => new URL(u))],
+  });
+  await deliver(ctx, INSTANCE_ACTOR, flag, { to: [target] });
 }

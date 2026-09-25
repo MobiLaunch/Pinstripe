@@ -13,6 +13,7 @@ import { MemoryKvStore } from "@fedify/fedify";
 import { getRequestListener } from "@hono/node-server";
 import { afterAll, beforeAll } from "vitest";
 import { buildApp } from "../src/app.ts";
+import { SafetyStore } from "../src/safety/store.ts";
 import { AuthStore } from "../src/auth/store.ts";
 import { connect } from "../src/db/client.ts";
 import { buildFederation } from "../src/federation.ts";
@@ -30,7 +31,7 @@ export interface Instance {
   statuses: StatusStore;
   reset(): Promise<void>;
   /** A local user with a full-scope token. */
-  user(username: string): Promise<{ id: string; username: string; handle: string; actor: string; headers: Record<string, string> }>;
+  user(username: string, options?: { moderator?: boolean }): Promise<{ id: string; username: string; handle: string; actor: string; headers: Record<string, string> }>;
   get(path: string, headers?: Record<string, string>): Promise<any>;
   post(path: string, body: unknown, headers?: Record<string, string>): Promise<any>;
   del(path: string, headers?: Record<string, string>): Promise<any>;
@@ -72,9 +73,10 @@ async function start(databaseUrl: string): Promise<{ instance: Instance; close: 
     reset: async () => {
       await conn.sql`TRUNCATE accounts, oauth_apps CASCADE`;
     },
-    user: async (username) => {
+    user: async (username, options: { moderator?: boolean } = {}) => {
       const account = await auth.registerUser({ username, email: `${username}@example.com`, password: "correct horse", locale: null });
-      const scopes = ["read", "write", "follow"];
+      const scopes = ["read", "write", "follow", ...(options.moderator ? ["admin:read", "admin:write"] : [])];
+      if (options.moderator) await new SafetyStore(conn.db, store).setRole(account.id, "moderator");
       const { app: client } = await auth.createApp({ name: "Test", website: null, redirectUris: ["pinstripe://oauth"], scopes });
       const { token } = await auth.createToken({ appId: client.id, accountId: account.id, scopes });
       return {

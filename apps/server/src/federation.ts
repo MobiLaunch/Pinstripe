@@ -2,6 +2,7 @@ import { type Context, createFederation, type Federation, type KvStore, type Mes
 import {
   Accept,
   Announce,
+  Application,
   Block,
   Create,
   Delete,
@@ -23,12 +24,16 @@ import { Temporal } from "@js-temporal/polyfill";
 import { escapeHtml, plainToHtml } from "./mastodon.ts";
 import type { MediaService } from "./media/service.ts";
 import { persistActor, resolveActorUri } from "./remote/actors.ts";
+import { generateKeyPairs, importKeyPairs, type StoredKeyPair } from "./keys.ts";
 import { deliver } from "./remote/deliver.ts";
 import { persistNote, statusByUri } from "./remote/notes.ts";
 import { activityFor, buildFollowResponse, buildNote, noteUri } from "./statuses/activitypub.ts";
 import { DEFAULT_LIMIT, type StatusRow, type StatusStore } from "./statuses/store.ts";
 import type { SafetyStore } from "./safety/store.ts";
 import type { AccountRow, Store } from "./store.ts";
+
+/** The server's own actor, at /users/instance (never a valid account id). */
+export const INSTANCE_ACTOR = "instance";
 
 /** Passed to every Fedify callback; gives them the stores without globals. */
 export interface ContextData {
@@ -81,8 +86,39 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
     allowPrivateAddress: options.allowPrivateAddress,
   });
 
+  /**
+   * The server's own keys, for the instance actor. Kept in Fedify's
+   * key-value store (the Postgres one in production), made on first use.
+   */
+  const instanceKeyKey = ["pinstripe", "instance-keys"] as const;
+  async function instanceKeyPairs() {
+    let stored = (await options.kv.get<StoredKeyPair[]>(instanceKeyKey)) ?? null;
+    if (!stored) {
+      stored = await generateKeyPairs();
+      await options.kv.set(instanceKeyKey, stored);
+    }
+    return importKeyPairs(stored);
+  }
+
   federation
     .setActorDispatcher("/users/{identifier}", async (ctx, identifier) => {
+      if (identifier === INSTANCE_ACTOR) {
+        // The server itself (as on Mastodon): sends reports on to other servers.
+        const keys = await ctx.getActorKeyPairs(identifier);
+        const host = new URL(ctx.canonicalOrigin).host;
+        return new Application({
+          id: ctx.getActorUri(identifier),
+          preferredUsername: host,
+          name: host,
+          summary: "The Pinstripe server itself. It sends reports on to other servers' moderators.",
+          url: new URL("/", ctx.canonicalOrigin),
+          inbox: ctx.getInboxUri(identifier),
+          endpoints: new Endpoints({ sharedInbox: ctx.getInboxUri() }),
+          manuallyApprovesFollowers: true,
+          publicKey: keys[0]?.cryptographicKey,
+          assertionMethods: keys.map((k) => k.multikey),
+        });
+      }
       const account = await ctx.data.store.getLocalAccount(identifier);
       if (!account) return null;
       const keys = await ctx.getActorKeyPairs(identifier);
@@ -109,10 +145,15 @@ export function buildFederation(options: FederationOptions): Federation<ContextD
       });
     })
     // Handles are mutable; the actor identifier is the stable account id.
-    .mapHandle(async (ctx, username) => (await ctx.data.store.getAccountByUsername(username))?.id ?? null)
-    .setKeyPairsDispatcher(async (ctx, identifier) =>
-      (await ctx.data.store.getLocalAccount(identifier)) ? ctx.data.store.getKeyPairs(identifier) : [],
-    );
+    .mapHandle(async (ctx, username) =>
+      username.toLowerCase() === new URL(ctx.canonicalOrigin).host.toLowerCase()
+        ? INSTANCE_ACTOR
+        : ((await ctx.data.store.getAccountByUsername(username))?.id ?? null),
+    )
+    .setKeyPairsDispatcher(async (ctx, identifier) => {
+      if (identifier === INSTANCE_ACTOR) return instanceKeyPairs();
+      return (await ctx.data.store.getLocalAccount(identifier)) ? ctx.data.store.getKeyPairs(identifier) : [];
+    });
 
   // Remote followers only; that's who deliveries go to.
   federation

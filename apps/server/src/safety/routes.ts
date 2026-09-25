@@ -6,7 +6,7 @@
  *   POST   /api/v1/accounts/:id/mute      and /unmute     { notifications, duration }
  *   GET    /api/v1/blocks, /api/v1/mutes
  *   GET    /api/v1/domain_blocks          POST and DELETE { domain }
- *   POST   /api/v1/reports                { account_id, status_ids[], comment, category, forward }
+ *   POST   /api/v1/reports                { account_id, status_ids[], comment, category, forward }  forward: Flag to their server
  *   GET    /api/v1/admin/reports          ?resolved=true; moderators and admins only
  *   GET    /api/v1/admin/reports/:id      POST …/resolve, …/reopen
  *   POST   /api/v1/admin/accounts/:id/action     { type: "suspend" | "none", report_id }
@@ -20,10 +20,10 @@ import type { ContextData } from "../federation.ts";
 import { notFound, readLimit, readParams, setLinkHeader, truthy } from "../http.ts";
 import type { MastodonAccount, MastodonRelationship, MastodonStatus } from "../mastodon.ts";
 import { deliver } from "../remote/deliver.ts";
-import { buildUndo } from "../statuses/activitypub.ts";
+import { buildUndo, noteUri } from "../statuses/activitypub.ts";
 import type { StatusRow, StatusStore } from "../statuses/store.ts";
 import { type AccountRow, isLocal, type LocalAccount, type Store } from "../store.ts";
-import { blockActivityUri, buildBlock, tellEndedFollows } from "./activitypub.ts";
+import { blockActivityUri, buildBlock, forwardReport, tellEndedFollows } from "./activitypub.ts";
 import { normalizeDomain, type ReportRow, type SafetyStore } from "./store.ts";
 
 const CATEGORIES: readonly ReportCategory[] = ["spam", "legal", "violation", "other"];
@@ -155,7 +155,7 @@ export function safetyRoutes(options: SafetyRoutesOptions) {
       action_taken_at: report.actionTakenAt?.toISOString() ?? null,
       category: report.category,
       comment: report.comment,
-      forwarded: false,
+      forwarded: report.forward,
       created_at: report.createdAt.toISOString(),
       status_ids: report.statusIds,
       rule_ids: [],
@@ -188,6 +188,11 @@ export function safetyRoutes(options: SafetyRoutesOptions) {
       category,
       forward: truthy(p.forward) && !isLocal(target),
     });
+    if (report.forward) {
+      const ctx = federationContext(c);
+      const uris = await Promise.all(statusIds.map(async (id) => noteUri(ctx, (await statuses.get(id))!).href));
+      await forwardReport(ctx, report, target, uris);
+    }
     return c.json(await reportJson(c, report));
   });
 
@@ -217,7 +222,7 @@ export function safetyRoutes(options: SafetyRoutesOptions) {
       action_taken_at: report.actionTakenAt?.toISOString() ?? null,
       category: report.category,
       comment: report.comment,
-      forwarded: false,
+      forwarded: report.forward,
       created_at: report.createdAt.toISOString(),
       updated_at: (report.actionTakenAt ?? report.createdAt).toISOString(),
       account: await adminAccount(reporter),
