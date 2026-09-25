@@ -25,6 +25,11 @@ pnpm install
 pnpm test          # all packages
 pnpm typecheck
 
+# Postgres (or skip it: without DATABASE_URL the server keeps data in memory)
+docker compose up -d
+export DATABASE_URL=postgres://pinstripe:pinstripe@localhost:5432/pinstripe
+export TEST_DATABASE_URL=postgres://pinstripe:pinstripe@localhost:5432/pinstripe_test
+
 # server on http://localhost:8000 with a seeded @sam account
 PINSTRIPE_SEED_ACCOUNT=sam pnpm dev:server
 curl -H 'accept: application/activity+json' \

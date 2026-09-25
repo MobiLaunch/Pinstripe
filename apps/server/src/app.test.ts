@@ -8,9 +8,10 @@ const ORIGIN = "https://pinstripe.test";
 
 let app: ReturnType<typeof buildApp>;
 let sam: LocalAccount;
+let store: MemoryStore;
 
 beforeEach(async () => {
-  const store = new MemoryStore();
+  store = new MemoryStore();
   const federation = buildFederation({ kv: new MemoryKvStore(), origin: ORIGIN, version: "0.0.0" });
   app = buildApp({ federation, store, domain: "pinstripe.test" });
   sam = await store.createAccount({ username: "sam", displayName: "Sam Avery" });
@@ -67,10 +68,50 @@ describe("NodeInfo", () => {
   });
 });
 
-describe("client API", () => {
-  it("looks up accounts by handle", async () => {
-    const res = await get("/api/v1/accounts/lookup?acct=@sam", "application/json");
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ id: sam.id, acct: "@sam@pinstripe.test" });
+describe("Mastodon client API", () => {
+  it("looks up local accounts by handle, in Mastodon's Account shape", async () => {
+    for (const acct of ["sam", "@sam", "SAM@pinstripe.test"]) {
+      const res = await get(`/api/v1/accounts/lookup?acct=${encodeURIComponent(acct)}`, "application/json");
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({
+        id: sam.id,
+        username: "sam",
+        acct: "sam",
+        display_name: "Sam Avery",
+        locked: false,
+        url: `${ORIGIN}/@sam`,
+        uri: `${ORIGIN}/users/${sam.id}`,
+        followers_count: 0,
+        fields: [],
+        emojis: [],
+      });
+    }
+  });
+
+  it("404s unknown and remote handles like Mastodon", async () => {
+    for (const acct of ["nobody", "sam@elsewhere.social"]) {
+      const res = await get(`/api/v1/accounts/lookup?acct=${acct}`, "application/json");
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: "Record not found" });
+    }
+  });
+
+  it("fetches accounts by id", async () => {
+    expect((await get(`/api/v1/accounts/${sam.id}`, "application/json")).status).toBe(200);
+    expect((await get("/api/v1/accounts/nope", "application/json")).status).toBe(404);
+  });
+
+  it("counts accepted followers, and reports hidden counts as zero", async () => {
+    await store.upsertFollower(sam.id, {
+      actorUri: "https://tilde.zone/users/mira",
+      inboxUri: "https://tilde.zone/users/mira/inbox",
+      sharedInboxUri: null,
+      followActivityUri: "https://tilde.zone/follows/1",
+      state: "accepted",
+    });
+    const count = async () => (await (await get(`/api/v1/accounts/${sam.id}`, "application/json")).json()).followers_count;
+    expect(await count()).toBe(1);
+    sam.settings.hideFollowerCounts = true;
+    expect(await count()).toBe(0);
   });
 });

@@ -8,6 +8,21 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pinstripe
+          POSTGRES_PASSWORD: pinstripe
+          POSTGRES_DB: pinstripe_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://pinstripe:pinstripe@localhost:5432/pinstripe_test
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

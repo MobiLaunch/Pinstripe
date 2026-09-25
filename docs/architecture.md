@@ -24,7 +24,9 @@ src/
   config.ts      env → Config
   federation.ts  Fedify: actor, key pairs, followers, inbox listeners, NodeInfo
   app.ts         Hono: Fedify middleware first, then /api/v1 client routes
-  store.ts       Store interface + MemoryStore
+  store.ts       Store interface + MemoryStore (tests, no-database dev)
+  pg-store.ts    PostgresStore
+  db/            Drizzle schema + connection; migrations live in ../drizzle
 ```
 
 - **Actor identifiers are account UUIDs**, not usernames: `/users/{uuid}`.
@@ -36,32 +38,55 @@ src/
   case it is stored as `pending`. `Undo(Follow)` removes it.
 - Bots are served as `Service` actors, everyone else as `Person`.
 
-The client API lives under `/api/v1` and returns `@pinstripe/core` shapes. It
-follows Mastodon's API naming where it can, so remote-account support and
-third-party clients stay possible.
+### Persistence
+
+With `DATABASE_URL` set, the server uses Postgres for everything: accounts,
+keys and followers through Drizzle (`PostgresStore`), and Fedify's cache and
+delivery queue through `@fedify/postgres`. Pending migrations run at
+startup. Without it, everything is in memory.
+
+- Change `src/db/schema.ts`, then `pnpm --filter @pinstripe/server db:generate`
+  to write a migration into `apps/server/drizzle/`. Commit both.
+- `store.test.ts` runs one contract against every `Store`; Postgres is
+  included when `TEST_DATABASE_URL` is set (CI sets it). It truncates that
+  database.
+- Local Postgres: `docker compose up -d` (creates `pinstripe` and
+  `pinstripe_test`).
+
+### Client API: Mastodon-compatible
+
+The app signs in either to Pinstripe or to any Mastodon-compatible server, so
+it is written as a **Mastodon API client**, and the Pinstripe server
+implements the subset of the Mastodon API the app uses (`/api/v1/...`,
+`/api/v2/media`, OAuth 2 at `/oauth/...`) with the same JSON shapes. One client
+talks to both, and third-party Mastodon apps work against Pinstripe for free.
+`@pinstripe/core` types are what the app works with internally; a thin
+mapping layer converts from Mastodon JSON.
+
+Pinstripe-only features (video-first timelines, sound credits) are added as
+extra fields or extra endpoints, never by changing Mastodon's shapes.
 
 ## What's intentionally temporary
 
-- `MemoryStore`, `MemoryKvStore` and `InProcessMessageQueue`: state resets on
-  restart. Next step is Postgres (Drizzle) for the store and
-  `@fedify/postgres` for KV + queue.
 - The mobile app renders fixtures (`src/data/fixtures.ts`) typed as core
   models; screens swap to API calls as endpoints land.
 
 ## Roadmap
 
-1. **Persistence:** Postgres schema for accounts, follows, posts, media;
-   migrations; docker-compose for local dev.
-2. **Auth:** registration, password login, OAuth 2 (Mastodon-compatible) so the
-   app, and later other clients, get tokens. Remote-server sign-in.
-3. **Posts & federation out:** `Create(Note)` / `Create(Video)` to followers,
-   outbox collection, `Like`, `Announce`, `Delete`, `Update(Person)`.
+1. ~~**Persistence:** Postgres for accounts, keys, followers, Fedify KV and
+   queue; migrations; docker-compose.~~ Done.
+2. **Auth:** registration, password login, OAuth 2 in Mastodon's shape so the
+   app gets tokens the same way from Pinstripe or any Mastodon server.
+3. **Posts & federation out:** `/api/v1/statuses`, `Create(Note)` /
+   `Create(Video)` to followers, outbox, `Like`, `Announce`, `Delete`,
+   `Update(Person)`.
 4. **Inbound content:** store remote posts from followed actors; Home / Local /
    Federated timelines.
-5. **Video pipeline:** upload, transcode (ffmpeg → HLS), thumbnails,
-   blurhash, object storage + CDN; player in the Videos tab (expo-video).
-6. **Profile:** edit profile endpoint, avatar/banner upload, `rel="me"`
-   field verification.
+5. **Video pipeline:** `/api/v2/media` upload enforcing the limits, transcode
+   (ffmpeg → HLS), thumbnails, blurhash, object storage + CDN; player in the
+   Videos tab (expo-video).
+6. **Profile:** `update_credentials`, avatar/banner upload, `rel="me"`
+   verification.
 7. **Settings & safety:** settings endpoint, domain blocks, follow requests UI,
    reporting, moderation.
 8. **Polish:** Graphite theme, barber-pole progress, gel pulse animation,
