@@ -11,6 +11,8 @@ import type { ContextData } from "./federation.ts";
 import { profileRoutes } from "./accounts/profile.ts";
 import { serializeAccount, toMastodonVisibility } from "./mastodon.ts";
 import { mediaRoutes } from "./media/routes.ts";
+import { notificationRoutes } from "./notifications/routes.ts";
+import { NotificationStore } from "./notifications/store.ts";
 import type { MediaService } from "./media/service.ts";
 import { actorUri } from "./statuses/activitypub.ts";
 import { statusRenderer } from "./statuses/render.ts";
@@ -109,6 +111,10 @@ export function buildApp({ federation, store, statuses, media, auth, domain, log
   app.route("/", authRoutes({ auth, renderCredentialAccount, loginLimiter }));
   app.route("/", profileRoutes({ store, media, renderCredentialAccount, federationContext }));
   app.route("/", mediaRoutes({ media }));
+  app.route(
+    "/",
+    notificationRoutes({ store, statuses, notifications: new NotificationStore(store.db), render, renderAccount }),
+  );
   app.route("/", statusRoutes({ store, statuses, media, domain, render, federationContext }));
   app.route(
     "/",

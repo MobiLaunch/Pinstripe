@@ -64,6 +64,16 @@ export interface MastodonStatus {
 
 export type TimelineKind = 'home' | 'local' | 'federated';
 
+export type NotificationType = 'mention' | 'reblog' | 'favourite' | 'follow' | 'follow_request' | 'status' | 'poll' | 'update';
+
+export interface MastodonNotification {
+  id: string;
+  type: NotificationType | string;
+  created_at: string;
+  account: MastodonAccount;
+  status?: MastodonStatus | null;
+}
+
 export interface MastodonRelationship {
   id: string;
   following: boolean;
@@ -279,6 +289,40 @@ export class MastodonClient {
     );
   }
 
+  /** Newest first; `maxId` for older pages. Types the app doesn't show are left out. */
+  notifications(options: { maxId?: string; limit?: number } = {}) {
+    return this.request<MastodonNotification[]>(
+      'GET',
+      '/api/v1/notifications' +
+        query({
+          max_id: options.maxId,
+          limit: options.limit,
+          'types[]': ['mention', 'reblog', 'favourite', 'follow', 'follow_request'],
+        }),
+    );
+  }
+
+  /**
+   * How many notifications arrived since they were last read. Servers
+   * without `unread_count` (Mastodon before 4.3) are asked for the ones
+   * newer than the read marker instead.
+   */
+  async unreadNotifications(): Promise<number> {
+    try {
+      return (await this.request<{ count: number }>('GET', '/api/v1/notifications/unread_count?limit=100')).count;
+    } catch (e) {
+      if (!(e instanceof ApiError) || e.status !== 404) throw e;
+    }
+    const markers = await this.request<{ notifications?: { last_read_id: string } }>('GET', '/api/v1/markers?timeline[]=notifications');
+    const lastRead = markers.notifications?.last_read_id;
+    return (await this.request<MastodonNotification[]>('GET', `/api/v1/notifications${query({ since_id: lastRead, limit: 40 })}`)).length;
+  }
+
+  /** Marks notifications up to `lastReadId` as read, on every device. */
+  markNotificationsRead(lastReadId: string) {
+    return this.request<object>('POST', '/api/v1/markers', { notifications: { last_read_id: lastReadId } });
+  }
+
   /** An upload: `url` is null while a video is still processing. */
   media(id: string) {
     return this.request<MastodonMedia>('GET', `/api/v1/media/${encodeURIComponent(id)}`);
@@ -293,9 +337,12 @@ export class MastodonClient {
   }
 }
 
-function query(params: Record<string, string | number | undefined>): string {
-  const entries = Object.entries(params).filter(([, v]) => v !== undefined) as [string, string | number][];
-  return entries.length ? `?${new URLSearchParams(entries.map(([k, v]) => [k, String(v)]))}` : '';
+/** A query string; arrays repeat the key (`types[]=a&types[]=b`). */
+function query(params: Record<string, string | number | string[] | undefined>): string {
+  const pairs = Object.entries(params).flatMap(([k, v]) =>
+    v === undefined ? [] : Array.isArray(v) ? v.map((item) => [k, item]) : [[k, String(v)]],
+  );
+  return pairs.length ? `?${new URLSearchParams(pairs)}` : '';
 }
 
 export function toMastodonVisibility(v: Visibility): MastodonVisibility {

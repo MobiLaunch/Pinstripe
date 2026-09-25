@@ -1,6 +1,9 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ORIGIN, testApp } from "../../test/app.ts";
 import { jpegBytes, uploadForm, videoBytes } from "../../test/fixtures.ts";
+
+// Encoding video with ffmpeg takes seconds, more on a busy CI machine.
+vi.setConfig({ testTimeout: 30_000 });
 
 const { reset, signedInUser, get, postJson, del, request, media } = testApp();
 const api = "application/json";

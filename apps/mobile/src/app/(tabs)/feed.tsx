@@ -17,6 +17,7 @@ import { initials } from '@/components/initials';
 import { PostCard } from '@/components/post-card';
 import { ProgressBar } from '@/components/progress-bar';
 import { publishPostEvent, usePostList } from '@/hooks/use-post-list';
+import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { colors, fontFamily } from '@/theme/aqua';
 
 const TIMELINES = [
@@ -54,7 +55,9 @@ export default function FeedScreen() {
     <Pinstripes>
       <Metal style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.titleRow}>
-          <View style={styles.side} />
+          <View style={styles.side}>
+            <NotificationsButton />
+          </View>
           <Text style={aquaText.title} accessibilityRole="header">
             Feed
           </Text>
@@ -99,6 +102,24 @@ export default function FeedScreen() {
         )}
       />
     </Pinstripes>
+  );
+}
+
+/** The bell, with a count of unread notifications. */
+function NotificationsButton() {
+  const unread = useUnreadNotifications();
+  const label = unread ? `Notifications, ${unread} unread` : 'Notifications';
+  return (
+    <View style={styles.bell}>
+      <Link href="/notifications" asChild>
+        <GelButton tone="gray" small accessibilityLabel={label} icon={<Icon name="bell" size={16} color={colors.text} />} />
+      </Link>
+      {unread ? (
+        <View style={styles.unread} pointerEvents="none">
+          <Text style={styles.unreadText}>{unread > 99 ? '99+' : unread}</Text>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -250,6 +271,22 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center' },
   side: { flex: 1 },
   sideRight: { alignItems: 'flex-end' },
+  bell: { alignSelf: 'flex-start' },
+  unread: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    backgroundColor: colors.danger,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   list: { padding: 12, gap: 12, flexGrow: 1 },
   composer: { gap: 10 },
   attachments: { flexDirection: 'row', gap: 8, paddingLeft: 50, flexWrap: 'wrap' },

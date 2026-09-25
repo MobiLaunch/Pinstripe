@@ -5,8 +5,11 @@ import path from "node:path";
 import { promisify } from "node:util";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import sharp from "sharp";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { MediaRejected, probeVideo, processImage, processProfileImage, processVideo } from "./process.ts";
+
+// Encoding video with ffmpeg takes seconds, more on a busy CI machine.
+vi.setConfig({ testTimeout: 30_000 });
 
 const run = promisify(execFile);
 let dir: string;

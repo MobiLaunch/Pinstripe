@@ -166,6 +166,30 @@ describe("posts across servers", () => {
   });
 });
 
+describe("notifications across servers", () => {
+  it("notifies about follows, favourites, boosts and replies from another server", async () => {
+    const { a, b } = servers;
+    const alice = await a.user("alice");
+    const bob = await b.user("bob");
+    const remoteAlice = await discover(b, bob, alice.actor);
+    await b.post(`/api/v1/accounts/${remoteAlice.id}/follow`, {}, bob.headers);
+    const post = await a.post("/api/v1/statuses", { status: "from A" }, alice.headers);
+    const [copy] = await b.get("/api/v1/timelines/home", bob.headers);
+    await b.post(`/api/v1/statuses/${copy.id}/favourite`, {}, bob.headers);
+    await b.post(`/api/v1/statuses/${copy.id}/reblog`, {}, bob.headers);
+    await b.post("/api/v1/statuses", { status: "great post", in_reply_to_id: copy.id }, bob.headers);
+
+    const got = await a.get("/api/v1/notifications", alice.headers);
+    expect(got.map((n: Json) => n.type)).toEqual(["mention", "reblog", "favourite", "follow"]);
+    expect(got.every((n: Json) => n.account.acct === bob.handle)).toBe(true);
+    expect(got[1].status.id).toBe(post.id);
+
+    // Undone on B, gone on A.
+    await b.post(`/api/v1/statuses/${copy.id}/unfavourite`, {}, bob.headers);
+    expect((await a.get("/api/v1/notifications", alice.headers)).map((n: Json) => n.type)).toEqual(["mention", "reblog", "follow"]);
+  });
+});
+
 describe("profiles across servers", () => {
   it("sends profile edits to followers' servers", async () => {
     const { a, b } = servers;

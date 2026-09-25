@@ -3,6 +3,7 @@ import { and, count, desc, eq, ilike, inArray, isNull, lt, or, sql } from "drizz
 import type { Db } from "./db/client.ts";
 import { accountKeys, accounts, follows } from "./db/schema.ts";
 import { uuidv7 } from "./ids.ts";
+import { notify, unnotify } from "./notifications/store.ts";
 import { generateKeyPairs, importKeyPairs } from "./keys.ts";
 
 /** Any account Pinstripe knows: local (`domain` null) or remote. */
@@ -249,6 +250,11 @@ export class Store {
         },
       })
       .returning();
+    await notify(this.db, {
+      to: row!.followingId,
+      from: row!.followerId,
+      type: row!.state === "accepted" ? "follow" : "follow_request",
+    });
     return row!;
   }
 
@@ -266,10 +272,14 @@ export class Store {
   }
 
   async acceptFollow(followerId: string, followingId: string) {
-    await this.db
+    const rows = await this.db
       .update(follows)
       .set({ state: "accepted" })
-      .where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)));
+      .where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)))
+      .returning({ id: follows.id });
+    // The request notification becomes a follow notification.
+    await unnotify(this.db, { to: followingId, from: followerId, type: "follow_request" });
+    if (rows.length) await notify(this.db, { to: followingId, from: followerId, type: "follow" });
   }
 
   async unfollow(followerId: string, followingId: string): Promise<FollowRow | null> {
@@ -277,6 +287,7 @@ export class Store {
       .delete(follows)
       .where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)))
       .returning();
+    for (const type of ["follow", "follow_request"] as const) await unnotify(this.db, { to: followingId, from: followerId, type });
     return row ?? null;
   }
 

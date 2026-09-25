@@ -8,6 +8,7 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  unique,
   text,
   timestamp,
   uniqueIndex,
@@ -269,4 +270,49 @@ export const mediaAttachments = pgTable(
     index("media_status_idx").on(t.statusId, t.position),
     index("media_unattached_idx").on(t.createdAt).where(sql`${t.statusId} is null`),
   ],
+);
+
+export type NotificationType = "mention" | "reblog" | "favourite" | "follow" | "follow_request";
+
+/**
+ * What happened to a local account: someone followed, asked to follow,
+ * mentioned or replied, boosted or favourited. `statusId` is the mention,
+ * the boost, or the favourited post. Undoing the action removes the
+ * notification (cascades for boosts and mentions, explicit for the rest).
+ */
+export const notifications = pgTable(
+  "notifications",
+  {
+    /** UUIDv7, so paging works as for statuses. */
+    id: uuid("id").primaryKey(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    fromAccountId: uuid("from_account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    type: text("type").$type<NotificationType>().notNull(),
+    statusId: uuid("status_id").references(() => statuses.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("notifications_account_idx").on(t.accountId, t.id),
+    // A redelivered Like or Follow doesn't notify twice.
+    unique("notifications_once").on(t.accountId, t.type, t.fromAccountId, t.statusId).nullsNotDistinct(),
+  ],
+);
+
+/** Mastodon's read markers: how far someone has read, per timeline ("home", "notifications"). */
+export const markers = pgTable(
+  "markers",
+  {
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    timeline: text("timeline").$type<"home" | "notifications">().notNull(),
+    lastReadId: text("last_read_id").notNull(),
+    version: integer("version").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.timeline] })],
 );

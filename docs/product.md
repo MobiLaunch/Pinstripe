@@ -87,5 +87,6 @@ the app checks them before uploading.
   which S3-compatible provider and CDN to use in production (the server
   works with any of them; local disk in development).
 - Moderation tooling and reporting flows (not on the canvas yet).
-- Notifications (not on the canvas yet). The record/upload screen and
-  comments reuse the Aqua primitives until they get a design.
+- Notifications and the record/upload screen aren't on the canvas; they
+  reuse the Aqua primitives until they get a design. Push notifications
+  need an Expo push setup (and APNs/FCM keys).

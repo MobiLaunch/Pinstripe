@@ -178,6 +178,29 @@ with paging, pull-to-refresh and optimistic favourites/boosts. Changes are
 broadcast to every mounted list, because the swipeable tabs stay mounted
 and would otherwise show stale copies.
 
+### Notifications
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/v1/notifications` | Paged, newest first; `types[]`, `exclude_types[]`, `account_id`. |
+| `GET /api/v1/notifications/:id`, `POST …/:id/dismiss`, `POST …/clear` | |
+| `GET /api/v1/notifications/unread_count` | Newer than the read marker (Mastodon 4.3). |
+| `GET / POST /api/v1/markers` | Read position for `notifications` and `home`, shared across devices. |
+
+- Types: `follow`, `follow_request`, `favourite`, `reblog`, `mention`
+  (which covers replies: the replied-to author is notified even without an
+  @mention).
+- Notifications are written where the thing itself is stored (`Store.follow`,
+  `StatusStore.favourite`, `reblog`, `create`, `upsertRemote`), so local
+  actions and ones arriving from other servers behave the same. Only local
+  recipients get them, never for your own actions, and a redelivered
+  activity doesn't notify twice.
+- Undoing removes the notification: boosts and mentions through the status
+  cascade, unfollows, unfavourites and answered requests explicitly.
+- The app polls the unread count (on focus, on return to the foreground and
+  every minute) for the badge on Feed's bell. Push notifications are still
+  to come.
+
 ### Media
 
 | Endpoint | Purpose |
@@ -239,8 +262,7 @@ then `new-video`, which uploads while the caption is written.
 2. ~~**Auth:** registration, password login, OAuth 2 in Mastodon's shape so the
    app gets tokens the same way from Pinstripe or any Mastodon server.~~ Done.
 3. ~~**Posts & federation out:** `/api/v1/statuses`, `Create(Note)` to
-   followers, outbox, `Announce`, `Delete`.~~ Done. Still to do here:
-   `Update(Person)` on profile edits, and `Like` to remote authors.
+   followers, outbox, `Announce`, `Delete`, `Update(Person)`, `Like`.~~ Done.
 4. ~~**Following & inbound content:** follows both ways with requests,
    remote posts in Home and Federated, mentions, replies and threads,
    search.~~ Done.
@@ -250,7 +272,8 @@ then `new-video`, which uploads while the caption is written.
 6. **Profile:** ~~`update_credentials`, avatar/banner upload~~ (done);
    `rel="me"` verification.
 7. **Settings & safety:** ~~settings endpoint, follow requests~~ (done);
-   blocks and mutes, domain blocks, reporting, moderation, notifications.
+   ~~notifications~~ (done; push still to do); blocks and mutes, domain
+   blocks, reporting, moderation.
 8. **Polish:** Graphite theme, barber-pole progress, gel pulse animation,
    sound credits, share sheet.
 

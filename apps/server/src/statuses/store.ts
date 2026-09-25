@@ -4,6 +4,7 @@ import type { Db } from "../db/client.ts";
 import { accounts, favourites, follows, mediaAttachments, mentions, statuses } from "../db/schema.ts";
 import type { MediaRow } from "../media/store.ts";
 import { uuidv7 } from "../ids.ts";
+import { notify, unnotify } from "../notifications/store.ts";
 import { type AccountRow, isUniqueViolation, isUuid } from "../store.ts";
 
 export type StatusRow = typeof statuses.$inferSelect;
@@ -92,6 +93,16 @@ function hasMedia(filter: MediaFilter, options: { throughBoosts?: boolean } = {}
 const followedBy = (viewerId: string) =>
   sql`${statuses.accountId} in (select ${follows.followingId} from ${follows} where ${follows.followerId} = ${viewerId} and ${follows.state} = 'accepted')`;
 
+/**
+ * Everyone mentioned hears about a post, and so does the author of the post
+ * it replies to (clients usually mention them too, but needn't).
+ */
+async function notifyMentioned(db: Parameters<typeof notify>[0], status: StatusRow, mentionIds: string[]) {
+  const recipients = new Set(mentionIds);
+  if (status.inReplyToAccountId) recipients.add(status.inReplyToAccountId);
+  for (const to of recipients) await notify(db, { to, from: status.accountId, type: "mention", statusId: status.id });
+}
+
 export class StatusStore {
   constructor(private readonly db: Db) {}
 
@@ -113,6 +124,7 @@ export class StatusStore {
           .values([...new Set(mentionIds)].map((accountId) => ({ statusId: row!.id, accountId })))
           .onConflictDoNothing();
       }
+      await notifyMentioned(tx, row!, mentionIds);
       return row!;
     });
   }
@@ -141,6 +153,7 @@ export class StatusStore {
       if (mentionIds.length) {
         await tx.insert(mentions).values([...new Set(mentionIds)].map((accountId) => ({ statusId: row!.id, accountId })));
       }
+      await notifyMentioned(tx, row!, mentionIds);
       // Remote attachments are links to the other server's files; replace them on edit.
       await tx.delete(mediaAttachments).where(eq(mediaAttachments.statusId, row!.id));
       if (remoteMedia.length) {
@@ -224,6 +237,7 @@ export class StatusStore {
         .insert(statuses)
         .values({ id: uuidv7(createdAt.getTime()), createdAt, accountId, reblogOfId: statusId, visibility, uri: remote?.uri ?? null })
         .returning();
+      await notify(this.db, { to: await this.#authorOf(statusId), from: accountId, type: "reblog", statusId: row!.id });
       return { row: row!, created: true };
     } catch (error) {
       // Two taps racing, or an Announce delivered twice: the other one won.
@@ -242,10 +256,18 @@ export class StatusStore {
 
   async favourite(accountId: string, statusId: string) {
     await this.db.insert(favourites).values({ accountId, statusId }).onConflictDoNothing();
+    await notify(this.db, { to: await this.#authorOf(statusId), from: accountId, type: "favourite", statusId });
   }
 
   async unfavourite(accountId: string, statusId: string) {
     await this.db.delete(favourites).where(and(eq(favourites.accountId, accountId), eq(favourites.statusId, statusId)));
+    const author = await this.#authorOf(statusId);
+    if (author) await unnotify(this.db, { to: author, from: accountId, type: "favourite", statusId });
+  }
+
+  async #authorOf(statusId: string): Promise<string | null> {
+    const [row] = await this.db.select({ accountId: statuses.accountId }).from(statuses).where(eq(statuses.id, statusId));
+    return row?.accountId ?? null;
   }
 
   /** Local posts (not boosts), for NodeInfo. */
