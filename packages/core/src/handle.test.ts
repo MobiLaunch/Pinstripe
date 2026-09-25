@@ -12,8 +12,10 @@ describe("parseHandle", () => {
     expect(parseHandle("sam")).toBeNull();
   });
 
-  it("accepts a port for local development", () => {
+  it("accepts ports, localhost and IPv4 addresses for local development", () => {
     expect(parseHandle("sam@localhost.test:8000")).toEqual({ username: "sam", domain: "localhost.test:8000" });
+    expect(parseHandle("sam@localhost:8000")).toEqual({ username: "sam", domain: "localhost:8000" });
+    expect(parseHandle("sam@127.0.0.1:8123")).toEqual({ username: "sam", domain: "127.0.0.1:8123" });
   });
 
   it("rejects malformed input", () => {

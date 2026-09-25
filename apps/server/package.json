@@ -21,10 +21,12 @@
     "@pinstripe/core": "workspace:*",
     "drizzle-orm": "^0.45.3",
     "hono": "^4.13.9",
-    "postgres": "^3.4.9"
+    "postgres": "^3.4.9",
+    "sanitize-html": "^2.17.7"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
+    "@types/sanitize-html": "^2.16.1",
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",
     "vitest": "^5.0.1"

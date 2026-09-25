@@ -1,18 +1,19 @@
 import type { Visibility } from "@pinstripe/core";
-import { and, asc, count, desc, eq, gt, inArray, isNull, lt, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNull, lt, type SQL, sql } from "drizzle-orm";
 import type { Db } from "../db/client.ts";
-import { accounts, favourites, statuses } from "../db/schema.ts";
+import { accounts, favourites, follows, mentions, statuses } from "../db/schema.ts";
 import { uuidv7 } from "../ids.ts";
-import { isUniqueViolation, isUuid, type LocalAccount } from "../store.ts";
+import { type AccountRow, isUniqueViolation, isUuid } from "../store.ts";
 
 export type StatusRow = typeof statuses.$inferSelect;
 
 /** A status with everything needed to show it. */
 export interface StatusView {
   status: StatusRow;
-  account: LocalAccount;
+  account: AccountRow;
   /** For boosts: the boosted status. */
   reblog: StatusView | null;
+  mentions: AccountRow[];
   counts: { replies: number; reblogs: number; favourites: number };
   /** Null when nobody is signed in. */
   viewer: { favourited: boolean; reblogged: boolean } | null;
@@ -29,26 +30,83 @@ export interface Page {
 export const DEFAULT_LIMIT = 20;
 export const MAX_LIMIT = 40;
 
+export interface NewStatus {
+  accountId: string;
+  text: string;
+  content: string;
+  tags: string[];
+  visibility: Visibility;
+  inReplyToId: string | null;
+  inReplyToAccountId: string | null;
+  sensitive: boolean;
+  spoilerText: string;
+  language: string | null;
+  mentionIds: string[];
+}
+
+/**
+ * Who may see a status, as SQL over `statuses`: public and unlisted posts
+ * are open; the author sees everything; accepted followers see
+ * followers-only posts; mentioned accounts see the post whatever its
+ * visibility.
+ */
+export function visibleTo(viewerId: string | null): SQL {
+  const open = inArray(statuses.visibility, ["public", "unlisted"]);
+  if (!viewerId) return open;
+  return sql`(${open}
+    or ${statuses.accountId} = ${viewerId}
+    or (${statuses.visibility} = 'followers' and exists (
+      select 1 from ${follows} where ${follows.followerId} = ${viewerId}
+        and ${follows.followingId} = ${statuses.accountId} and ${follows.state} = 'accepted'))
+    or exists (select 1 from ${mentions} where ${mentions.statusId} = ${statuses.id} and ${mentions.accountId} = ${viewerId}))`;
+}
+
+const followedBy = (viewerId: string) =>
+  sql`${statuses.accountId} in (select ${follows.followingId} from ${follows} where ${follows.followerId} = ${viewerId} and ${follows.state} = 'accepted')`;
+
 export class StatusStore {
   constructor(private readonly db: Db) {}
 
-  async create(input: {
-    accountId: string;
-    text: string;
-    content: string;
-    tags: string[];
-    visibility: Visibility;
-    inReplyToId: string | null;
-    inReplyToAccountId: string | null;
-    sensitive: boolean;
-    spoilerText: string;
-    language: string | null;
-  }): Promise<StatusRow> {
-    const [row] = await this.db
-      .insert(statuses)
-      .values({ id: uuidv7(), ...input })
-      .returning();
-    return row!;
+  async create({ mentionIds, ...input }: NewStatus): Promise<StatusRow> {
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(statuses)
+        .values({ id: uuidv7(), ...input })
+        .returning();
+      if (mentionIds.length) {
+        await tx
+          .insert(mentions)
+          .values([...new Set(mentionIds)].map((accountId) => ({ statusId: row!.id, accountId })))
+          .onConflictDoNothing();
+      }
+      return row!;
+    });
+  }
+
+  /**
+   * Stores a post from another server, or updates it if we already have it.
+   * Its id is derived from when it was published (never later than now), so
+   * timelines order it by time.
+   */
+  async upsertRemote(input: NewStatus & { uri: string; url: string | null; publishedAt: Date }): Promise<StatusRow> {
+    const { mentionIds, publishedAt, ...values } = input;
+    const createdAt = new Date(Math.min(publishedAt.getTime(), Date.now()));
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(statuses)
+        .values({ id: uuidv7(createdAt.getTime()), createdAt, ...values })
+        .onConflictDoUpdate({
+          target: statuses.uri,
+          // Only the text can change on edit; who wrote it and where it sits in a thread can't.
+          set: { content: values.content, spoilerText: values.spoilerText, sensitive: values.sensitive, tags: values.tags },
+        })
+        .returning();
+      await tx.delete(mentions).where(eq(mentions.statusId, row!.id));
+      if (mentionIds.length) {
+        await tx.insert(mentions).values([...new Set(mentionIds)].map((accountId) => ({ statusId: row!.id, accountId })));
+      }
+      return row!;
+    });
   }
 
   async get(id: string): Promise<StatusRow | null> {
@@ -57,9 +115,33 @@ export class StatusStore {
     return row ?? null;
   }
 
-  /** Deletes a status and, through cascades, its boosts and favourites. */
+  async getByUri(uri: string): Promise<StatusRow | null> {
+    const [row] = await this.db.select().from(statuses).where(eq(statuses.uri, uri));
+    return row ?? null;
+  }
+
+  /** The status if the viewer may see it. */
+  async getVisible(id: string, viewerId: string | null): Promise<StatusRow | null> {
+    if (!isUuid(id)) return null;
+    const [row] = await this.db
+      .select()
+      .from(statuses)
+      .where(and(eq(statuses.id, id), visibleTo(viewerId)));
+    return row ?? null;
+  }
+
+  /** Deletes a status and, through cascades, its boosts, favourites and mentions. */
   async delete(id: string): Promise<void> {
     await this.db.delete(statuses).where(eq(statuses.id, id));
+  }
+
+  async mentionedAccounts(statusId: string): Promise<AccountRow[]> {
+    const rows = await this.db
+      .select({ account: accounts })
+      .from(mentions)
+      .innerJoin(accounts, eq(mentions.accountId, accounts.id))
+      .where(eq(mentions.statusId, statusId));
+    return rows.map((r) => r.account);
   }
 
   /** The account's boost of a status, if any. */
@@ -71,18 +153,24 @@ export class StatusStore {
     return row ?? null;
   }
 
-  /** Boosting twice returns the existing boost. */
-  async reblog(accountId: string, statusId: string, visibility: Visibility): Promise<{ row: StatusRow; created: boolean }> {
+  /** Boosting twice returns the existing boost. `remote` is set for boosts from other servers. */
+  async reblog(
+    accountId: string,
+    statusId: string,
+    visibility: Visibility,
+    remote?: { uri: string; publishedAt: Date },
+  ): Promise<{ row: StatusRow; created: boolean }> {
     const existing = await this.findReblog(accountId, statusId);
     if (existing) return { row: existing, created: false };
     try {
+      const createdAt = remote ? new Date(Math.min(remote.publishedAt.getTime(), Date.now())) : new Date();
       const [row] = await this.db
         .insert(statuses)
-        .values({ id: uuidv7(), accountId, reblogOfId: statusId, visibility })
+        .values({ id: uuidv7(createdAt.getTime()), createdAt, accountId, reblogOfId: statusId, visibility, uri: remote?.uri ?? null })
         .returning();
       return { row: row!, created: true };
     } catch (error) {
-      // Two taps racing: the other one won.
+      // Two taps racing, or an Announce delivered twice: the other one won.
       if (!isUniqueViolation(error)) throw error;
       return { row: (await this.findReblog(accountId, statusId))!, created: false };
     }
@@ -105,8 +193,11 @@ export class StatusStore {
   }
 
   /** Local posts (not boosts), for NodeInfo. */
-  async countAll(): Promise<number> {
-    const [row] = await this.db.select({ n: count() }).from(statuses).where(isNull(statuses.reblogOfId));
+  async countLocal(): Promise<number> {
+    const [row] = await this.db
+      .select({ n: count() })
+      .from(statuses)
+      .where(and(isNull(statuses.reblogOfId), isNull(statuses.uri)));
     return row?.n ?? 0;
   }
 
@@ -118,25 +209,33 @@ export class StatusStore {
     return row?.n ?? 0;
   }
 
-  /** A profile's posts. Others see public and unlisted ones; the author sees everything. */
-  accountStatuses(accountId: string, page: Page, options: { viewerId: string | null; excludeReblogs?: boolean }) {
-    const conditions: SQL[] = [eq(statuses.accountId, accountId)];
-    if (options.viewerId !== accountId) conditions.push(inArray(statuses.visibility, ["public", "unlisted"]));
-    if (options.excludeReblogs) conditions.push(isNull(statuses.reblogOfId));
-    return this.#page(and(...conditions)!, page);
+  /** A profile's posts and boosts, as far as the viewer may see them. */
+  accountStatuses(accountId: string, page: Page, options: { viewerId: string | null; excludeReblogs?: boolean; excludeReplies?: boolean }) {
+    return this.#page(
+      and(
+        eq(statuses.accountId, accountId),
+        visibleTo(options.viewerId),
+        options.excludeReblogs ? isNull(statuses.reblogOfId) : undefined,
+        options.excludeReplies ? isNull(statuses.inReplyToId) : undefined,
+      )!,
+      page,
+    );
   }
 
-  /** Local and Federated timelines: public posts, no boosts (as in Mastodon). */
-  publicTimeline(page: Page) {
-    return this.#page(and(eq(statuses.visibility, "public"), isNull(statuses.reblogOfId))!, page);
+  /** Public posts, no boosts (as in Mastodon). `scope` picks Local (this server), remote only, or everything (Federated). */
+  publicTimeline(page: Page, scope: "local" | "remote" | "all") {
+    const where: SQL[] = [eq(statuses.visibility, "public"), isNull(statuses.reblogOfId)];
+    if (scope !== "all") {
+      where.push(
+        sql`${statuses.accountId} in (select ${accounts.id} from ${accounts} where ${accounts.domain} ${scope === "local" ? sql`is null` : sql`is not null`})`,
+      );
+    }
+    return this.#page(and(...where)!, page);
   }
 
-  /**
-   * Home: your own posts and boosts. Posts from accounts you follow join
-   * this once following lands.
-   */
+  /** Home: your posts and boosts, and those of everyone you follow, that you may see. */
   homeTimeline(accountId: string, page: Page) {
-    return this.#page(eq(statuses.accountId, accountId), page);
+    return this.#page(and(sql`(${statuses.accountId} = ${accountId} or ${followedBy(accountId)})`, visibleTo(accountId))!, page);
   }
 
   async #page(where: SQL, page: Page): Promise<StatusRow[]> {
@@ -162,17 +261,49 @@ export class StatusStore {
       .limit(page.limit);
   }
 
-  /** Loads authors, boosted posts, counts and the viewer's state for a list of rows, in a fixed number of queries. */
+  /** A thread around a status: the posts it replies to (oldest first) and the replies under it, as far as the viewer may see. */
+  async context(status: StatusRow, viewerId: string | null): Promise<{ ancestors: StatusRow[]; descendants: StatusRow[] }> {
+    const ancestors: StatusRow[] = [];
+    let parentId = status.inReplyToId;
+    // Threads can be long, but not unboundedly: stop after 40 hops.
+    while (parentId && ancestors.length < 40) {
+      const parent = await this.getVisible(parentId, viewerId);
+      if (!parent) break;
+      ancestors.unshift(parent);
+      parentId = parent.inReplyToId;
+    }
+    const descendants = await this.db
+      .select()
+      .from(statuses)
+      .where(
+        and(
+          sql`${statuses.id} in (
+            with recursive thread(id, depth) as (
+              select ${statuses.id}, 1 from ${statuses} where ${statuses.inReplyToId} = ${status.id}
+              union all
+              select s.id, thread.depth + 1 from ${statuses} s join thread on s.in_reply_to_id = thread.id where thread.depth < 40
+            ) select id from thread)`,
+          visibleTo(viewerId),
+        ),
+      )
+      .orderBy(asc(statuses.id))
+      .limit(200);
+    return { ancestors, descendants };
+  }
+
+  /** Loads authors, boosted posts, mentions, counts and the viewer's state for a list of rows, in a fixed number of queries. */
   async hydrate(rows: StatusRow[], viewerId: string | null): Promise<StatusView[]> {
     if (!rows.length) return [];
     const reblogIds = rows.map((r) => r.reblogOfId).filter((id): id is string => !!id);
     const originals = reblogIds.length ? await this.db.select().from(statuses).where(inArray(statuses.id, reblogIds)) : [];
     const all = [...rows, ...originals];
     const ids = [...new Set(all.map((r) => r.id))];
-    const accountIds = [...new Set(all.map((r) => r.accountId))];
 
-    const [accountRows, replyCounts, reblogCounts, favCounts, myFavs, myReblogs] = await Promise.all([
-      this.db.select().from(accounts).where(inArray(accounts.id, accountIds)),
+    const [mentionRows, replyCounts, reblogCounts, favCounts, myFavs, myReblogs] = await Promise.all([
+      this.db
+        .select({ statusId: mentions.statusId, accountId: mentions.accountId })
+        .from(mentions)
+        .where(inArray(mentions.statusId, ids)),
       this.#countBy(statuses.inReplyToId, ids),
       this.#countBy(statuses.reblogOfId, ids),
       this.db
@@ -194,6 +325,8 @@ export class StatusStore {
         : [],
     ]);
 
+    const accountIds = [...new Set([...all.map((r) => r.accountId), ...mentionRows.map((m) => m.accountId)])];
+    const accountRows = await this.db.select().from(accounts).where(inArray(accounts.id, accountIds));
     const byId = new Map(accountRows.map((a) => [a.id, a]));
     const tally = (list: { id: string | null; n: number }[]) => new Map(list.map((r) => [r.id!, r.n]));
     const replies = tally(replyCounts);
@@ -202,6 +335,11 @@ export class StatusStore {
     const faved = new Set(myFavs.map((r) => r.id));
     const boosted = new Set(myReblogs.map((r) => r.id));
     const originalsById = new Map(originals.map((r) => [r.id, r]));
+    const mentionsOf = new Map<string, AccountRow[]>();
+    for (const m of mentionRows) {
+      const account = byId.get(m.accountId);
+      if (account) mentionsOf.set(m.statusId, [...(mentionsOf.get(m.statusId) ?? []), account]);
+    }
 
     const view = (row: StatusRow): StatusView => {
       const original = row.reblogOfId ? originalsById.get(row.reblogOfId) : undefined;
@@ -209,6 +347,7 @@ export class StatusStore {
         status: row,
         account: byId.get(row.accountId)!,
         reblog: original ? view(original) : null,
+        mentions: mentionsOf.get(row.id) ?? [],
         counts: { replies: replies.get(row.id) ?? 0, reblogs: reblogs.get(row.id) ?? 0, favourites: favs.get(row.id) ?? 0 },
         viewer: viewerId ? { favourited: faved.has(row.id), reblogged: boosted.has(row.id) } : null,
       };
@@ -223,10 +362,4 @@ export class StatusStore {
       .where(inArray(column, ids))
       .groupBy(column);
   }
-}
-
-export function canView(status: StatusRow, viewerId: string | null): boolean {
-  // Followers-only and direct posts stay with their author until following
-  // and mentions are delivered locally.
-  return status.visibility === "public" || status.visibility === "unlisted" || status.accountId === viewerId;
 }

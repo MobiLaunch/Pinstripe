@@ -8,15 +8,16 @@ export interface RenderedContent {
   html: string;
   /** Lower-cased, deduplicated, without `#`. */
   tags: string[];
-  /** Local accounts mentioned, by username as typed. */
-  mentions: { username: string; href: string }[];
+  /** Accounts mentioned, as typed, with their profile URL and account id. */
+  mentions: { username: string; href: string; accountId: string }[];
 }
 
 export interface RenderOptions {
   origin: string;
+  /** This server's host; `@user@thishost` is a local mention. */
   domain: string;
-  /** Profile URL for a local username, or null if there's no such account. */
-  resolveLocal: (username: string) => Promise<string | null>;
+  /** Finds a mentioned account: `domain` null for local. Null if there's no such account. */
+  resolveMention: (username: string, domain: string | null) => Promise<{ href: string; accountId: string } | null>;
 }
 
 const escape = (s: string) =>
@@ -25,7 +26,7 @@ const escape = (s: string) =>
 // One pass over the raw text finds URLs, @mentions and #hashtags. Each must
 // start the text or follow a character that can't be part of a word.
 const TOKEN =
-  /(?<url>https?:\/\/[^\s<>"]+[^\s<>".,;:!?)\]'])|(?<![\p{L}\p{N}_/@])@(?<user>[a-z0-9_](?:[a-z0-9_.-]*[a-z0-9_])?)(?:@(?<host>[a-z0-9.-]+\.[a-z]{2,}(?::\d+)?))?|(?<![\p{L}\p{N}_&/#])#(?<tag>[\p{L}\p{N}_]*[\p{L}_][\p{L}\p{N}_]*)/giu;
+  /(?<url>https?:\/\/[^\s<>"]+[^\s<>".,;:!?)\]'])|(?<![\p{L}\p{N}_/@])@(?<user>[a-z0-9_](?:[a-z0-9_.-]*[a-z0-9_])?)(?:@(?<host>(?:[a-z0-9-]+\.)+[a-z0-9-]*[a-z][a-z0-9-]*(?::\d+)?|localhost(?::\d+)?|\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?))?|(?<![\p{L}\p{N}_&/#])#(?<tag>[\p{L}\p{N}_]*[\p{L}_][\p{L}\p{N}_]*)/giu;
 
 export async function renderContent(text: string, options: RenderOptions): Promise<RenderedContent> {
   const tags = new Set<string>();
@@ -43,11 +44,11 @@ export async function renderContent(text: string, options: RenderOptions): Promi
         const display = url.replace(/^https?:\/\//, "");
         out += `<a href="${escape(url)}" rel="nofollow noopener noreferrer" target="_blank">${escape(display)}</a>`;
       } else if (user) {
-        // Remote mentions need a WebFinger lookup; that arrives with inbound federation.
-        const href = !host || host.toLowerCase() === localHost ? await options.resolveLocal(user) : null;
-        if (href) {
-          mentions.push({ username: user, href });
-          out += `<span class="h-card"><a href="${escape(href)}" class="u-url mention">@<span>${escape(user)}</span></a></span>`;
+        const remote = host && host.toLowerCase() !== localHost ? host.toLowerCase() : null;
+        const found = await options.resolveMention(user, remote);
+        if (found) {
+          mentions.push({ username: user, href: found.href, accountId: found.accountId });
+          out += `<span class="h-card"><a href="${escape(found.href)}" class="u-url mention">@<span>${escape(user)}</span></a></span>`;
         } else {
           out += escape(m[0]);
         }

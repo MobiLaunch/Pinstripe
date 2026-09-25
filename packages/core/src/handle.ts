@@ -9,7 +9,9 @@ export interface Handle {
 
 // Mastodon-compatible: letters, digits and underscores, dots/dashes inside.
 const USERNAME = /^[a-z0-9_](?:[a-z0-9_.-]*[a-z0-9_])?$/i;
-const DOMAIN = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::\d{1,5})?$/i;
+// A DNS name with a TLD, or (for local development) localhost or an IPv4 address; any of them with a port.
+const DOMAIN =
+  /^(?=.{1,253}$)(?:(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}|localhost|\d{1,3}(?:\.\d{1,3}){3})(?::\d{1,5})?$/i;
 
 export const USERNAME_MAX_LENGTH = 30;
 

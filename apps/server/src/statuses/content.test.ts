@@ -4,7 +4,11 @@ import { renderContent } from "./content.ts";
 const options = {
   origin: "https://pinstripe.test",
   domain: "pinstripe.test",
-  resolveLocal: async (u: string) => (u.toLowerCase() === "sam" ? "https://pinstripe.test/@sam" : null),
+  resolveMention: async (u: string, domain: string | null) => {
+    if (domain === null && u.toLowerCase() === "sam") return { href: "https://pinstripe.test/@sam", accountId: "sam-id" };
+    if (domain === "tilde.zone" && u === "mira") return { href: "https://tilde.zone/@mira", accountId: "mira-id" };
+    return null;
+  },
 };
 const render = (text: string) => renderContent(text, options);
 
@@ -36,11 +40,17 @@ describe("renderContent", () => {
     expect((await render("#日本語 #café")).tags).toEqual(["日本語", "café"]);
   });
 
-  it("links local mentions and leaves unknown or remote ones as text", async () => {
-    const { html, mentions } = await render("hi @sam, @Sam@pinstripe.test, @ghost and @mira@tilde.zone. email@sam.example");
-    expect(mentions.map((m) => m.username)).toEqual(["sam", "Sam"]);
+  it("links local and remote mentions and leaves unknown ones as text", async () => {
+    const { html, mentions } = await render("hi @sam, @Sam@pinstripe.test, @ghost, @mira@tilde.zone and @nobody@tilde.zone. email@sam.example");
+    expect(mentions.map((m) => [m.username, m.accountId])).toEqual([
+      ["sam", "sam-id"],
+      ["Sam", "sam-id"],
+      ["mira", "mira-id"],
+    ]);
     expect(html).toContain('<a href="https://pinstripe.test/@sam" class="u-url mention">@<span>sam</span></a>');
-    expect(html).toContain("@ghost and @mira@tilde.zone. email@sam.example");
+    expect(html).toContain('<a href="https://tilde.zone/@mira" class="u-url mention">@<span>mira</span></a>');
+    expect(html).toContain("@ghost,");
+    expect(html).toContain("and @nobody@tilde.zone. email@sam.example");
   });
 
   it("returns nothing for blank input", async () => {

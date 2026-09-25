@@ -360,7 +360,7 @@ export function authRoutes({ auth, store, renderAccount, loginLimiter = new Fail
         language: null,
         note: account.bio,
         fields: json.fields.map((f) => ({ name: f.name, value: f.value, verified_at: f.verified_at })),
-        follow_requests_count: (await store.listFollowers(account.id, "pending")).length,
+        follow_requests_count: (await store.followCounts(account.id)).requests,
       },
     });
   });

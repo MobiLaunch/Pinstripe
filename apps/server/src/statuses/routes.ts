@@ -1,132 +1,71 @@
 /**
  * Mastodon's status and timeline API:
  *
- *   POST   /api/v1/statuses                  post
+ *   POST   /api/v1/statuses                  post (and reply)
  *   GET    /api/v1/statuses/:id
+ *   GET    /api/v1/statuses/:id/context      the thread around a post
  *   DELETE /api/v1/statuses/:id              returns the post with `text`, for redrafting
  *   POST   /api/v1/statuses/:id/favourite    and /unfavourite
  *   POST   /api/v1/statuses/:id/reblog       and /unreblog
  *   GET    /api/v1/accounts/:id/statuses
  *   GET    /api/v1/timelines/home
- *   GET    /api/v1/timelines/public          ?local=true for Local
+ *   GET    /api/v1/timelines/public          ?local=true for Local, ?remote=true for other servers only
  *
- * Posts, deletes and boosts are also sent to the author's followers on
- * other servers.
+ * Posts, deletes, boosts and favourites are also sent to the servers that
+ * need to know: the author's remote followers, anyone mentioned, and the
+ * author of the post being replied to, boosted or favourited.
  */
 import type { Context as FedifyContext } from "@fedify/fedify";
-import type { Activity } from "@fedify/vocab";
 import { POST_MAX_LENGTH } from "@pinstripe/core";
 import { type Context, Hono } from "hono";
 import { type AuthEnv, requireUser } from "../auth/middleware.ts";
 import type { ContextData } from "../federation.ts";
-import { fromMastodonVisibility, type MastodonAccount, type MastodonStatus, serializeStatus } from "../mastodon.ts";
-import type { LocalAccount, Store } from "../store.ts";
-import { activityFor, buildAnnounce, buildDelete, buildUndoAnnounce, noteUri } from "./activitypub.ts";
+import { notFound, readLimit, readParams, setLinkHeader, truthy } from "../http.ts";
+import { fromMastodonVisibility } from "../mastodon.ts";
+import { resolveHandle } from "../remote/actors.ts";
+import { deliver } from "../remote/deliver.ts";
+import { type AccountRow, isLocal, type Store } from "../store.ts";
+import { activityFor, buildAnnounce, buildDelete, buildLike, buildUndo, noteUri } from "./activitypub.ts";
 import { renderContent } from "./content.ts";
-import { canView, DEFAULT_LIMIT, MAX_LIMIT, type Page, type StatusRow, type StatusStore, type StatusView } from "./store.ts";
+import type { StatusRenderer } from "./render.ts";
+import { DEFAULT_LIMIT, MAX_LIMIT, type Page, type StatusRow, type StatusStore, type StatusView } from "./store.ts";
 
 export interface StatusRoutesOptions {
   store: Store;
   statuses: StatusStore;
   domain: string;
-  renderAccount: (c: Context, account: LocalAccount) => Promise<MastodonAccount>;
+  render: StatusRenderer;
   federationContext: (c: Context) => FedifyContext<ContextData>;
 }
 
-async function readParams(c: Context): Promise<Record<string, string>> {
-  const type = c.req.header("content-type") ?? "";
-  if (type.includes("application/json")) {
-    const body = await c.req.json().catch(() => ({}));
-    return Object.fromEntries(
-      Object.entries(body ?? {})
-        .filter(([, v]) => v !== null && v !== undefined)
-        .map(([k, v]) => [k, String(v)]),
-    );
-  }
-  if (type.includes("form")) {
-    const body = await c.req.parseBody();
-    return Object.fromEntries(Object.entries(body).map(([k, v]) => [k, String(v)]));
-  }
-  return {};
-}
-
-const truthy = (v: string | undefined) => v === "true" || v === "1" || v === "on";
-
 function readPage(c: Context): Page {
-  const limit = Number.parseInt(c.req.query("limit") ?? "", 10);
   return {
     maxId: c.req.query("max_id") || undefined,
     sinceId: c.req.query("since_id") || undefined,
     minId: c.req.query("min_id") || undefined,
-    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, MAX_LIMIT) : DEFAULT_LIMIT,
+    limit: readLimit(c, DEFAULT_LIMIT, MAX_LIMIT),
   };
 }
 
-/** Mastodon clients page with the Link header: `rel="next"` is older, `rel="prev"` newer. */
-function linkHeader(c: Context, rows: StatusRow[]): string | null {
-  if (!rows.length) return null;
-  const url = new URL(c.req.url);
-  const at = (key: string, id: string) => {
-    const u = new URL(url);
-    for (const k of ["max_id", "since_id", "min_id"]) u.searchParams.delete(k);
-    u.searchParams.set(key, id);
-    return u.href;
-  };
-  return `<${at("max_id", rows.at(-1)!.id)}>; rel="next", <${at("min_id", rows[0]!.id)}>; rel="prev"`;
-}
-
-const notFound = (c: Context) => c.json({ error: "Record not found" }, 404);
-
-export function statusRoutes({ store, statuses, domain, renderAccount, federationContext }: StatusRoutesOptions) {
+export function statusRoutes({ store, statuses, domain, render, federationContext }: StatusRoutesOptions) {
   const app = new Hono<AuthEnv>();
-
-  /** Serializes a page, rendering each author once. */
-  async function serialize(c: Context, views: StatusView[]): Promise<MastodonStatus[]> {
-    const ctx = federationContext(c);
-    const accounts = new Map<string, Promise<MastodonAccount>>();
-    const accountJson = (a: LocalAccount) => {
-      if (!accounts.has(a.id)) accounts.set(a.id, renderAccount(c, a));
-      return accounts.get(a.id)!;
-    };
-    const one = async (view: StatusView): Promise<MastodonStatus> => {
-      const reblog = view.reblog ? await one(view.reblog) : null;
-      const uri = noteUri(ctx, view.status);
-      return serializeStatus(
-        view,
-        await accountJson(view.account),
-        {
-          uri: view.reblog ? `${uri.href}/activity` : uri.href,
-          url: view.reblog ? null : new URL(`/@${view.account.username}/${view.status.id}`, ctx.canonicalOrigin).href,
-          tagUrl: (tag) => new URL(`/tags/${encodeURIComponent(tag)}`, ctx.canonicalOrigin).href,
-        },
-        reblog,
-      );
-    };
-    return Promise.all(views.map(one));
-  }
-
-  async function serializeOne(c: Context, row: StatusRow, viewerId: string | null) {
-    const [view] = await statuses.hydrate([row], viewerId);
-    return (await serialize(c, [view!]))[0]!;
-  }
-
-  /** Delivery to other servers never fails the request; it is queued and retried by Fedify. */
-  async function deliver(c: Context, accountId: string, activity: Activity) {
-    // Nobody to tell: skip it, which also skips signing (and generating keys).
-    if (!(await store.hasAcceptedFollowers(accountId))) return;
-    try {
-      await federationContext(c).sendActivity({ identifier: accountId }, "followers", activity, { preferSharedInbox: true });
-    } catch (error) {
-      console.error("Failed to queue delivery", activity.id?.href, error);
-    }
-  }
-
   const viewerId = (c: Context<AuthEnv>) => c.get("token")?.account?.id ?? null;
 
-  /** A status the viewer may see, or null. Boosts resolve to themselves, not their original. */
-  async function visibleStatus(c: Context<AuthEnv>, id: string) {
-    const status = await statuses.get(id);
-    return status && canView(status, viewerId(c)) ? status : null;
+  async function one(c: Context<AuthEnv>, row: StatusRow) {
+    return (await render.rows(c, [row], viewerId(c)))[0]!;
+  }
+
+  /** Who hears about a local post: its followers (unless direct), everyone mentioned, and the replied-to author. */
+  async function audienceOf(view: StatusView): Promise<{ followers: boolean; to: (AccountRow | null)[] }> {
+    const parentAuthor = view.status.inReplyToAccountId ? await store.getAccount(view.status.inReplyToAccountId) : null;
+    return { followers: view.status.visibility !== "direct", to: [...view.mentions, parentAuthor] };
+  }
+
+  /** A boost's original, or the status itself. */
+  async function target(c: Context<AuthEnv>, id: string) {
+    const found = await statuses.getVisible(id, viewerId(c));
+    const original = found?.reblogOfId ? await statuses.getVisible(found.reblogOfId, viewerId(c)) : found;
+    return original ?? null;
   }
 
   app.post("/api/v1/statuses", async (c) => {
@@ -145,17 +84,19 @@ export function statusRoutes({ store, statuses, domain, renderAccount, federatio
 
     let parent: StatusRow | null = null;
     if (p.in_reply_to_id) {
-      parent = await visibleStatus(c, p.in_reply_to_id);
+      parent = await statuses.getVisible(p.in_reply_to_id, account.id);
       if (!parent || parent.reblogOfId) return c.json({ error: "Validation failed: Replied-to post not found" }, 422);
     }
 
-    const origin = federationContext(c).canonicalOrigin;
+    const ctx = federationContext(c);
     const rendered = await renderContent(text, {
-      origin,
+      origin: ctx.canonicalOrigin,
       domain,
-      resolveLocal: async (username) => {
-        const found = await store.getAccountByUsername(username);
-        return found ? new URL(`/@${found.username}`, origin).href : null;
+      resolveMention: async (username, host) => {
+        const found = host ? await resolveHandle(ctx, username, host, { resolve: true }) : await store.getAccountByUsername(username);
+        if (!found) return null;
+        const href = isLocal(found) ? new URL(`/@${found.username}`, ctx.canonicalOrigin).href : (found.url ?? found.uri!);
+        return { href, accountId: found.id };
       },
     });
     const status = await statuses.create({
@@ -169,17 +110,28 @@ export function statusRoutes({ store, statuses, domain, renderAccount, federatio
       sensitive: truthy(p.sensitive) || !!p.spoiler_text,
       spoilerText: (p.spoiler_text ?? "").trim(),
       language: p.language || null,
+      mentionIds: rendered.mentions.map((m) => m.accountId).filter((id) => id !== account.id),
     });
 
     const [view] = await statuses.hydrate([status], account.id);
-    // Direct posts are only visible to their author until mentions are delivered.
-    if (visibility !== "direct") await deliver(c, account.id, activityFor(federationContext(c), view!));
-    return c.json((await serialize(c, [view!]))[0]!);
+    const replyTarget = parent ? noteUri(ctx, parent) : null;
+    await deliver(ctx, account.id, activityFor(ctx, view!, replyTarget), await audienceOf(view!));
+    return c.json((await render.views(c, [view!]))[0]!);
   });
 
   app.get("/api/v1/statuses/:id", async (c) => {
-    const status = await visibleStatus(c, c.req.param("id"));
-    return status ? c.json(await serializeOne(c, status, viewerId(c))) : notFound(c);
+    const status = await statuses.getVisible(c.req.param("id"), viewerId(c));
+    return status ? c.json(await one(c, status)) : notFound(c);
+  });
+
+  app.get("/api/v1/statuses/:id/context", async (c) => {
+    const status = await statuses.getVisible(c.req.param("id"), viewerId(c));
+    if (!status) return notFound(c);
+    const { ancestors, descendants } = await statuses.context(status, viewerId(c));
+    return c.json({
+      ancestors: await render.rows(c, ancestors, viewerId(c)),
+      descendants: await render.rows(c, descendants, viewerId(c)),
+    });
   });
 
   app.delete("/api/v1/statuses/:id", async (c) => {
@@ -188,9 +140,12 @@ export function statusRoutes({ store, statuses, domain, renderAccount, federatio
     const status = await statuses.get(c.req.param("id"));
     // Someone else's post is "not found", as in Mastodon.
     if (!status || status.accountId !== auth.value.account.id || status.reblogOfId) return notFound(c);
-    const json = await serializeOne(c, status, auth.value.account.id);
+    const [view] = await statuses.hydrate([status], auth.value.account.id);
+    const json = (await render.views(c, [view!]))[0]!;
+    const audience = await audienceOf(view!);
     await statuses.delete(status.id);
-    if (status.visibility !== "direct") await deliver(c, status.accountId, buildDelete(federationContext(c), status));
+    const ctx = federationContext(c);
+    await deliver(ctx, status.accountId, buildDelete(ctx, view!), audience);
     return c.json({ ...json, text: status.text });
   });
 
@@ -198,65 +153,73 @@ export function statusRoutes({ store, statuses, domain, renderAccount, federatio
     app.post(`/api/v1/statuses/:id/${action}`, async (c) => {
       const auth = requireUser(c, "write:favourites");
       if (!auth.ok) return auth.response;
-      const status = await visibleStatus(c, c.req.param("id"));
-      if (!status) return notFound(c);
       // Favouriting a boost favourites the boosted post.
-      const target = status.reblogOfId ? await statuses.get(status.reblogOfId) : status;
-      if (!target) return notFound(c);
+      const status = await target(c, c.req.param("id"));
+      if (!status) return notFound(c);
       const me = auth.value.account.id;
-      if (action === "favourite") await statuses.favourite(me, target.id);
-      else await statuses.unfavourite(me, target.id);
-      // Likes of local posts need no delivery; remote posts come with inbound federation.
-      return c.json(await serializeOne(c, target, me));
+      const already = (await statuses.hydrate([status], me))[0]!.viewer!.favourited;
+      if (action === "favourite") await statuses.favourite(me, status.id);
+      else await statuses.unfavourite(me, status.id);
+
+      // Remote authors hear about it; their server keeps their counts.
+      const author = await store.getAccount(status.accountId);
+      if (author && !isLocal(author) && already !== (action === "favourite")) {
+        const ctx = federationContext(c);
+        const like = buildLike(ctx, me, status);
+        await deliver(ctx, me, action === "favourite" ? like : buildUndo(ctx, me, like), { to: [author] });
+      }
+      return c.json(await one(c, status));
     });
   }
 
   app.post("/api/v1/statuses/:id/reblog", async (c) => {
     const auth = requireUser(c, "write:statuses");
     if (!auth.ok) return auth.response;
-    const found = await visibleStatus(c, c.req.param("id"));
-    const target = found?.reblogOfId ? await statuses.get(found.reblogOfId) : found;
-    if (!target) return notFound(c);
-    if (target.visibility !== "public" && target.visibility !== "unlisted") {
+    const original = await target(c, c.req.param("id"));
+    if (!original) return notFound(c);
+    if (original.visibility !== "public" && original.visibility !== "unlisted") {
       return c.json({ error: "This action is not allowed" }, 422);
     }
     const p = await readParams(c);
     const visibility = fromMastodonVisibility(p.visibility) ?? "public";
     if (visibility === "direct") return c.json({ error: "Validation failed: Visibility is invalid" }, 422);
     const me = auth.value.account.id;
-    const { row, created } = await statuses.reblog(me, target.id, visibility);
+    const { row, created } = await statuses.reblog(me, original.id, visibility);
     const [view] = await statuses.hydrate([row], me);
-    if (created) await deliver(c, me, activityFor(federationContext(c), view!));
-    return c.json((await serialize(c, [view!]))[0]!);
+    if (created) {
+      const ctx = federationContext(c);
+      await deliver(ctx, me, activityFor(ctx, view!, null), { followers: true, to: [view!.reblog!.account] });
+    }
+    return c.json((await render.views(c, [view!]))[0]!);
   });
 
   app.post("/api/v1/statuses/:id/unreblog", async (c) => {
     const auth = requireUser(c, "write:statuses");
     if (!auth.ok) return auth.response;
-    const found = await visibleStatus(c, c.req.param("id"));
-    const target = found?.reblogOfId ? await statuses.get(found.reblogOfId) : found;
-    if (!target) return notFound(c);
+    const original = await target(c, c.req.param("id"));
+    if (!original) return notFound(c);
     const me = auth.value.account.id;
-    const existing = await statuses.findReblog(me, target.id);
+    const existing = await statuses.unreblog(me, original.id);
     if (existing) {
-      await statuses.unreblog(me, target.id);
       const ctx = federationContext(c);
-      const announce = buildAnnounce(ctx, existing, noteUri(ctx, target), ctx.getActorUri(target.accountId));
-      await deliver(c, me, buildUndoAnnounce(ctx, announce, existing));
+      const author = await store.getAccount(original.accountId);
+      const announce = buildAnnounce(ctx, existing, noteUri(ctx, original), new URL(author?.uri ?? ctx.getActorUri(original.accountId)));
+      await deliver(ctx, me, buildUndo(ctx, me, announce), { followers: true, to: [author] });
     }
-    return c.json(await serializeOne(c, target, me));
+    return c.json(await one(c, original));
   });
 
   app.get("/api/v1/accounts/:id/statuses", async (c) => {
     const account = await store.getAccount(c.req.param("id"));
     if (!account) return notFound(c);
+    // Media-only filtering needs media; until then nothing matches.
+    if (truthy(c.req.query("only_media"))) return c.json([]);
     const rows = await statuses.accountStatuses(account.id, readPage(c), {
       viewerId: viewerId(c),
       excludeReblogs: truthy(c.req.query("exclude_reblogs")),
+      excludeReplies: truthy(c.req.query("exclude_replies")),
     });
-    // Media-only filtering needs media; until then nothing matches.
-    const filtered = truthy(c.req.query("only_media")) ? [] : rows;
-    return respondWithPage(c, filtered);
+    return respondWithPage(c, rows);
   });
 
   app.get("/api/v1/timelines/home", async (c) => {
@@ -266,16 +229,15 @@ export function statusRoutes({ store, statuses, domain, renderAccount, federatio
   });
 
   app.get("/api/v1/timelines/public", async (c) => {
-    // Every stored post is local until inbound federation lands, so remote=true is empty.
-    if (truthy(c.req.query("remote"))) return c.json([]);
-    return respondWithPage(c, await statuses.publicTimeline(readPage(c)));
+    const scope = truthy(c.req.query("local")) ? "local" : truthy(c.req.query("remote")) ? "remote" : "all";
+    return respondWithPage(c, await statuses.publicTimeline(readPage(c), scope));
   });
 
   async function respondWithPage(c: Context<AuthEnv>, rows: StatusRow[]) {
-    const link = linkHeader(c, rows);
-    if (link) c.header("Link", link);
-    return c.json(await serialize(c, await statuses.hydrate(rows, viewerId(c))));
+    setLinkHeader(c, rows.map((r) => r.id));
+    return c.json(await render.rows(c, rows, viewerId(c)));
   }
 
   return app;
 }
+

@@ -15,7 +15,7 @@ describe("Store", () => {
     expect((await store.getAccountByUsername("sAM"))?.id).toBe(sam.id);
     expect(await store.getAccount("not-a-uuid")).toBeNull();
     expect(await store.getAccount(crypto.randomUUID())).toBeNull();
-    expect(await store.countAccounts()).toBe(1);
+    expect(await store.countLocalAccounts()).toBe(1);
   });
 
   it("rejects taken and invalid usernames", async () => {
@@ -36,20 +36,61 @@ describe("Store", () => {
     expect(await jwk(again[0]!.publicKey)).toEqual(await jwk(first[0]!.publicKey));
   });
 
-  it("tracks followers and their state", async () => {
+  it("follows, requests, relationships and counts", async () => {
     const sam = await store.createAccount({ username: "sam" });
-    const mira = {
-      actorUri: "https://tilde.zone/users/mira",
+    const mira = await store.createAccount({ username: "mira" });
+    const jo = await store.createAccount({ username: "jo" });
+    await store.follow({ followerId: mira.id, followingId: sam.id, state: "pending", uri: null });
+    expect(await store.isFollowing(mira.id, sam.id)).toBe(false);
+    expect(await store.followCounts(sam.id)).toEqual({ followers: 0, following: 0, requests: 1 });
+    await store.acceptFollow(mira.id, sam.id);
+    await store.follow({ followerId: sam.id, followingId: jo.id, state: "accepted", uri: null });
+    // Re-requesting never downgrades an accepted follow.
+    await store.follow({ followerId: mira.id, followingId: sam.id, state: "pending", uri: null });
+    expect(await store.followCounts(sam.id)).toEqual({ followers: 1, following: 1, requests: 0 });
+
+    const rel = await store.relationships(sam.id, [mira.id, jo.id, "junk"]);
+    expect(rel.get(mira.id)).toEqual({ following: false, requested: false, followedBy: true, requestedBy: false });
+    expect(rel.get(jo.id)).toEqual({ following: true, requested: false, followedBy: false, requestedBy: false });
+    expect(rel.has("junk")).toBe(false);
+
+    const followers = await store.followList(sam.id, "followers", { limit: 10 });
+    expect(followers.map((f) => f.account.username)).toEqual(["mira"]);
+    expect(await store.unfollow(mira.id, sam.id)).not.toBeNull();
+    expect(await store.unfollow(mira.id, sam.id)).toBeNull();
+  });
+
+  it("keeps local and remote accounts with the same username apart", async () => {
+    const local = await store.createAccount({ username: "mira" });
+    const data = {
+      uri: "https://tilde.zone/users/mira",
+      username: "mira",
+      domain: "tilde.zone",
+      displayName: "Mira (remote)",
+      bio: "<p>hi</p>",
+      fields: [],
+      bot: false,
+      locked: true,
+      discoverable: false,
+      url: "https://tilde.zone/@mira",
       inboxUri: "https://tilde.zone/users/mira/inbox",
       sharedInboxUri: "https://tilde.zone/inbox",
-      followActivityUri: "https://tilde.zone/follows/1",
-      state: "pending" as const,
+      followersUri: "https://tilde.zone/users/mira/followers",
+      avatarUrl: null,
+      headerUrl: null,
+      followersCount: 10,
+      followingCount: 5,
+      statusesCount: 99,
     };
-    await store.upsertFollower(sam.id, mira);
-    expect(await store.listFollowers(sam.id, "accepted")).toEqual([]);
-    await store.upsertFollower(sam.id, { ...mira, state: "accepted" });
-    expect(await store.listFollowers(sam.id)).toEqual([{ ...mira, state: "accepted" }]);
-    await store.removeFollower(sam.id, mira.actorUri);
-    expect(await store.listFollowers(sam.id)).toEqual([]);
+    const remote = await store.upsertRemoteAccount(data);
+    expect(remote.id).not.toBe(local.id);
+    expect((await store.getAccountByUsername("mira"))?.id).toBe(local.id);
+    expect((await store.getAccountByHandle("MIRA", "Tilde.Zone"))?.id).toBe(remote.id);
+    expect(remote.settings.approveFollowers).toBe(true);
+    expect(await store.getLocalAccount(remote.id)).toBeNull();
+    expect(await store.countLocalAccounts()).toBe(1);
+    // Upserting again by URI updates in place.
+    const again = await store.upsertRemoteAccount({ ...data, bio: "<p>new</p>" });
+    expect(again).toMatchObject({ id: remote.id, bio: "<p>new</p>" });
   });
 });

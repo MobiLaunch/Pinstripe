@@ -42,7 +42,34 @@ export function testApp() {
     return { account, token, headers: { authorization: `Bearer ${token}` } };
   }
 
+  /** A remote account (as if fetched from its server) that follows `followingId`. */
+  async function remoteFollower(followingId: string, inboxUri: string, state: "accepted" | "pending" = "accepted") {
+    const origin = new URL(inboxUri).origin;
+    const account = await store.upsertRemoteAccount({
+      uri: `${origin}/users/mira`,
+      username: "mira",
+      domain: new URL(inboxUri).host,
+      displayName: "Mira",
+      bio: "",
+      fields: [],
+      bot: false,
+      locked: false,
+      discoverable: true,
+      url: null,
+      inboxUri,
+      sharedInboxUri: null,
+      followersUri: `${origin}/users/mira/followers`,
+      avatarUrl: null,
+      headerUrl: null,
+      followersCount: null,
+      followingCount: null,
+      statusesCount: null,
+    });
+    await store.follow({ followerId: account.id, followingId, state, uri: `${origin}/follows/1` });
+    return account;
+  }
+
   const del = (path: string, headers: Record<string, string> = {}) => request(path, { method: "DELETE", headers });
 
-  return { app, db, store, statuses, auth, reset, signedInUser, del, request, get, postJson, postForm };
+  return { app, db, store, statuses, auth, reset, signedInUser, remoteFollower, del, request, get, postJson, postForm };
 }

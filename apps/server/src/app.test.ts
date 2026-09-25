@@ -3,7 +3,7 @@ import { ORIGIN, testApp } from "../test/app.ts";
 import { accounts } from "./db/schema.ts";
 import type { LocalAccount } from "./store.ts";
 
-const { db, store, reset, get } = testApp();
+const { db, store, reset, get, remoteFollower } = testApp();
 let sam: LocalAccount;
 
 beforeEach(async () => {
@@ -93,13 +93,7 @@ describe("Mastodon client API", () => {
   });
 
   it("counts accepted followers, and reports hidden counts as zero", async () => {
-    await store.upsertFollower(sam.id, {
-      actorUri: "https://tilde.zone/users/mira",
-      inboxUri: "https://tilde.zone/users/mira/inbox",
-      sharedInboxUri: null,
-      followActivityUri: "https://tilde.zone/follows/1",
-      state: "accepted",
-    });
+    await remoteFollower(sam.id, "https://tilde.zone/users/mira/inbox");
     const count = async () => (await (await get(`/api/v1/accounts/${sam.id}`, "application/json")).json()).followers_count;
     expect(await count()).toBe(1);
     await db.update(accounts).set({ settings: { ...sam.settings, hideFollowerCounts: true } });

@@ -4,7 +4,7 @@
  * ours) can read them.
  */
 import type { Visibility } from "@pinstripe/core";
-import type { LocalAccount } from "./store.ts";
+import type { AccountRow, Relationship } from "./store.ts";
 
 /** Mastodon calls followers-only posts "private". */
 export function toMastodonVisibility(v: Visibility): "public" | "unlisted" | "private" | "direct" {
@@ -37,29 +37,44 @@ export interface MastodonAccount {
   fields: { name: string; value: string; verified_at: string | null }[];
 }
 
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
+
+/** Local bios are plain text; Mastodon's `note` is HTML. */
+export function plainToHtml(text: string): string {
+  const paragraphs = text.trim().split(/\n{2,}/).filter(Boolean);
+  return paragraphs.map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join("");
+}
+
+/**
+ * Mastodon's Account entity, for local and remote accounts alike. `urls`
+ * and `counts` are worked out by the caller: local accounts' come from
+ * this server, remote ones' from what their server told us.
+ */
 export function serializeAccount(
-  account: LocalAccount,
-  urls: { profile: URL; actor: URL; missingAvatar: URL; missingHeader: URL },
+  account: AccountRow,
+  urls: { profile: string; actor: string; avatar: string; header: string },
   counts: { followers: number; following: number; statuses: number },
 ): MastodonAccount {
-  const hide = account.settings.hideFollowerCounts;
+  const local = account.domain === null;
+  const hide = local && account.settings.hideFollowerCounts;
   return {
     id: account.id,
     username: account.username,
-    acct: account.username,
+    acct: local ? account.username : `${account.username}@${account.domain}`,
     display_name: account.displayName,
     locked: account.settings.approveFollowers,
     bot: account.bot,
     discoverable: account.settings.listInDirectory,
     group: false,
     created_at: startOfDayUtc(account.createdAt),
-    note: account.bio,
-    url: urls.profile.href,
-    uri: urls.actor.href,
-    avatar: urls.missingAvatar.href,
-    avatar_static: urls.missingAvatar.href,
-    header: urls.missingHeader.href,
-    header_static: urls.missingHeader.href,
+    note: local ? plainToHtml(account.bio) : account.bio,
+    url: urls.profile,
+    uri: urls.actor,
+    avatar: urls.avatar,
+    avatar_static: urls.avatar,
+    header: urls.header,
+    header_static: urls.header,
     // Mastodon reports hidden counts as 0; the app shows them as hidden.
     followers_count: hide ? 0 : counts.followers,
     following_count: hide ? 0 : counts.following,
@@ -116,7 +131,7 @@ export interface MastodonStatus {
   bookmarked?: boolean;
   pinned?: boolean;
   media_attachments: [];
-  mentions: [];
+  mentions: { id: string; username: string; acct: string; url: string }[];
   tags: { name: string; url: string }[];
   emojis: [];
   card: null;
@@ -152,6 +167,7 @@ export function serializeStatus(
   account: MastodonAccount,
   urls: StatusUrls,
   reblog: MastodonStatus | null,
+  mentions: MastodonStatus["mentions"] = [],
 ): MastodonStatus {
   const { status, counts, viewer } = view;
   return {
@@ -174,13 +190,50 @@ export function serializeStatus(
     favourites_count: counts.favourites,
     ...(viewer ? { favourited: viewer.favourited, reblogged: viewer.reblogged, muted: false, bookmarked: false, pinned: false } : {}),
     media_attachments: [],
-    // Local mentions are links in `content`; structured mentions arrive with remote mentions.
-    mentions: [],
+    mentions,
     tags: status.tags.map((name) => ({ name, url: urls.tagUrl(name) })),
     emojis: [],
     card: null,
     poll: null,
     application: null,
     filtered: [],
+  };
+}
+
+export interface MastodonRelationship {
+  id: string;
+  following: boolean;
+  showing_reblogs: boolean;
+  notifying: boolean;
+  languages: null;
+  followed_by: boolean;
+  blocking: boolean;
+  blocked_by: boolean;
+  muting: boolean;
+  muting_notifications: boolean;
+  requested: boolean;
+  requested_by: boolean;
+  domain_blocking: boolean;
+  endorsed: boolean;
+  note: string;
+}
+
+export function serializeRelationship(id: string, r: Relationship): MastodonRelationship {
+  return {
+    id,
+    following: r.following,
+    showing_reblogs: r.following,
+    notifying: false,
+    languages: null,
+    followed_by: r.followedBy,
+    blocking: false,
+    blocked_by: false,
+    muting: false,
+    muting_notifications: false,
+    requested: r.requested,
+    requested_by: r.requestedBy,
+    domain_blocking: false,
+    endorsed: false,
+    note: "",
   };
 }

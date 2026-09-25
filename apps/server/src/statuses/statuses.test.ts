@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ORIGIN, testApp } from "../../test/app.ts";
 
-const { reset, store, signedInUser, get, postJson, del } = testApp();
+const { reset, store, signedInUser, remoteFollower, get, postJson, del } = testApp();
 
 type Json = Record<string, any>;
 const json = async (res: Response) => (await res.json()) as Json;
@@ -267,13 +267,7 @@ describe("ActivityPub", () => {
 
     async function samWithFollower() {
       const sam = await signedInUser("sam");
-      await store.upsertFollower(sam.account.id, {
-        actorUri: "http://127.0.0.1/users/mira",
-        inboxUri: inbox,
-        sharedInboxUri: null,
-        followActivityUri: "http://127.0.0.1/follows/1",
-        state: "accepted",
-      });
+      await remoteFollower(sam.account.id, inbox);
       return sam;
     }
 
@@ -297,13 +291,9 @@ describe("ActivityPub", () => {
     it("doesn't send direct posts, and skips pending followers", async () => {
       const sam = await samWithFollower();
       await post(sam.headers, { status: "just me", visibility: "direct" });
-      await store.upsertFollower(sam.account.id, {
-        actorUri: "http://127.0.0.1/users/mira",
-        inboxUri: inbox,
-        sharedInboxUri: null,
-        followActivityUri: "http://127.0.0.1/follows/1",
-        state: "pending",
-      });
+      const mira = await store.getAccountByUri(`${new URL(inbox).origin}/users/mira`);
+      await store.unfollow(mira!.id, sam.account.id);
+      await remoteFollower(sam.account.id, inbox, "pending");
       await post(sam.headers, { status: "public but nobody's accepted" });
       expect(received).toEqual([]);
     });

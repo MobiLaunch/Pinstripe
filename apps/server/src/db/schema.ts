@@ -4,6 +4,7 @@ import {
   type AnyPgColumn,
   boolean,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -13,20 +14,44 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+/**
+ * Everyone Pinstripe knows about: local accounts (domain null) and remote
+ * ones it has seen through federation (domain set). One table, as in
+ * Mastodon, so posts, follows and favourites can point at either.
+ */
 export const accounts = pgTable(
   "accounts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     username: text("username").notNull(),
+    /** Null for local accounts; `host[:port]` for remote ones. */
+    domain: text("domain"),
     displayName: text("display_name").notNull(),
+    /** Plain text for local accounts; sanitized HTML for remote ones. */
     bio: text("bio").notNull().default(""),
     fields: jsonb("fields").$type<ProfileField[]>().notNull().default([]),
     bot: boolean("bot").notNull().default(false),
     settings: jsonb("settings").$type<AccountSettings>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // Remote accounts only: where to find and reach them.
+    uri: text("uri"),
+    url: text("url"),
+    inboxUri: text("inbox_uri"),
+    sharedInboxUri: text("shared_inbox_uri"),
+    followersUri: text("followers_uri"),
+    avatarUrl: text("avatar_url"),
+    headerUrl: text("header_url"),
+    /** As reported by the remote server; local counts are computed instead. */
+    followersCount: integer("followers_count"),
+    followingCount: integer("following_count"),
+    statusesCount: integer("statuses_count"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }),
   },
-  // Handles are case-insensitive on the fediverse: @Sam and @sam are the same person.
-  (t) => [uniqueIndex("accounts_username_lower_idx").on(sql`lower(${t.username})`)],
+  (t) => [
+    // Handles are case-insensitive: @Sam@x and @sam@x are the same person.
+    uniqueIndex("accounts_handle_idx").on(sql`lower(${t.username})`, sql`lower(coalesce(${t.domain}, ''))`),
+    uniqueIndex("accounts_uri_idx").on(t.uri),
+  ],
 );
 
 export const accountKeys = pgTable(
@@ -43,20 +68,28 @@ export const accountKeys = pgTable(
   (t) => [primaryKey({ columns: [t.accountId, t.algorithm] })],
 );
 
-export const followers = pgTable(
-  "followers",
+/** Who follows whom, local or remote, including requests awaiting approval. */
+export const follows = pgTable(
+  "follows",
   {
-    accountId: uuid("account_id")
+    /** UUIDv7; also the tail of the Follow activity's id for follows we send. */
+    id: uuid("id").notNull().unique(),
+    followerId: uuid("follower_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
-    actorUri: text("actor_uri").notNull(),
-    inboxUri: text("inbox_uri").notNull(),
-    sharedInboxUri: text("shared_inbox_uri"),
-    followActivityUri: text("follow_activity_uri").notNull(),
+    followingId: uuid("following_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
     state: text("state").$type<"pending" | "accepted">().notNull(),
+    /** The Follow activity's id, so a later Accept, Reject or Undo can be matched. */
+    uri: text("uri"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.accountId, t.actorUri] })],
+  (t) => [
+    primaryKey({ columns: [t.followerId, t.followingId] }),
+    index("follows_following_idx").on(t.followingId, t.state),
+    index("follows_uri_idx").on(t.uri),
+  ],
 );
 
 /** Login credentials for a local account. Remote accounts never have one. */
@@ -124,7 +157,7 @@ export const oauthTokens = pgTable(
 );
 
 /**
- * Posts by local accounts. Boosts are rows too, with `reblogOfId` set and no
+ * Posts, local and remote. Boosts are rows too, with `reblogOfId` set and no
  * text of their own, as in Mastodon.
  */
 export const statuses = pgTable(
@@ -149,8 +182,12 @@ export const statuses = pgTable(
     language: text("language"),
     tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Remote posts only: the Note's (or Announce's) ActivityPub id, and its web page. */
+    uri: text("uri"),
+    url: text("url"),
   },
   (t) => [
+    uniqueIndex("statuses_uri_idx").on(t.uri),
     index("statuses_account_id_idx").on(t.accountId, t.id),
     index("statuses_reblog_of_idx").on(t.reblogOfId),
     index("statuses_in_reply_to_idx").on(t.inReplyToId),
@@ -171,4 +208,18 @@ export const favourites = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.accountId, t.statusId] }), index("favourites_status_idx").on(t.statusId)],
+);
+
+/** Accounts mentioned in a post; they can see it even when it's direct. */
+export const mentions = pgTable(
+  "mentions",
+  {
+    statusId: uuid("status_id")
+      .notNull()
+      .references(() => statuses.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.statusId, t.accountId] }), index("mentions_account_idx").on(t.accountId)],
 );
