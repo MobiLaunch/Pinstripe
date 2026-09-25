@@ -71,6 +71,13 @@
       "when": 1790356390638,
       "tag": "0009_views",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790359050352,
+      "tag": "0010_tags_index",
+      "breakpoints": true
     }
   ]
 }

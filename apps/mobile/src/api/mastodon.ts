@@ -421,6 +421,15 @@ export class MastodonClient {
     return this.request<object>('POST', '/api/v1/markers', { notifications: { last_read_id: lastReadId } });
   }
 
+  /** Public posts with a hashtag (no #). */
+  tagTimeline(tag: string, options: { maxId?: string; onlyVideo?: boolean } = {}) {
+    return this.request<MastodonStatus[]>(
+      'GET',
+      `/api/v1/timelines/tag/${encodeURIComponent(tag)}` +
+        query({ max_id: options.maxId, only_media: options.onlyVideo ? 'true' : undefined, only_video: options.onlyVideo ? 'true' : undefined }),
+    );
+  }
+
   /** An upload: `url` is null while a video is still processing. */
   media(id: string) {
     return this.request<MastodonMedia>('GET', `/api/v1/media/${encodeURIComponent(id)}`);

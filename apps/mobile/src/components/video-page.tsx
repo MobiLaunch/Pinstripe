@@ -17,6 +17,7 @@ import { initials } from '@/components/initials';
 import { target } from '@/hooks/use-post-list';
 import { colors, fontFamily, gradients } from '@/theme/aqua';
 import { useAccent } from '@/theme/theme';
+import { RichText } from '@/components/rich-text';
 
 /** A video counts as viewed after this much playback. */
 const VIEW_AFTER_MS = 2000;
@@ -202,11 +203,7 @@ export function VideoPage({
         <Text style={styles.name} onPress={() => router.push(`/profile/${shown.account.id}`)}>
           {shown.account.displayName} <Text style={styles.handle}>{formatHandle(shown.account)}</Text>
         </Text>
-        {shown.content ? (
-          <Text style={styles.body} numberOfLines={4}>
-            {shown.content}
-          </Text>
-        ) : null}
+        {shown.content ? <RichText post={shown} style={styles.body} linkStyle={styles.captionLink} numberOfLines={4} /> : null}
       </View>
       <View style={styles.progress} accessibilityRole="progressbar" accessibilityLabel="Playback" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
         <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
@@ -251,6 +248,7 @@ const styles = StyleSheet.create({
   name: { fontFamily, fontSize: 16, fontWeight: '700', color: colors.onVideo, ...shadow },
   handle: { fontSize: 12, fontWeight: '400', color: colors.onVideoMuted },
   body: { fontFamily, fontSize: 14, lineHeight: 20, color: colors.onVideo, ...shadow },
+  captionLink: { color: '#ffffff' },
   progress: { position: 'absolute', left: 16, right: 16, bottom: 14, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: '#8ac3ff' },
 });

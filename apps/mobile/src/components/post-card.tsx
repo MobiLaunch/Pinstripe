@@ -9,6 +9,7 @@ import { initials } from '@/components/initials';
 import { MediaGrid } from '@/components/media-grid';
 import { relativeTime } from '@/components/relative-time';
 import { colors, fontFamily } from '@/theme/aqua';
+import { RichText } from '@/components/rich-text';
 
 export interface PostCardProps {
   post: Post;
@@ -68,9 +69,7 @@ export function PostCard({ post, viewerId, onFavourite, onBoost, onDelete, focus
           ) : null}
           {!shown.spoiler || revealed ? (
             <Pressable onPress={focused ? undefined : openThread} disabled={focused} accessibilityHint={focused ? undefined : 'Opens the thread'}>
-              <Text style={[aquaText.body, styles.content, focused && styles.focusedText]} selectable={focused}>
-                {shown.content}
-              </Text>
+              <RichText post={shown} style={[aquaText.body, styles.content, focused && styles.focusedText]} selectable={focused} />
             </Pressable>
           ) : null}
 

@@ -201,6 +201,8 @@ export const statuses = pgTable(
     index("statuses_account_id_idx").on(t.accountId, t.id),
     index("statuses_reblog_of_idx").on(t.reblogOfId),
     index("statuses_in_reply_to_idx").on(t.inReplyToId),
+    // Hashtag timelines.
+    index("statuses_tags_idx").using("gin", t.tags),
     // One boost per account per post.
     uniqueIndex("statuses_one_reblog_idx").on(t.accountId, t.reblogOfId).where(sql`${t.reblogOfId} is not null`),
   ],

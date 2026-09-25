@@ -350,6 +350,23 @@ export class StatusStore {
    * Home: your posts and boosts, and those of everyone you follow, that you
    * may see. With `media`, only posts (or boosts of posts) with photos/videos.
    */
+  /** Public posts with a hashtag (lowercase, no #). No boosts, as in Mastodon. */
+  tagTimeline(tag: string, page: Page, options: { local?: boolean; media?: MediaFilter; viewerId: string | null }) {
+    const hidden = hiddenStatus(options.viewerId);
+    return this.#page(
+      and(
+        sql`${tag.toLowerCase()} = any(${statuses.tags})`,
+        eq(statuses.visibility, "public"),
+        isNull(statuses.reblogOfId),
+        visibleTo(options.viewerId),
+        hidden ? sql`not ${hidden}` : undefined,
+        options.media ? hasMedia(options.media) : undefined,
+        options.local ? sql`${statuses.accountId} in (select ${accounts.id} from ${accounts} where ${accounts.domain} is null)` : undefined,
+      )!,
+      page,
+    );
+  }
+
   homeTimeline(accountId: string, page: Page, media?: MediaFilter) {
     return this.#page(
       and(

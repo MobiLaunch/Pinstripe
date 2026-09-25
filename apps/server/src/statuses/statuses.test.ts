@@ -319,3 +319,17 @@ describe("views", () => {
   });
 });
 
+describe("hashtags", () => {
+  it("lists public posts with a tag, whatever its case", async () => {
+    const sam = await signedInUser("sam");
+    await post(sam.headers, { status: "Fixed it #RetroComputing" });
+    await post(sam.headers, { status: "quiet #retrocomputing", visibility: "private" });
+    await post(sam.headers, { status: "something else #other" });
+    const list = await json(await get("/api/v1/timelines/tag/retrocomputing", api));
+    expect(list.map((s: Json) => s.content.replace(/<[^>]+>/g, ""))).toEqual(["Fixed it #RetroComputing"]);
+    expect(await json(await get("/api/v1/timelines/tag/RETROCOMPUTING?local=true", api))).toHaveLength(1);
+    expect(await json(await get("/api/v1/timelines/tag/nothing", api))).toEqual([]);
+    expect(await json(await get("/api/v1/tags/RetroComputing", api))).toMatchObject({ name: "retrocomputing", following: false });
+  });
+});
+

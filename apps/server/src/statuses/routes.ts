@@ -10,6 +10,8 @@
  *   GET    /api/v1/accounts/:id/statuses
  *   GET    /api/v1/timelines/home
  *   GET    /api/v1/timelines/public          ?local=true for Local, ?remote=true for other servers only
+ *   GET    /api/v1/timelines/tag/:hashtag    public posts with a hashtag; ?local=true, ?only_media / ?only_video
+ *   GET    /api/v1/tags/:name
  *
  * Posts, deletes, boosts and favourites are also sent to the servers that
  * need to know: the author's remote followers, anyone mentioned, and the
@@ -259,6 +261,23 @@ export function statusRoutes({ store, statuses, media, domain, render, federatio
       excludeReplies: truthy(c.req.query("exclude_replies")),
     });
     return respondWithPage(c, rows);
+  });
+
+  app.get("/api/v1/timelines/tag/:hashtag", async (c) => {
+    const tag = c.req.param("hashtag").replace(/^#/, "");
+    if (!/^[\p{L}\p{N}_]+$/u.test(tag)) return c.json([]);
+    const rows = await statuses.tagTimeline(tag, readPage(c), {
+      local: truthy(c.req.query("local")),
+      media: readMediaFilter(c),
+      viewerId: viewerId(c),
+    });
+    return respondWithPage(c, rows);
+  });
+
+  app.get("/api/v1/tags/:name", (c) => {
+    const name = c.req.param("name").replace(/^#/, "").toLowerCase();
+    if (!/^[\p{L}\p{N}_]+$/u.test(name)) return notFound(c);
+    return c.json({ name, url: new URL(`/tags/${encodeURIComponent(name)}`, federationContext(c).canonicalOrigin).href, history: [], following: false });
   });
 
   app.get("/api/v1/timelines/home", async (c) => {

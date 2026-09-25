@@ -1,0 +1,1 @@
+CREATE INDEX "statuses_tags_idx" ON "statuses" USING gin ("tags");

@@ -31,6 +31,7 @@ function RootStack() {
         <Stack.Screen name="moderation" />
         <Stack.Screen name="email-password" />
         <Stack.Screen name="videos/[accountId]" />
+        <Stack.Screen name="tag/[name]" />
         <Stack.Screen name="new-video" options={{ presentation: 'modal' }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
