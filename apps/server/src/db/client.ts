@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
@@ -12,7 +13,8 @@ export function connect(url: string) {
   return { sql, db: drizzle(sql, { schema }) };
 }
 
-const migrationsFolder = new URL("../../drizzle", import.meta.url).pathname;
+// fileURLToPath, not .pathname, which on Windows gives "/C:/…".
+const migrationsFolder = fileURLToPath(new URL("../../drizzle", import.meta.url));
 
 export async function runMigrations(db: Db) {
   await migrate(db, { migrationsFolder });
