@@ -22,3 +22,20 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     true,
   );
 }
+
+/**
+ * The Liquid Glass look uses the system font. Styles are fixed when the app
+ * loads, so on the web the switch is one stylesheet rule on the page.
+ */
+export function setSystemFontOnWeb(on: boolean) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  let style = document.getElementById('glass-font') as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'glass-font';
+    style.textContent =
+      'html.glass-font, html.glass-font * { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important; letter-spacing: -0.01em; }';
+    document.head.appendChild(style);
+  }
+  document.documentElement.classList.toggle('glass-font', on);
+}

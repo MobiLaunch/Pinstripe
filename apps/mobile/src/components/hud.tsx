@@ -9,7 +9,9 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '@/components/icon';
 import { Spinner } from '@/components/ios6';
+import { GlassSurface, glassFont, glassText } from '@/components/liquid';
 import { fontFamily } from '@/theme/aqua';
+import { useGlass } from '@/theme/theme';
 
 interface State {
   label: string;
@@ -54,6 +56,7 @@ export function HudHost() {
   const [state, setState] = useState<State | null>(null);
   const [shown, setShown] = useState<State | null>(null);
   const [opacity] = useState(() => new Animated.Value(0));
+  const glass = useGlass();
 
   useEffect(() => {
     set = setState;
@@ -72,15 +75,17 @@ export function HudHost() {
   }, [state, opacity]);
 
   if (!shown) return null;
+  const ink = glass ? glassText.primary : '#ffffff';
   return (
     <View style={styles.cover} pointerEvents={state ? 'auto' : 'none'}>
-      <Animated.View style={[styles.box, { opacity }]} accessibilityLiveRegion="polite" accessible accessibilityLabel={shown.label}>
+      <Animated.View style={[styles.box, glass && styles.boxGlass, { opacity }]} accessibilityLiveRegion="polite" accessible accessibilityLabel={shown.label}>
+        {glass ? <GlassSurface radius={30} style={StyleSheet.absoluteFill} /> : null}
         {shown.done ? (
-          <Icon name="check" size={40} strokeWidth={3.2} color="#ffffff" />
+          <Icon name="check" size={40} strokeWidth={3.2} color={ink} />
         ) : (
-          <Spinner size="large" color="#ffffff" accessibilityLabel={shown.label} />
+          <Spinner size="large" color={glass ? glassText.secondary : '#ffffff'} accessibilityLabel={shown.label} />
         )}
-        <Text style={styles.label}>{shown.label}</Text>
+        <Text style={[styles.label, glass && styles.labelGlass]}>{shown.label}</Text>
       </Animated.View>
     </View>
   );
@@ -99,6 +104,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 14,
   },
+  boxGlass: { backgroundColor: 'transparent', borderRadius: 30 },
+  labelGlass: { fontFamily: glassFont, fontWeight: '600', color: glassText.primary, textShadowColor: 'transparent' },
   label: {
     fontFamily,
     fontSize: 16,

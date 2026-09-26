@@ -7,13 +7,14 @@
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Linking, Modal, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SheetButton, SheetGlass, sheetStyles } from '@/components/action-menu';
+import { SheetButton, SheetGlass, sheetStyles, useSheetFrame } from '@/components/action-menu';
 import { Gloss } from '@/components/glass';
 import { flashHud } from '@/components/hud';
 import { Icon, type IconName } from '@/components/icon';
+import { glassFont, glassText } from '@/components/liquid';
 import { fontFamily } from '@/theme/aqua';
+import { useGlass } from '@/theme/theme';
 
 interface Activity {
   label: string;
@@ -36,7 +37,8 @@ export function ShareSheet({
   onSaveVideo?: () => void;
   onClose: () => void;
 }) {
-  const insets = useSafeAreaInsets();
+  const frame = useSheetFrame();
+  const glass = useGlass();
   const body = text ? `${text}\n${url}` : url;
   const encoded = encodeURIComponent(body);
 
@@ -69,7 +71,7 @@ export function ShareSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={sheetStyles.backdrop} onPress={onClose} accessibilityLabel="Close" accessibilityRole="button" />
-      <View style={[sheetStyles.sheet, { paddingBottom: insets.bottom + 18 }]} accessibilityViewIsModal>
+      <View style={frame} accessibilityViewIsModal>
         <SheetGlass />
         <View style={styles.grid}>
           {activities.map((a) => (
@@ -84,13 +86,13 @@ export function ShareSheet({
               style={styles.activity}>
               {({ pressed }) => (
                 <>
-                  <View style={[styles.icon, pressed && styles.pressed]}>
+                  <View style={[styles.icon, glass && styles.iconGlass, pressed && styles.pressed]}>
                     <LinearGradient colors={a.colors} style={StyleSheet.absoluteFill} />
                     <Icon name={a.icon} size={32} color="#ffffff" strokeWidth={2.2} />
                     {/* The iOS 6 icon gloss, following the rounded corners. */}
-                    <Gloss width={57} height={57} radius={11} strength={0.6} depth={0.48} />
+                    {glass ? null : <Gloss width={57} height={57} radius={11} strength={0.6} depth={0.48} />}
                   </View>
-                  <Text style={styles.label} numberOfLines={2}>
+                  <Text style={[styles.label, glass && styles.labelGlass]} numberOfLines={2}>
                     {a.label}
                   </Text>
                 </>
@@ -119,6 +121,8 @@ const styles = StyleSheet.create({
     boxShadow: '0 2px 4px rgba(0,0,0,0.6)',
   },
   pressed: { opacity: 0.6 },
+  iconGlass: { borderRadius: 16, borderWidth: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' },
+  labelGlass: { fontFamily: glassFont, fontWeight: '500', color: glassText.primary, textShadowColor: 'transparent' },
   label: {
     fontFamily,
     fontSize: 12,

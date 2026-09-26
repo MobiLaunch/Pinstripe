@@ -5,7 +5,7 @@
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Children, type ReactNode, useEffect, useId, useState } from 'react';
+import { Children, type ComponentProps, type ReactNode, useEffect, useId, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -26,8 +26,25 @@ import Svg, { Defs, G, LinearGradient as SvgGradient, Path, Pattern, Rect, Stop 
 import { FitGloss } from '@/components/glass';
 import { Icon } from '@/components/icon';
 import { Texture } from '@/components/texture';
+import {
+  GlassBackButton,
+  GlassBadge,
+  GlassBarButton,
+  GlassEmpty,
+  GlassLinenHeader,
+  GlassListBackground,
+  GlassListCell,
+  GlassListGroup,
+  GlassListRow,
+  GlassListTitle,
+  GlassNavBar,
+  GlassSearchBar,
+  GlassSwitch,
+  GlassToolbar,
+} from '@/components/liquid-controls';
+import { Wallpaper } from '@/components/liquid';
 import { fontFamily, type Gradient } from '@/theme/aqua';
-import { useAccent } from '@/theme/theme';
+import { useAccent, useGlass } from '@/theme/theme';
 
 function Fill({ gradient, style }: { gradient: Gradient; style?: StyleProp<ViewStyle> }) {
   return (
@@ -45,7 +62,7 @@ const embossed = { textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { widt
  * slots for bar buttons. `children` go underneath, on the same bar (a
  * segmented control, say, like a UIToolbar under the bar).
  */
-export function NavBar({ title, left, right, children }: { title?: string; left?: ReactNode; right?: ReactNode; children?: ReactNode }) {
+function Ios6NavBar({ title, left, right, children }: { title?: string; left?: ReactNode; right?: ReactNode; children?: ReactNode }) {
   const accent = useAccent();
   const insets = useSafeAreaInsets();
   return (
@@ -71,7 +88,7 @@ export function NavBar({ title, left, right, children }: { title?: string; left?
 }
 
 /** A bordered bar button (UIBarButtonItemStyleBordered), with a title or an icon. */
-export function BarButton({
+function Ios6BarButton({
   title,
   icon,
   done = false,
@@ -111,7 +128,7 @@ const DONE = {
 const BACK_HEIGHT = 30;
 
 /** The back button with the pointed left edge. */
-export function BackButton({ title = 'Back', onPress }: { title?: string; onPress?: () => void }) {
+function Ios6BackButton({ title = 'Back', onPress }: { title?: string; onPress?: () => void }) {
   const accent = useAccent();
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
   const [width, setWidth] = useState(0);
@@ -152,7 +169,7 @@ function gradientStops(g: Gradient) {
 }
 
 /** A bottom toolbar (UIToolbar) in the bar's colours. */
-export function Toolbar({ children, style, ...rest }: ViewProps) {
+function Ios6Toolbar({ children, style, ...rest }: ViewProps) {
   const accent = useAccent();
   return (
     <View style={[styles.toolbar, { borderTopColor: accent.navBarEdge }, style]} {...rest}>
@@ -171,7 +188,7 @@ const KNOB = 28;
 const TRAVEL = SWITCH_W - KNOB;
 
 /** The iOS 6 switch: ON / OFF written on the track, and a glossy knob that slides. */
-export function Switch({
+function Ios6Switch({
   value,
   onValueChange,
   disabled,
@@ -221,7 +238,7 @@ const KNOB_FACE: Gradient = { colors: ['#d5d5d5', '#f4f4f4', '#ffffff'], locatio
 // Grouped tables
 
 /** The vertically striped backdrop of grouped tables (groupTableViewBackgroundColor). */
-export function TableBackground({ children, style, ...rest }: ViewProps) {
+function Ios6TableBackground({ children, style, ...rest }: ViewProps) {
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
   return (
     <View style={[styles.tableBase, style]} {...rest}>
@@ -240,7 +257,7 @@ export function TableBackground({ children, style, ...rest }: ViewProps) {
 }
 
 /** A section of a grouped table: an embossed title, rounded white cells, a footnote. */
-export function TableGroup({ title, footer, children }: { title?: string; footer?: string; children: ReactNode }) {
+function Ios6TableGroup({ title, footer, children }: { title?: string; footer?: string; children: ReactNode }) {
   const rows = Children.toArray(children).filter(Boolean);
   return (
     <View style={styles.tableSection}>
@@ -262,7 +279,7 @@ export function TableGroup({ title, footer, children }: { title?: string; footer
  * a chevron, check or control on the right. Pressing turns it the classic
  * selection blue.
  */
-export function TableRow({
+function Ios6TableRow({
   title,
   sub,
   detail,
@@ -312,17 +329,17 @@ export function TableRow({
  * One cell of a grouped table drawn row by row (a FlatList's items): the
  * first and last are rounded, the others get a divider on top.
  */
-export function TableCell({ first, last, style, ...rest }: ViewProps & { first: boolean; last: boolean }) {
+function Ios6TableCell({ first, last, style, ...rest }: ViewProps & { first: boolean; last: boolean }) {
   return <View style={[styles.cell, first ? styles.cellFirst : styles.tableDivider, last && styles.cellLast, style]} {...rest} />;
 }
 
 /** A section title on its own, for tables drawn row by row. */
-export function TableTitle({ title }: { title: string }) {
+function Ios6TableTitle({ title }: { title: string }) {
   return <Text style={[styles.tableTitle, styles.tableTitleAlone]}>{title}</Text>;
 }
 
 /** The grey, embossed words a table shows when it has nothing in it ("No Notifications"). */
-export function TableEmpty({ title, dark = false }: { title: string; dark?: boolean }) {
+function Ios6TableEmpty({ title, dark = false }: { title: string; dark?: boolean }) {
   return <Text style={[styles.tableEmpty, dark && styles.tableEmptyDark]}>{title}</Text>;
 }
 
@@ -379,7 +396,7 @@ export function Spinner({
  * dark threads (two overlapping patterns so it doesn't look tiled), with a
  * soft shadow falling from the top.
  */
-export function Linen({ children, style, ...rest }: ViewProps) {
+function Ios6Linen({ children, style, ...rest }: ViewProps) {
   return (
     <View style={[styles.linenBase, style]} {...rest}>
       <Texture source={LINEN} tile={{ width: 256, height: 256 }} />
@@ -410,7 +427,7 @@ export function BrushedMetal({ children, style, ...rest }: ViewProps) {
 }
 
 /** A Notification Center section header: a dark bar with embossed white text. */
-export function LinenHeader({ title, right }: { title: string; right?: ReactNode }) {
+function Ios6LinenHeader({ title, right }: { title: string; right?: ReactNode }) {
   return (
     <View style={styles.linenHeader}>
       <LinearGradient colors={['#5a5e66', '#3a3d44', '#2c2f35']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
@@ -423,7 +440,7 @@ export function LinenHeader({ title, right }: { title: string; right?: ReactNode
 // UISearchBar
 
 /** The search bar: a capsule field with a magnifier on the bar's gradient. */
-export function SearchBar({ style, ...props }: TextInputProps & { style?: StyleProp<ViewStyle> }) {
+function Ios6SearchBar({ style, ...props }: TextInputProps & { style?: StyleProp<ViewStyle> }) {
   const accent = useAccent();
   return (
     <View style={[styles.searchBar, style]}>
@@ -447,7 +464,7 @@ export function SearchBar({ style, ...props }: TextInputProps & { style?: StyleP
 // Badges
 
 /** The glossy red badge with a white rim, as on app icons and tab bars. */
-export function Badge({ count, style }: { count: number; style?: StyleProp<ViewStyle> }) {
+function Ios6Badge({ count, style }: { count: number; style?: StyleProp<ViewStyle> }) {
   if (count <= 0) return null;
   return (
     <View style={[styles.badge, style]} pointerEvents="none">
@@ -619,3 +636,65 @@ const styles = StyleSheet.create({
   badgeShine: { position: 'absolute', top: 1, left: 3, right: 3, height: '45%', borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.28)' },
   badgeText: { fontFamily, fontSize: 13, fontWeight: '700', color: '#ffffff', textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: -1 }, textShadowRadius: 0 },
 });
+
+// Each control draws Liquid Glass when that look is on, iOS 6 otherwise.
+
+export function NavBar(props: ComponentProps<typeof Ios6NavBar>) {
+  return useGlass() ? <GlassNavBar {...props} /> : <Ios6NavBar {...props} />;
+}
+
+export function BarButton(props: ComponentProps<typeof Ios6BarButton>) {
+  return useGlass() ? <GlassBarButton {...props} /> : <Ios6BarButton {...props} />;
+}
+
+export function BackButton(props: ComponentProps<typeof Ios6BackButton>) {
+  return useGlass() ? <GlassBackButton {...props} /> : <Ios6BackButton {...props} />;
+}
+
+export function Toolbar(props: ComponentProps<typeof Ios6Toolbar>) {
+  return useGlass() ? <GlassToolbar {...props} /> : <Ios6Toolbar {...props} />;
+}
+
+export function Switch(props: ComponentProps<typeof Ios6Switch>) {
+  return useGlass() ? <GlassSwitch {...props} /> : <Ios6Switch {...props} />;
+}
+
+export function TableBackground(props: ComponentProps<typeof Ios6TableBackground>) {
+  return useGlass() ? <GlassListBackground {...props} /> : <Ios6TableBackground {...props} />;
+}
+
+export function TableGroup(props: ComponentProps<typeof Ios6TableGroup>) {
+  return useGlass() ? <GlassListGroup {...props} /> : <Ios6TableGroup {...props} />;
+}
+
+export function TableRow(props: ComponentProps<typeof Ios6TableRow>) {
+  return useGlass() ? <GlassListRow {...props} /> : <Ios6TableRow {...props} />;
+}
+
+export function TableCell(props: ComponentProps<typeof Ios6TableCell>) {
+  return useGlass() ? <GlassListCell {...props} /> : <Ios6TableCell {...props} />;
+}
+
+export function TableTitle(props: ComponentProps<typeof Ios6TableTitle>) {
+  return useGlass() ? <GlassListTitle {...props} /> : <Ios6TableTitle {...props} />;
+}
+
+export function TableEmpty(props: ComponentProps<typeof Ios6TableEmpty>) {
+  return useGlass() ? <GlassEmpty {...props} /> : <Ios6TableEmpty {...props} />;
+}
+
+export function SearchBar(props: ComponentProps<typeof Ios6SearchBar>) {
+  return useGlass() ? <GlassSearchBar {...props} /> : <Ios6SearchBar {...props} />;
+}
+
+export function Badge(props: ComponentProps<typeof Ios6Badge>) {
+  return useGlass() ? <GlassBadge {...props} /> : <Ios6Badge {...props} />;
+}
+
+export function Linen(props: ComponentProps<typeof Ios6Linen>) {
+  return useGlass() ? <Wallpaper {...props} /> : <Ios6Linen {...props} />;
+}
+
+export function LinenHeader(props: ComponentProps<typeof Ios6LinenHeader>) {
+  return useGlass() ? <GlassLinenHeader {...props} /> : <Ios6LinenHeader {...props} />;
+}

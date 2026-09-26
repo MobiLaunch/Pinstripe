@@ -11,12 +11,14 @@ import { useAuth, useSource } from '@/auth/session';
 import { aquaText, Card, GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { BarButton, TableBackground, TableRow } from '@/components/ios6';
+import { glassInput } from '@/components/liquid-controls';
 import { PickerSheet } from '@/components/picker';
 import { ProgressBar } from '@/components/progress-bar';
 import { ScreenHeader } from '@/components/screen-header';
 import { publishPostEvent } from '@/hooks/use-post-list';
 import { play } from '@/sound/sounds';
 import { colors, fontFamily } from '@/theme/aqua';
+import { useGlass } from '@/theme/theme';
 
 const VISIBILITIES = [
   { value: 'public', label: 'Public' },
@@ -32,6 +34,7 @@ type Stage = { kind: 'uploading'; progress: number } | { kind: 'processing' } | 
  * once the server has finished processing.
  */
 export default function NewVideoScreen() {
+  const glass = useGlass();
   const insets = useSafeAreaInsets();
   const { state, refreshAccount } = useAuth();
   const source = useSource();
@@ -160,7 +163,7 @@ export default function NewVideoScreen() {
               multiline
               value={caption}
               onChangeText={setCaption}
-              style={styles.input}
+              style={[styles.input, glass && glassInput]}
             />
             <Text style={[aquaText.handle, styles.count, remaining < 0 && styles.over]}>{remaining}</Text>
           </Card>

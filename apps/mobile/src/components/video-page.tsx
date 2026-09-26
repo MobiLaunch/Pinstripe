@@ -15,10 +15,11 @@ import { useAuth } from '@/auth/session';
 import { Avatar, Orb } from '@/components/aqua';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
+import { GlassSurface } from '@/components/liquid';
 import { ShareSheet } from '@/components/share-sheet';
 import { target } from '@/hooks/use-post-list';
 import { colors, fontFamily, gradients } from '@/theme/aqua';
-import { useAccent } from '@/theme/theme';
+import { useAccent, useGlass } from '@/theme/theme';
 import { RichText } from '@/components/rich-text';
 
 /** A video counts as viewed after this much playback. */
@@ -52,6 +53,7 @@ export function VideoPage({
   startMuted,
   onFavourite,
   onBoost,
+  bottomInset = 0,
 }: {
   post: Post;
   height: number;
@@ -60,11 +62,14 @@ export function VideoPage({
   startMuted: boolean;
   onFavourite: () => void;
   onBoost: () => void;
+  /** Room kept clear at the bottom (the floating Glass tab bar). */
+  bottomInset?: number;
 }) {
   const { state } = useAuth();
   const client = state.status === 'signedIn' ? state.client : null;
   const viewerId = state.status === 'signedIn' ? state.account.id : null;
   const accent = useAccent();
+  const glass = useGlass();
   const shown = target(post);
   const video = shown.media[0]!;
   const [started, setStarted] = useState(false);
@@ -156,7 +161,7 @@ export function VideoPage({
       </Pressable>
       <LinearGradient colors={gradients.videoScrim.colors} style={styles.scrim} pointerEvents="none" />
 
-      <View style={styles.rail}>
+      <View style={[styles.rail, { bottom: 48 + bottomInset }]}>
         <View style={styles.author}>
           <Pressable accessibilityRole="link" accessibilityLabel={`${shown.account.displayName}'s profile`} onPress={() => router.push(`/profile/${shown.account.id}`)}>
             <Avatar initials={initials(shown.account.displayName)} size={52} uri={shown.account.avatarUrl} />
@@ -209,19 +214,29 @@ export function VideoPage({
         onClose={() => setSharing(false)}
       />
       {/* Frosted glass behind the caption: the video blurs and darkens through it. */}
-      <View style={styles.caption}>
-        <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFill} />
-        <View style={styles.captionTint} pointerEvents="none" />
-        <LinearGradient colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0)']} style={styles.captionSheen} pointerEvents="none" />
+      <View style={[styles.caption, glass && styles.captionGlass, { bottom: 30 + bottomInset }]}>
+        {glass ? (
+          <GlassSurface radius={24} dark style={StyleSheet.absoluteFill} />
+        ) : (
+          <>
+            <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={styles.captionTint} pointerEvents="none" />
+            <LinearGradient colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0)']} style={styles.captionSheen} pointerEvents="none" />
+          </>
+        )}
         {post.reblog ? <Text style={styles.boosted}>Boosted by {post.account.displayName}</Text> : null}
         <Text style={styles.name} onPress={() => router.push(`/profile/${shown.account.id}`)}>
           {shown.account.displayName} <Text style={styles.handle}>{formatHandle(shown.account)}</Text>
         </Text>
         {shown.content ? <RichText post={shown} style={styles.body} linkStyle={styles.captionLink} numberOfLines={4} /> : null}
       </View>
-      <View style={styles.progress} accessibilityRole="progressbar" accessibilityLabel="Playback" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
+      <View style={[styles.progress, glass && styles.progressGlass, { bottom: 12 + bottomInset }]} accessibilityRole="progressbar" accessibilityLabel="Playback" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
         <View style={[styles.progressFill, { width: `${progress * 100}%` }]}>
-          <LinearGradient colors={['#bfe0ff', '#5aa3f2', '#1f6fd4', '#3b8cea']} locations={[0, 0.5, 0.5, 1]} style={StyleSheet.absoluteFill} />
+          {glass ? (
+            <View style={[StyleSheet.absoluteFill, styles.progressFillGlass]} />
+          ) : (
+            <LinearGradient colors={['#bfe0ff', '#5aa3f2', '#1f6fd4', '#3b8cea']} locations={[0, 0.5, 0.5, 1]} style={StyleSheet.absoluteFill} />
+          )}
         </View>
       </View>
     </View>
@@ -278,6 +293,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.2)',
     boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
   },
+  captionGlass: { borderWidth: 0, borderRadius: 24, boxShadow: 'none' },
+  progressGlass: { height: 4, borderRadius: 2, borderWidth: 0, backgroundColor: 'rgba(255,255,255,0.3)', boxShadow: 'none' },
+  progressFillGlass: { backgroundColor: '#ffffff' },
   captionTint: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(10,14,22,0.35)' },
   captionSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: 18 },
   boosted: { fontFamily, fontSize: 12, color: colors.onVideoMuted, ...shadow },

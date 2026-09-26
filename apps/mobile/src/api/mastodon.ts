@@ -2,7 +2,7 @@
  * A small Mastodon API client. The app talks to Pinstripe and to any
  * Mastodon-compatible server through this one client.
  */
-import type { Account, MediaAttachment, Post, Visibility } from '@pinstripe/core';
+import type { Account, MediaAttachment, Post, Theme, Visibility } from '@pinstripe/core';
 
 import { htmlToText } from './html';
 
@@ -126,7 +126,7 @@ export interface PinstripePreferences {
   autoplay_videos: boolean;
   start_muted: boolean;
   save_data_on_cellular: boolean;
-  theme: 'blue' | 'graphite';
+  theme: Theme;
 }
 
 export interface MastodonApp {

@@ -14,14 +14,17 @@ import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
+import { glassInput } from '@/components/liquid-controls';
 import { PickerSheet } from '@/components/picker';
 import { PostCard } from '@/components/post-card';
 import { ProgressBar } from '@/components/progress-bar';
 import { usePullToRefresh } from '@/components/pull-refresh';
+import { useTabBarInset } from '@/components/tab-bar';
 import { publishPostEvent, usePostList } from '@/hooks/use-post-list';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { play } from '@/sound/sounds';
 import { colors, fontFamily } from '@/theme/aqua';
+import { useGlass } from '@/theme/theme';
 
 const TIMELINES = [
   { value: 'home', label: 'Home' },
@@ -41,6 +44,7 @@ export default function FeedScreen() {
   const me = useAccount();
   const { refreshAccount } = useAuth();
   const [timeline, setTimeline] = useState<TimelineKind>('home');
+  const bottomInset = useTabBarInset();
   const list = usePostList((client, maxId) => client.timeline(timeline, { maxId }), timeline, {
     // New posts and boosts appear straight away where they belong: Home gets
     // both, Local and Federated only public posts (never boosts).
@@ -70,7 +74,7 @@ export default function FeedScreen() {
       <FlatList
         data={list.posts}
         keyExtractor={(p) => p.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: 24 + bottomInset }]}
         {...pull.listProps}
         onEndReached={list.loadMore}
         onEndReachedThreshold={0.5}
@@ -131,6 +135,7 @@ interface Attachment {
 }
 
 function Composer() {
+  const glass = useGlass();
   const me = useAccount();
   const { state, refreshAccount } = useAuth();
   const [draft, setDraft] = useState('');
@@ -210,7 +215,7 @@ function Composer() {
           multiline
           value={draft}
           onChangeText={setDraft}
-          style={styles.input}
+          style={[styles.input, glass && glassInput]}
         />
       </View>
       {attachments.length ? (

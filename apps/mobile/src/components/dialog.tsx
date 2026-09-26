@@ -7,7 +7,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { GlassSurface, glassFont, glassText } from '@/components/liquid';
 import { fontFamily } from '@/theme/aqua';
+import { useGlass } from '@/theme/theme';
 
 export interface DialogButton {
   label: string;
@@ -62,6 +64,7 @@ export function DialogHost() {
 }
 
 function AlertView({ request, onAnswer }: { request: Request; onAnswer: (index: number) => void }) {
+  const glass = useGlass();
   const [scale] = useState(() => new Animated.Value(0.6));
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +86,37 @@ function AlertView({ request, onAnswer }: { request: Request; onAnswer: (index: 
   }, [scale]);
 
   const side = request.buttons.length === 2;
+  if (glass) {
+    return (
+      <View style={[styles.backdrop, glassStyles.backdrop]}>
+        <Animated.View style={[glassStyles.alert, { transform: [{ scale }] }]} accessibilityViewIsModal accessibilityRole="alert">
+          <GlassSurface radius={34} style={StyleSheet.absoluteFill} />
+          <Text style={glassStyles.title}>{request.title}</Text>
+          {request.message ? <Text style={glassStyles.message}>{request.message}</Text> : null}
+          <View style={[glassStyles.buttons, side && styles.buttonsSide]}>
+            {request.buttons.map((b, i) => {
+              // The choice that goes ahead is filled; Cancel stays clear.
+              const filled = b.style !== 'cancel' && (b.style === 'destructive' || i === request.buttons.length - 1);
+              return (
+                <Pressable
+                  key={b.label}
+                  accessibilityRole="button"
+                  onPress={() => onAnswer(i)}
+                  style={({ pressed }) => [
+                    glassStyles.button,
+                    side && styles.buttonSide,
+                    filled && { backgroundColor: b.style === 'destructive' ? glassText.red : glassText.blue },
+                    pressed && glassStyles.pressed,
+                  ]}>
+                  <Text style={[glassStyles.buttonText, filled && glassStyles.buttonTextFilled]}>{b.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Animated.View>
+      </View>
+    );
+  }
   return (
     <View style={styles.backdrop}>
       <LinearGradient colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.55)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -159,4 +193,16 @@ const styles = StyleSheet.create({
   buttonPressed: { backgroundColor: 'rgba(0,0,0,0.35)' },
   buttonFace: { borderRadius: 5 },
   buttonText: { fontFamily, fontSize: 18, fontWeight: '700', color: '#ffffff', ...embossed },
+});
+
+const glassStyles = StyleSheet.create({
+  backdrop: { backgroundColor: 'rgba(0,0,0,0.2)' },
+  alert: { width: 300, maxWidth: '100%', paddingTop: 22, paddingHorizontal: 18, paddingBottom: 16, borderRadius: 34 },
+  title: { fontFamily: glassFont, fontSize: 17, fontWeight: '600', color: glassText.primary, textAlign: 'center' },
+  message: { fontFamily: glassFont, fontSize: 15, lineHeight: 20, color: glassText.primary, textAlign: 'center', marginTop: 6 },
+  buttons: { marginTop: 18, gap: 8 },
+  button: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(120,120,128,0.16)' },
+  pressed: { transform: [{ scale: 0.96 }], opacity: 0.85 },
+  buttonText: { fontFamily: glassFont, fontSize: 17, fontWeight: '600', color: glassText.primary },
+  buttonTextFilled: { color: '#ffffff' },
 });

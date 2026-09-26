@@ -18,6 +18,7 @@ type Toggle = { [K in keyof AccountSettings]: AccountSettings[K] extends boolean
 const THEMES = [
   { value: 'blue', label: 'Blue' },
   { value: 'graphite', label: 'Graphite' },
+  { value: 'glass', label: 'Liquid Glass' },
 ] as const;
 
 // Which API saves each switch: Mastodon's profile (both servers) or Pinstripe's own preferences.

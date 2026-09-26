@@ -6,6 +6,7 @@
  * - linen: the dark woven linen behind Notification Center and the desktop.
  * - metal: horizontally brushed aluminium for toolbars.
  * - wood: warm grain for the profile's video shelves.
+ * - wallpaper: the soft colour field the Liquid Glass look floats its glass over.
  * - leather: pebbled brown hide for profile headers, lit so the grain stands up.
  */
 import { writeFile } from 'node:fs/promises';
@@ -94,6 +95,25 @@ const textures = {
       </filter>
       <rect width="256" height="256" filter="url(#hide)"/>
       <rect width="256" height="256" filter="url(#mottle)" opacity="0.6"/>`,
+  },
+  wallpaper: {
+    w: 1024,
+    h: 1024,
+    svg: `
+      <defs>
+        <radialGradient id="a" cx="0.2" cy="0.15" r="0.6"><stop offset="0" stop-color="#7cc4ff"/><stop offset="1" stop-color="#7cc4ff" stop-opacity="0"/></radialGradient>
+        <radialGradient id="b" cx="0.85" cy="0.3" r="0.55"><stop offset="0" stop-color="#b98cff"/><stop offset="1" stop-color="#b98cff" stop-opacity="0"/></radialGradient>
+        <radialGradient id="c" cx="0.3" cy="0.85" r="0.65"><stop offset="0" stop-color="#3fd6c6"/><stop offset="1" stop-color="#3fd6c6" stop-opacity="0"/></radialGradient>
+        <radialGradient id="d" cx="0.9" cy="0.95" r="0.5"><stop offset="0" stop-color="#ff9ac1"/><stop offset="1" stop-color="#ff9ac1" stop-opacity="0"/></radialGradient>
+        <filter id="soft" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="40"/></filter>
+      </defs>
+      <rect width="1024" height="1024" fill="#2446a8"/>
+      <g filter="url(#soft)">
+        <rect width="1024" height="1024" fill="url(#a)"/>
+        <rect width="1024" height="1024" fill="url(#b)"/>
+        <rect width="1024" height="1024" fill="url(#c)"/>
+        <rect width="1024" height="1024" fill="url(#d)"/>
+      </g>`,
   },
 };
 

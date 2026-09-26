@@ -5,9 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '@/components/icon';
 import { Badge } from '@/components/ios6';
+import { GlassSurface, glassFont, glassText } from '@/components/liquid';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { fontFamily } from '@/theme/aqua';
-import { useAccent } from '@/theme/theme';
+import { useAccent, useGlass } from '@/theme/theme';
 
 const TABS: Record<string, { label: string; icon: IconName }> = {
   feed: { label: 'Feed', icon: 'feed' },
@@ -19,7 +20,62 @@ const TABS: Record<string, { label: string; icon: IconName }> = {
  * The iOS 6 tab bar: black glass, the selected tab lifted in a lighter box
  * with its icon glowing. Pinned under the swipeable Feed ← Videos → Account pager.
  */
-export function AquaTabBar({ state, navigation }: MaterialTopTabBarProps) {
+export function AquaTabBar(props: MaterialTopTabBarProps) {
+  return useGlass() ? <GlassTabBar {...props} /> : <Ios6TabBar {...props} />;
+}
+
+const GLASS_BAR = 64;
+
+/**
+ * Room to leave at the bottom of a tab's content: the Glass tab bar floats
+ * over the screen, so lists and captions keep clear of it.
+ */
+export function useTabBarInset(): number {
+  const glass = useGlass();
+  const insets = useSafeAreaInsets();
+  return glass ? GLASS_BAR + Math.max(insets.bottom, 12) + 8 : 0;
+}
+
+/**
+ * The Liquid Glass tab bar: a capsule of glass floating above the content,
+ * the current tab picked out in the accent colour on a lozenge of its own.
+ * Over the videos it's dark glass.
+ */
+function GlassTabBar({ state, navigation }: MaterialTopTabBarProps) {
+  const insets = useSafeAreaInsets();
+  const unread = useUnreadNotifications();
+  const overVideo = state.routes[state.index]?.name === 'index';
+  return (
+    <View style={[styles.glassWrap, { bottom: Math.max(insets.bottom, 12) }]} pointerEvents="box-none">
+      <GlassSurface radius={GLASS_BAR / 2} dark={overVideo} style={styles.glassBar} accessibilityRole="tablist">
+        {state.routes.map((route: { key: string; name: string }, index: number) => {
+          const tab = TABS[route.name];
+          if (!tab) return null;
+          const focused = state.index === index;
+          const color = focused ? glassText.blue : overVideo ? '#ffffff' : glassText.primary;
+          return (
+            <Pressable
+              key={route.key}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: focused }}
+              accessibilityLabel={tab.label}
+              onPress={() => {
+                const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+                if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+              }}
+              style={[styles.glassTab, focused && (overVideo ? styles.glassTabOnDark : styles.glassTabOn)]}>
+              <Icon name={tab.icon} size={24} strokeWidth={2.2} color={color} filled={focused && tab.icon === 'play'} />
+              <Text style={[styles.glassLabel, { color }]}>{tab.label}</Text>
+              {route.name === 'feed' && unread ? <Badge count={unread} style={styles.glassBadge} /> : null}
+            </Pressable>
+          );
+        })}
+      </GlassSurface>
+    </View>
+  );
+}
+
+function Ios6TabBar({ state, navigation }: MaterialTopTabBarProps) {
   const accent = useAccent();
   const insets = useSafeAreaInsets();
   const unread = useUnreadNotifications();
@@ -85,4 +141,11 @@ const styles = StyleSheet.create({
   label: { fontFamily, fontSize: 10, fontWeight: '700', color: '#9a9a9a' },
   labelOn: { color: '#ffffff' },
   badge: { position: 'absolute', top: 0, right: '22%' },
+  glassWrap: { position: 'absolute', left: 20, right: 20 },
+  glassBar: { height: GLASS_BAR, flexDirection: 'row', alignItems: 'center', padding: 4 },
+  glassTab: { flex: 1, height: GLASS_BAR - 8, borderRadius: (GLASS_BAR - 8) / 2, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  glassTabOn: { backgroundColor: 'rgba(120,120,128,0.16)' },
+  glassTabOnDark: { backgroundColor: 'rgba(255,255,255,0.14)' },
+  glassLabel: { fontFamily: glassFont, fontSize: 10, fontWeight: '600' },
+  glassBadge: { position: 'absolute', top: 4, right: '26%' },
 });

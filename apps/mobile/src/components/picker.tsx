@@ -12,7 +12,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BarButton, Toolbar } from '@/components/ios6';
 import { detent } from '@/sound/sounds';
+import { GlassSurface, glassFont, glassText } from '@/components/liquid';
 import { fontFamily } from '@/theme/aqua';
+import { useGlass } from '@/theme/theme';
 
 const ROW = 44;
 const VISIBLE = 5;
@@ -33,6 +35,24 @@ export function PickerSheet<T extends string>({
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const glass = useGlass();
+  if (glass) {
+    return (
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" accessibilityRole="button" />
+        <View style={[styles.sheet, styles.glassSheet, { bottom: Math.max(insets.bottom, 8) }]} accessibilityViewIsModal>
+          <GlassSurface radius={34} style={StyleSheet.absoluteFill} />
+          <View style={styles.glassHeader}>
+            <Text style={styles.glassTitle} accessibilityRole="header">
+              {title}
+            </Text>
+            <BarButton done title="Done" onPress={onClose} />
+          </View>
+          <Wheel options={options} value={value} onChange={onChange} glass />
+        </View>
+      </Modal>
+    );
+  }
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" accessibilityRole="button" />
@@ -56,10 +76,12 @@ function Wheel<T extends string>({
   options,
   value,
   onChange,
+  glass = false,
 }: {
   options: readonly { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
+  glass?: boolean;
 }) {
   const scroller = useRef<ScrollView>(null);
   const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -99,7 +121,7 @@ function Wheel<T extends string>({
   };
 
   return (
-    <View style={styles.wheel}>
+    <View style={[styles.wheel, glass && styles.wheelGlass]}>
       <Animated.ScrollView
         ref={scroller}
         showsVerticalScrollIndicator={false}
@@ -122,6 +144,7 @@ function Wheel<T extends string>({
                 style={[
                   styles.rowText,
                   selected && styles.rowSelected,
+                  glass && styles.rowTextGlass,
                   {
                     transform: [
                       { perspective: 500 },
@@ -150,12 +173,20 @@ function Wheel<T extends string>({
         })}
       </Animated.ScrollView>
       {/* The cylinder's curve: rows darken as they turn away. */}
-      <LinearGradient colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0)']} style={[styles.shade, styles.shadeTop]} pointerEvents="none" />
-      <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0.55)']} style={[styles.shade, styles.shadeBottom]} pointerEvents="none" />
+      {glass ? null : (
+        <>
+          <LinearGradient colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0)']} style={[styles.shade, styles.shadeTop]} pointerEvents="none" />
+          <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0.55)']} style={[styles.shade, styles.shadeBottom]} pointerEvents="none" />
+        </>
+      )}
       {/* The glass selection bar. */}
-      <View style={styles.selection} pointerEvents="none">
-        <LinearGradient colors={['rgba(222,228,247,0.55)', 'rgba(170,184,224,0.45)', 'rgba(140,157,207,0.5)', 'rgba(160,176,220,0.45)']} locations={[0, 0.49, 0.5, 1]} style={StyleSheet.absoluteFill} />
-      </View>
+      {glass ? (
+        <View style={styles.selectionGlass} pointerEvents="none" />
+      ) : (
+        <View style={styles.selection} pointerEvents="none">
+          <LinearGradient colors={['rgba(222,228,247,0.55)', 'rgba(170,184,224,0.45)', 'rgba(140,157,207,0.5)', 'rgba(160,176,220,0.45)']} locations={[0, 0.49, 0.5, 1]} style={StyleSheet.absoluteFill} />
+        </View>
+      )}
     </View>
   );
 }
@@ -188,6 +219,20 @@ const styles = StyleSheet.create({
   row: { height: ROW, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
   rowText: { fontFamily, fontSize: 22, fontWeight: '700', color: '#222222' },
   rowSelected: { color: '#000000' },
+  glassSheet: { left: 8, right: 8, width: 'auto', borderRadius: 34, paddingBottom: 12 },
+  glassHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 14, paddingBottom: 4 },
+  glassTitle: { fontFamily: glassFont, fontSize: 17, fontWeight: '600', color: glassText.primary },
+  wheelGlass: { backgroundColor: 'transparent', borderWidth: 0, boxShadow: 'none', marginHorizontal: 8 },
+  rowTextGlass: { fontFamily: glassFont, fontWeight: '400', color: glassText.primary },
+  selectionGlass: {
+    position: 'absolute',
+    left: 4,
+    right: 4,
+    top: ROW * Math.floor(VISIBLE / 2),
+    height: ROW,
+    borderRadius: 12,
+    backgroundColor: 'rgba(120,120,128,0.14)',
+  },
   shade: { position: 'absolute', left: 0, right: 0, height: ROW * 2 },
   shadeTop: { top: 0 },
   shadeBottom: { bottom: 0 },

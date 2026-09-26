@@ -80,7 +80,8 @@ export function isVideoPost(post: Post): boolean {
   return post.media[0]?.kind === "video";
 }
 
-export type Theme = "blue" | "graphite";
+/** Blue and Graphite are the iOS 6 look in two colours; Glass is the Liquid Glass look. */
+export type Theme = "blue" | "graphite" | "glass";
 
 /** Everything on the Settings screen that is stored per account. */
 export interface AccountSettings {

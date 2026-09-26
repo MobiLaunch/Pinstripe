@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { type ReactNode, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, type StyleProp, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 
 import { aquaText, Avatar, Group, Pinstripes, Segmented } from '@/components/aqua';
@@ -12,10 +12,13 @@ import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
 import { NavBar, Spinner } from '@/components/ios6';
 import { PostCard } from '@/components/post-card';
+import { Wallpaper } from '@/components/liquid';
 import { usePullToRefresh } from '@/components/pull-refresh';
+import { useTabBarInset } from '@/components/tab-bar';
 import { Texture } from '@/components/texture';
 import { usePostList } from '@/hooks/use-post-list';
 import { colors, fontFamily } from '@/theme/aqua';
+import { useGlass } from '@/theme/theme';
 
 const TABS = [
   { value: 'videos', label: 'Videos' },
@@ -54,6 +57,7 @@ export function ProfileView({
 }) {
   const [tab, setTab] = useState<(typeof TABS)[number]['value']>('posts');
   // One list of the account's posts and boosts; each tab shows its share.
+  const bottomInset = useTabBarInset();
   const list = usePostList((client, maxId) => client.accountStatuses(account.id, { maxId }), `${account.id}:${postsKey}`, {
     accepts: (post) => post.account.id === account.id,
   });
@@ -126,7 +130,7 @@ export function ProfileView({
             {header}
           </>
         }
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: 24 + bottomInset }]}
         {...pull.listProps}
         onEndReached={list.loadMore}
         onEndReachedThreshold={0.5}
@@ -167,6 +171,14 @@ const LEATHER = require('../../assets/textures/leather.png');
  * leather like iOS 6's Find My Friends.
  */
 function Banner({ uri }: { uri: string | null }) {
+  const glass = useGlass();
+  if (glass && !uri) {
+    return (
+      <View style={[styles.banner, styles.glassBanner]}>
+        <Wallpaper style={StyleSheet.absoluteFill} />
+      </View>
+    );
+  }
   if (uri) {
     return (
       <View style={styles.banner}>
@@ -211,6 +223,20 @@ function shelves(posts: Post[]): Post[][] {
  * wooden back, on a lit plank with a rounded front edge.
  */
 function Shelf({ posts, onOpen }: { posts: Post[]; onOpen: (post: Post) => void }) {
+  // Liquid Glass keeps it plain: a grid of rounded posters.
+  if (useGlass()) {
+    return (
+      <View style={styles.glassRow}>
+        {Array.from({ length: PER_SHELF }, (_, i) =>
+          posts[i] ? (
+            <VideoTile key={posts[i].id} post={posts[i]} onPress={() => onOpen(posts[i]!)} style={styles.glassTile} />
+          ) : (
+            <View key={i} style={styles.tileSpace} />
+          ),
+        )}
+      </View>
+    );
+  }
   return (
     <View style={styles.bay}>
       <Texture source={WOOD} tile={{ width: 512, height: 256 }} />
@@ -234,11 +260,11 @@ function Shelf({ posts, onOpen }: { posts: Post[]; onOpen: (post: Post) => void 
 }
 
 /** A video in the profile grid: its poster and how many have watched it. */
-function VideoTile({ post, onPress }: { post: Post; onPress: () => void }) {
+function VideoTile({ post, onPress, style }: { post: Post; onPress: () => void; style?: StyleProp<ViewStyle> }) {
   const video = post.media[0]!;
   return (
     <Pressable
-      style={styles.tile}
+      style={[styles.tile, style]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${post.content || 'Video'}${post.views !== null ? `, ${post.views} views` : ''}`}>
@@ -309,6 +335,9 @@ const styles = StyleSheet.create({
     boxShadow: '0 5px 8px rgba(0,0,0,0.55)',
   },
   tileSpace: { flex: 1 },
+  glassBanner: { borderBottomWidth: 0 },
+  glassRow: { flexDirection: 'row', gap: 3, paddingHorizontal: 3, marginBottom: 3 },
+  glassTile: { borderRadius: 12, borderWidth: 0, boxShadow: 'none' },
   tile: {
     flex: 1,
     aspectRatio: 9 / 16,

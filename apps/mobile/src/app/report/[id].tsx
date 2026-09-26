@@ -9,10 +9,11 @@ import { AquaSwitch, aquaText, Card, GelButton, Segmented } from '@/components/a
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { BarButton, Spinner, TableBackground } from '@/components/ios6';
+import { glassInput } from '@/components/liquid-controls';
 import { ScreenHeader } from '@/components/screen-header';
 import { PINSTRIPE_DOMAIN } from '@/config';
 import { colors, fontFamily } from '@/theme/aqua';
-import { useAccent } from '@/theme/theme';
+import { useAccent, useGlass } from '@/theme/theme';
 
 const CATEGORIES: { value: ReportCategory; label: string }[] = [
   { value: 'spam', label: 'Spam' },
@@ -32,6 +33,7 @@ const COMMENT_MAX = 1000;
 
 /** Reporting an account (and some of its posts) to the moderators. */
 export default function ReportScreen() {
+  const glass = useGlass();
   const accent = useAccent();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { state } = useAuth();
@@ -153,7 +155,7 @@ export default function ReportScreen() {
               multiline
               value={comment}
               onChangeText={setComment}
-              style={styles.input}
+              style={[styles.input, glass && glassInput]}
             />
             <Text style={[aquaText.handle, styles.right, [...comment].length > COMMENT_MAX && styles.over]}>
               {[...comment].length} / {COMMENT_MAX}

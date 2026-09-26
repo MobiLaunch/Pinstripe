@@ -4,7 +4,7 @@
  */
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import {
   Pressable,
   type PressableProps,
@@ -22,7 +22,18 @@ import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 import { colors, fontFamily, type Gradient, gelBorders, gradients, radii, touchTarget } from '@/theme/aqua';
 import { FitGloss, OrbFace } from '@/components/glass';
 import { Switch as Ios6Switch } from '@/components/ios6';
-import { useAccent } from '@/theme/theme';
+import {
+  GlassAvatar,
+  GlassButton,
+  GlassCard,
+  GlassField,
+  GlassGroup,
+  GlassListBackground,
+  GlassListField,
+  GlassOrb,
+  GlassSegmented,
+} from '@/components/liquid-controls';
+import { useAccent, useGlass } from '@/theme/theme';
 
 function Fill({ gradient, style }: { gradient: Gradient; style?: ViewStyle }) {
   return (
@@ -36,7 +47,7 @@ function Fill({ gradient, style }: { gradient: Gradient; style?: ViewStyle }) {
 }
 
 /** The horizontal pinstripe backdrop behind every non-video screen. */
-export function Pinstripes({ children, style, ...rest }: ViewProps) {
+function Ios6Pinstripes({ children, style, ...rest }: ViewProps) {
   return (
     <View style={[styles.pinstripeBase, style]} {...rest}>
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -71,7 +82,7 @@ const GEL: Record<GelTone, { gradient: Gradient; border: string; text: string }>
 };
 
 /** The glossy "lickable" pill button. */
-export function GelButton({
+function Ios6GelButton({
   title,
   tone = 'blue',
   small = false,
@@ -119,7 +130,7 @@ export function GelButton({
 }
 
 /** Round glass orb used for the video action rail. */
-export function Orb({
+function Ios6Orb({
   children,
   active = false,
   size = 52,
@@ -152,7 +163,7 @@ export function Orb({
  * Segmented control. `bar` is the compact style that sits on a navigation
  * bar or toolbar, tinted like the bar (UISegmentedControlStyleBar).
  */
-export function Segmented<T extends string>({
+function Ios6Segmented<T extends string>({
   options,
   value,
   onChange,
@@ -193,7 +204,7 @@ export function Segmented<T extends string>({
  * dark rim, a soft drop shadow and a touch of glass across the top. Big ones
  * can be `framed` in a white mount, as on a Contacts card.
  */
-export function Avatar({ initials, size = 40, uri, framed = false }: { initials: string; size?: number; uri?: string | null; framed?: boolean }) {
+function Ios6Avatar({ initials, size = 40, uri, framed = false }: { initials: string; size?: number; uri?: string | null; framed?: boolean }) {
   const accent = useAccent();
   const radius = Math.max(4, Math.round(size * 0.14));
   if (framed) {
@@ -226,12 +237,12 @@ export function AquaSwitch(props: { value: boolean; onValueChange?: (value: bool
   return <Ios6Switch {...props} />;
 }
 
-export function Card({ style, ...rest }: ViewProps) {
+function Ios6Card({ style, ...rest }: ViewProps) {
   return <View style={[styles.card, style]} {...rest} />;
 }
 
 /** Inset group box, as on the Settings screen. */
-export function Group({ title, children }: { title?: string; children: ReactNode }) {
+function Ios6Group({ title, children }: { title?: string; children: ReactNode }) {
   return (
     <View>
       {title ? <Text style={styles.groupTitle}>{title}</Text> : null}
@@ -241,7 +252,7 @@ export function Group({ title, children }: { title?: string; children: ReactNode
 }
 
 /** A labelled iOS 6 rounded text field, recessed into the page. */
-export function Field({ label, ...rest }: TextInputProps & { label: string }) {
+function Ios6Field({ label, ...rest }: TextInputProps & { label: string }) {
   // Never capitalise or autocorrect a password.
   const secret = rest.secureTextEntry ? { autoCapitalize: 'none' as const, autoCorrect: false } : {};
   return (
@@ -263,7 +274,7 @@ export function Field({ label, ...rest }: TextInputProps & { label: string }) {
  * A text field inside a grouped-table cell: the label on the left in bold,
  * the entry on the right, as in iOS 6's account forms.
  */
-export function TableField({ label, ...rest }: TextInputProps & { label: string }) {
+function Ios6TableField({ label, ...rest }: TextInputProps & { label: string }) {
   const secret = rest.secureTextEntry ? { autoCapitalize: 'none' as const, autoCorrect: false } : {};
   return (
     <View style={[styles.tableField, rest.multiline && styles.tableFieldTall]}>
@@ -383,3 +394,33 @@ const styles = StyleSheet.create({
   tableFieldInput: { flex: 1, minHeight: 44, fontFamily, fontSize: 16, color: '#385487', paddingVertical: 10, outlineWidth: 0 },
   tableFieldInputTall: { minHeight: 80, paddingVertical: 0, textAlignVertical: 'top' },
 });
+
+// Each control draws Liquid Glass when that look is on, the Aqua / iOS 6 look otherwise.
+
+export function Pinstripes(props: ComponentProps<typeof Ios6Pinstripes>) {
+  return useGlass() ? <GlassListBackground {...props} /> : <Ios6Pinstripes {...props} />;
+}
+export function GelButton(props: ComponentProps<typeof Ios6GelButton>) {
+  return useGlass() ? <GlassButton {...props} /> : <Ios6GelButton {...props} />;
+}
+export function Orb(props: ComponentProps<typeof Ios6Orb>) {
+  return useGlass() ? <GlassOrb {...props} /> : <Ios6Orb {...props} />;
+}
+export function Avatar(props: ComponentProps<typeof Ios6Avatar>) {
+  return useGlass() ? <GlassAvatar {...props} /> : <Ios6Avatar {...props} />;
+}
+export function Card(props: ComponentProps<typeof Ios6Card>) {
+  return useGlass() ? <GlassCard {...props} /> : <Ios6Card {...props} />;
+}
+export function Group(props: ComponentProps<typeof Ios6Group>) {
+  return useGlass() ? <GlassGroup {...props} /> : <Ios6Group {...props} />;
+}
+export function Field(props: ComponentProps<typeof Ios6Field>) {
+  return useGlass() ? <GlassField {...props} /> : <Ios6Field {...props} />;
+}
+export function TableField(props: ComponentProps<typeof Ios6TableField>) {
+  return useGlass() ? <GlassListField {...props} /> : <Ios6TableField {...props} />;
+}
+export function Segmented<T extends string>(props: Parameters<typeof Ios6Segmented<T>>[0]) {
+  return useGlass() ? <GlassSegmented {...props} /> : <Ios6Segmented {...props} />;
+}

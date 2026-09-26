@@ -1,7 +1,7 @@
 import { type Account, formatHandle, type Post } from '@pinstripe/core';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { FlatList, Pressable, type StyleProp, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { type MastodonNotification, toAccount, toPost } from '@/api/mastodon';
 import { useAuth } from '@/auth/session';
@@ -9,14 +9,15 @@ import { aquaText, Avatar, Card, GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon, type IconName } from '@/components/icon';
 import { initials } from '@/components/initials';
-import { Linen, LinenHeader, Spinner } from '@/components/ios6';
+import { GlassSurface, glassFont, glassText } from '@/components/liquid';
+import { Linen, LinenHeader, Spinner, TableEmpty } from '@/components/ios6';
 import { usePullToRefresh } from '@/components/pull-refresh';
 import { relativeTime } from '@/components/relative-time';
 import { ScreenHeader } from '@/components/screen-header';
 import { setUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { usePushStatus } from '@/push/push';
 import { fontFamily } from '@/theme/aqua';
-import { useAccent } from '@/theme/theme';
+import { useAccent, useGlass } from '@/theme/theme';
 
 interface Item {
   id: string;
@@ -137,7 +138,7 @@ export default function NotificationsScreen() {
           items === null ? (
             error ? null : <Spinner color="#ffffff" style={styles.empty} />
           ) : (
-            <Text style={styles.empty}>No Notifications</Text>
+            <TableEmpty title="No Notifications" dark />
           )
         }
         renderItem={({ item }) => <Row item={item} onAnswer={(action) => answer(item, action)} />}
@@ -153,8 +154,10 @@ function Row({ item, onAnswer }: { item: Item; onAnswer: (action: 'authorize' | 
   const reply = item.type === 'mention' && item.post?.inReplyToId;
   const open = () => (item.post ? router.push(`/status/${item.post.id}`) : router.push(`/profile/${item.account.id}`));
   const label = `${item.account.displayName} ${reply ? 'replied to you' : kind.text}`;
+  const glass = useGlass();
+  const Platter = glass ? GlassPlatter : View;
   return (
-    <View style={styles.row}>
+    <Platter style={glass ? styles.platter : styles.row}>
       <Pressable accessibilityRole="link" accessibilityLabel={label} onPress={open} style={({ pressed }) => [styles.main, pressed && styles.pressed]}>
         {/* Mail's unread dot. */}
         <View style={styles.dotSpace}>{item.unread ? <View style={[styles.dot, { backgroundColor: accent.tabIcon }]} /> : null}</View>
@@ -166,16 +169,16 @@ function Row({ item, onAnswer }: { item: Item; onAnswer: (action: 'authorize' | 
         </View>
         <View style={styles.flex}>
           <View style={styles.titleLine}>
-            <Text style={styles.name} numberOfLines={1}>
+            <Text style={[styles.name, glass && styles.nameGlass]} numberOfLines={1}>
               {item.account.displayName}
             </Text>
-            <Text style={styles.time}>{relativeTime(item.createdAt)}</Text>
+            <Text style={[styles.time, glass && styles.timeGlass]}>{relativeTime(item.createdAt)}</Text>
           </View>
-          <Text style={styles.what} numberOfLines={1}>
+          <Text style={[styles.what, glass && styles.whatGlass]} numberOfLines={1}>
             {reply ? 'Replied to you' : kind.text[0]!.toUpperCase() + kind.text.slice(1)} · {formatHandle(item.account)}
           </Text>
           {item.post?.content ? (
-            <Text style={styles.snippet} numberOfLines={item.type === 'mention' ? 4 : 2}>
+            <Text style={[styles.snippet, glass && styles.snippetGlass]} numberOfLines={item.type === 'mention' ? 4 : 2}>
               {item.post.content}
             </Text>
           ) : null}
@@ -187,7 +190,16 @@ function Row({ item, onAnswer }: { item: Item; onAnswer: (action: 'authorize' | 
           <GelButton small title="Approve" accessibilityLabel={`Approve ${item.account.displayName}`} onPress={() => onAnswer('authorize')} />
         </View>
       ) : null}
-    </View>
+    </Platter>
+  );
+}
+
+/** A notification's own pane of glass, as on the Lock Screen. */
+function GlassPlatter({ style, children }: { style?: StyleProp<ViewStyle>; children: ReactNode }) {
+  return (
+    <GlassSurface radius={26} style={style}>
+      {children}
+    </GlassSurface>
   );
 }
 
@@ -219,6 +231,11 @@ const styles = StyleSheet.create({
   time: { fontFamily, fontSize: 12, color: '#9ca3ad', ...shadow },
   what: { fontFamily, fontSize: 13, color: '#c9ced6', ...shadow },
   snippet: { fontFamily, fontSize: 14, lineHeight: 19, color: '#e8ebef', marginTop: 4, ...shadow },
+  platter: { marginHorizontal: 12, marginBottom: 10 },
+  nameGlass: { fontFamily: glassFont, color: glassText.primary, textShadowColor: 'transparent', fontWeight: '600' },
+  timeGlass: { fontFamily: glassFont, color: glassText.secondary, textShadowColor: 'transparent' },
+  whatGlass: { fontFamily: glassFont, color: glassText.secondary, textShadowColor: 'transparent' },
+  snippetGlass: { fontFamily: glassFont, color: glassText.primary, textShadowColor: 'transparent' },
   buttons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, paddingHorizontal: 14, paddingBottom: 12 },
   empty: { fontFamily, fontSize: 17, fontWeight: '700', color: '#7c828b', textAlign: 'center', marginTop: 48, ...shadow },
   pushCard: { gap: 8, margin: 12 },

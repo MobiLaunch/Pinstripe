@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Defs, Pattern, Polygon, Rect } from 'react-native-svg';
 
-import { useAccent } from '@/theme/theme';
+import { GlassProgress } from '@/components/liquid-controls';
+import { useAccent, useGlass } from '@/theme/theme';
 
 const STRIPE = 10;
 
@@ -14,7 +15,7 @@ const STRIPE = 10;
  * moving diagonal stripes. Motion stops when the system asks for reduced
  * motion.
  */
-export function ProgressBar({ progress, label }: { progress: number | null; label: string }) {
+function Ios6ProgressBar({ progress, label }: { progress: number | null; label: string }) {
   const accent = useAccent();
   const [shift] = useState(() => new Animated.Value(0));
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -78,3 +79,7 @@ const styles = StyleSheet.create({
   stripes: { position: 'absolute', top: 0, bottom: 0, left: -STRIPE * 2, right: 0 },
   gloss: { position: 'absolute', top: 0, left: 2, right: 2, height: '48%', borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.35)' },
 });
+
+export function ProgressBar(props: { progress: number | null; label: string }) {
+  return useGlass() ? <GlassProgress {...props} /> : <Ios6ProgressBar {...props} />;
+}

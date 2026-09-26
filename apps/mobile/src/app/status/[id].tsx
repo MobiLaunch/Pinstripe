@@ -10,11 +10,13 @@ import { Pinstripes } from '@/components/aqua';
 import { BarButton, Spinner, Toolbar } from '@/components/ios6';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
+import { glassInput } from '@/components/liquid-controls';
 import { PostCard } from '@/components/post-card';
 import { ScreenHeader } from '@/components/screen-header';
 import { publishPostEvent, usePostList } from '@/hooks/use-post-list';
 import { play } from '@/sound/sounds';
 import { colors, fontFamily } from '@/theme/aqua';
+import { useGlass } from '@/theme/theme';
 
 /** The whole thread, oldest first; a thread has no further pages. */
 async function loadThread(client: MastodonClient, id: string, maxId?: string) {
@@ -71,6 +73,7 @@ export default function ThreadScreen() {
 }
 
 function ReplyBox({ to, autoFocus, onPosted }: { to: Post; autoFocus: boolean; onPosted: () => void }) {
+  const glass = useGlass();
   const insets = useSafeAreaInsets();
   const me = useAccount();
   const { state, refreshAccount } = useAuth();
@@ -118,7 +121,7 @@ function ReplyBox({ to, autoFocus, onPosted }: { to: Post; autoFocus: boolean; o
           autoFocus={autoFocus}
           value={draft}
           onChangeText={setDraft}
-          style={styles.input}
+          style={[styles.input, glass && glassInput]}
         />
         <BarButton done title={posting ? '…' : 'Reply'} disabled={posting || !draft.trim() || remaining < 0} onPress={submit} style={styles.send} />
       </View>

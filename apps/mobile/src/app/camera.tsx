@@ -20,8 +20,11 @@ import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { BrushedMetal } from '@/components/ios6';
 import { Iris } from '@/components/iris';
+import { GlassSurface } from '@/components/liquid';
+import { GlassButton } from '@/components/liquid-controls';
 import { play } from '@/sound/sounds';
 import { fontFamily } from '@/theme/aqua';
+import { useGlass } from '@/theme/theme';
 
 const MAX_SECONDS = 60;
 /** The record-start tone's length, plus a little quiet. */
@@ -38,6 +41,7 @@ export default function CameraScreen() {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [irisOpen, setIrisOpen] = useState(false);
+  const glass = useGlass();
   const [error, setError] = useState<string | null>(null);
   const recorded = useRef<Picked | null>(null);
   const started = useRef(0);
@@ -56,7 +60,7 @@ export default function CameraScreen() {
   const onReady = () => {
     setReady(true);
     if (!irisOpen && !recorded.current) {
-      play('shutter');
+      if (!glass) play('shutter');
       setIrisOpen(true);
     }
   };
@@ -96,8 +100,13 @@ export default function CameraScreen() {
       if (problem) throw new Error(problem);
       recorded.current = asset;
       play('recordStop');
-      play('shutter');
-      setIrisOpen(false);
+      if (glass) {
+        // No iris in Liquid Glass: straight on to posting.
+        openNewVideo(asset, true);
+      } else {
+        play('shutter');
+        setIrisOpen(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Couldn’t record the video.');
     } finally {
@@ -154,12 +163,14 @@ export default function CameraScreen() {
             onMountError={(e) => setError(e.message)}
           />
         ) : null}
-        <Iris
-          open={irisOpen}
-          onSettled={() => {
-            if (!irisOpen && recorded.current) openNewVideo(recorded.current, true);
-          }}
-        />
+        {glass ? null : (
+          <Iris
+            open={irisOpen}
+            onSettled={() => {
+              if (!irisOpen && recorded.current) openNewVideo(recorded.current, true);
+            }}
+          />
+        )}
         <View style={[styles.top, { top: insets.top + 10 }]}>
           {facing === 'back' ? (
             <GlassPill
@@ -189,20 +200,49 @@ export default function CameraScreen() {
         ) : null}
       </View>
 
-      {/* The brushed-metal toolbar. */}
-      <BrushedMetal style={[styles.toolbar, { paddingBottom: insets.bottom + 12 }]}>
-        <View style={styles.side}>
-          <DarkButton title="Cancel" disabled={recording} onPress={close} />
+      {glass ? (
+        <View style={[styles.toolbar, styles.glassToolbar, { paddingBottom: insets.bottom + 18 }]}>
+          <View style={styles.side}>
+            <GlassButton small tone="gray" title="Cancel" disabled={recording} onPress={close} />
+          </View>
+          <RingShutter recording={recording} disabled={!ready} onPress={recording ? stop : start} />
+          <View style={[styles.side, styles.right]}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Choose from library" disabled={recording} onPress={library} style={[styles.glassLibrary, recording && styles.dim]}>
+              <Icon name="photo" size={22} color="#ffffff" />
+            </Pressable>
+          </View>
         </View>
-        <Shutter recording={recording} disabled={!ready} onPress={recording ? stop : start} />
-        <View style={[styles.side, styles.right]}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Choose from library" disabled={recording} onPress={library} style={[styles.library, recording && styles.dim]}>
-            <LinearGradient colors={['#9fb6d1', '#4d6f97']} style={StyleSheet.absoluteFill} />
-            <Icon name="photo" size={22} color="#ffffff" />
-          </Pressable>
-        </View>
-      </BrushedMetal>
+      ) : (
+        /* The brushed-metal toolbar. */
+        <BrushedMetal style={[styles.toolbar, { paddingBottom: insets.bottom + 12 }]}>
+          <View style={styles.side}>
+            <DarkButton title="Cancel" disabled={recording} onPress={close} />
+          </View>
+          <Shutter recording={recording} disabled={!ready} onPress={recording ? stop : start} />
+          <View style={[styles.side, styles.right]}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Choose from library" disabled={recording} onPress={library} style={[styles.library, recording && styles.dim]}>
+              <LinearGradient colors={['#9fb6d1', '#4d6f97']} style={StyleSheet.absoluteFill} />
+              <Icon name="photo" size={22} color="#ffffff" />
+            </Pressable>
+          </View>
+        </BrushedMetal>
+      )}
     </View>
+  );
+}
+
+/** Today's shutter: a white ring round a red button that squares off while recording. */
+function RingShutter({ recording, disabled, onPress }: { recording: boolean; disabled: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={recording ? 'Stop recording' : 'Record'}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.ring, disabled && styles.dim]}>
+      {({ pressed }) => <View style={[styles.ringDot, recording && styles.ringDotRecording, pressed && styles.ringPressed]} />}
+    </Pressable>
   );
 }
 
@@ -259,6 +299,15 @@ function Blink() {
 
 /** The black glass capsules floating over the viewfinder. */
 function GlassPill({ children, ...rest }: React.ComponentProps<typeof Pressable> & { children: React.ReactNode }) {
+  if (useGlass()) {
+    return (
+      <Pressable accessibilityRole="button" hitSlop={8} style={rest.disabled && styles.dim} {...rest}>
+        <GlassSurface radius={20} dark style={styles.glassPill}>
+          {children}
+        </GlassSurface>
+      </Pressable>
+    );
+  }
   return (
     <Pressable accessibilityRole="button" hitSlop={8} style={[styles.pill, rest.disabled && styles.dim]} {...rest}>
       <LinearGradient colors={['rgba(90,90,90,0.75)', 'rgba(20,20,20,0.75)', 'rgba(0,0,0,0.8)']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
@@ -373,4 +422,11 @@ const styles = StyleSheet.create({
     boxShadow: '0 1px 3px rgba(0,0,0,0.7)',
   },
   dim: { opacity: 0.5 },
+  glassToolbar: { backgroundColor: '#000000', paddingTop: 18 },
+  glassLibrary: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)' },
+  glassPill: { height: 40, minWidth: 48, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  ring: { width: 78, height: 78, borderRadius: 39, borderWidth: 5, borderColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
+  ringDot: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#ff3b30' },
+  ringDotRecording: { width: 30, height: 30, borderRadius: 7 },
+  ringPressed: { opacity: 0.75 },
 });

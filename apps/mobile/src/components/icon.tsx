@@ -1,3 +1,4 @@
+import { createContext, useContext } from 'react';
 import { View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
@@ -117,6 +118,13 @@ const ICONS = {
 
 export type IconName = keyof typeof ICONS;
 
+/**
+ * Overrides icon colours inside a control: Liquid Glass buttons are light,
+ * so the white icons iOS 6 bars use turn dark there without each caller
+ * knowing.
+ */
+export const IconTint = createContext<string | null>(null);
+
 export function Icon({
   name,
   size = 20,
@@ -130,6 +138,8 @@ export function Icon({
   strokeWidth?: number;
   filled?: boolean;
 }) {
+  const tint = useContext(IconTint);
+  if (tint) color = tint;
   // The View keeps the icon above absolutely-positioned gradient layers on web.
   return (
     <View style={{ width: size, height: size }} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">

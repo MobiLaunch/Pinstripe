@@ -176,7 +176,7 @@ export function profileRoutes({ store, media, renderCredentialAccount, federatio
   app.patch("/api/v1/accounts/update_credentials", bodyLimit({ maxSize: 2 * IMAGE_LIMITS.maxBytes + 64 * 1024 }), updateCredentials);
 
   const PREFS = ["allowVideoDownloads", "hideFollowerCounts", "autoplayVideos", "startMuted", "saveDataOnCellular"] as const;
-  const THEMES: Theme[] = ["blue", "graphite"];
+  const THEMES: Theme[] = ["blue", "graphite", "glass"];
 
   const preferencesJson = (s: AccountSettings) => ({
     allow_video_downloads: s.allowVideoDownloads,

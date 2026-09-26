@@ -10,6 +10,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 
 import { useAuth } from '@/auth/session';
 import { getJson, setJson } from '@/auth/storage';
+import { setSystemFontOnWeb } from '@/web-fixes';
 
 import { colors, type Gradient, gradients } from './aqua';
 
@@ -46,6 +47,8 @@ export interface Accent {
   /** The selected tab's icon in the black tab bar. */
   tabIcon: string;
 }
+
+let glassAccent: Accent | undefined;
 
 export const ACCENTS: Record<Theme, Accent> = {
   blue: {
@@ -99,6 +102,25 @@ export const ACCENTS: Record<Theme, Accent> = {
     searchBar: { colors: ['#b9b9b9', '#9a9a9a', '#8a8a8a'], locations: [0, 0.5, 1] },
     tabIcon: '#e8eef5',
   },
+  // Liquid Glass: the system blue on glass; the iOS 6 fields below are unused there.
+  get glass(): Accent {
+    return (glassAccent ??= {
+      ...ACCENTS.blue,
+      theme: 'glass',
+      color: '#0a84ff',
+      colorActive: '#0060df',
+      gel: { colors: ['#0a84ff', '#0a84ff'] },
+      gelBorder: 'transparent',
+      segmentOn: { colors: ['#ffffff', '#ffffff'] },
+      orbActive: { colors: ['#2f95ff', '#0a6be0'] },
+      orbActiveBorder: 'rgba(255,255,255,0.5)',
+      avatar: { colors: ['#6fb4ff', '#2c6fe0'] },
+      switchOn: { colors: ['#34c759', '#34c759'] },
+      switchOnBorder: '#34c759',
+      selection: { colors: ['#d1d1d6', '#d1d1d6'] },
+      tabIcon: '#0a84ff',
+    });
+  },
 };
 
 const THEME_KEY = 'pinstripe.theme';
@@ -128,12 +150,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
   }, [client, setTheme]);
 
+  useEffect(() => setSystemFontOnWeb(theme === 'glass'), [theme]);
+
   const value = useMemo(() => ({ accent: ACCENTS[theme], setTheme }), [theme, setTheme]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useAccent(): Accent {
   return useContext(ThemeContext).accent;
+}
+
+/** True for the Liquid Glass look, where components draw glass instead of iOS 6 chrome. */
+export function useGlass(): boolean {
+  return useContext(ThemeContext).accent.theme === 'glass';
 }
 
 export function useSetTheme(): (theme: Theme) => void {

@@ -81,5 +81,6 @@ describe("Pinstripe preferences", () => {
     expect(updated).toMatchObject({ hide_follower_counts: true, theme: "graphite", autoplay_videos: true });
     expect((await json(await get(`/api/v1/accounts/${sam.account.id}`, api))).followers_count).toBe(0);
     expect((await patch("/api/v1/pinstripe/preferences", { theme: "neon" }, sam.headers)).status).toBe(422);
+    expect(await json(await patch("/api/v1/pinstripe/preferences", { theme: "glass" }, sam.headers))).toMatchObject({ theme: "glass" });
   });
 });

@@ -12,6 +12,7 @@ import { GelButton, Orb, Segmented } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { Spinner } from '@/components/ios6';
+import { useTabBarInset } from '@/components/tab-bar';
 import { usePlaybackPreferences, VideoPage } from '@/components/video-page';
 import { target, usePostList } from '@/hooks/use-post-list';
 import { colors, fontFamily } from '@/theme/aqua';
@@ -33,6 +34,7 @@ export default function VideosScreen() {
   const [active, setActive] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const prefs = usePlaybackPreferences();
+  const bottomInset = useTabBarInset();
   const list = usePostList((client, maxId) => client.timeline(timeline, { maxId, onlyVideo: true }), `videos:${timeline}`, {
     accepts: (post) => isVideo(post) && (timeline === 'home' || post.visibility === 'public'),
   });
@@ -81,6 +83,7 @@ export default function VideosScreen() {
               startMuted={prefs.muted}
               onFavourite={() => list.toggle(item, 'favourite')}
               onBoost={() => list.toggle(item, 'boost')}
+              bottomInset={bottomInset}
             />
           )}
         />
