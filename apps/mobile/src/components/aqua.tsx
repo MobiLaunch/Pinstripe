@@ -6,6 +6,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ComponentProps, ReactNode } from 'react';
 import {
+  type ColorValue,
   Pressable,
   type PressableProps,
   type StyleProp,
@@ -75,7 +76,7 @@ export function Metal({ children, style, ...rest }: ViewProps) {
 }
 
 type GelTone = 'blue' | 'gray' | 'red';
-const GEL: Record<GelTone, { gradient: Gradient; border: string; text: string }> = {
+const GEL: Record<GelTone, { gradient: Gradient; border: string; text: ColorValue }> = {
   blue: { gradient: gradients.gelBlue, border: gelBorders.blue, text: '#ffffff' },
   gray: { gradient: gradients.gelGray, border: gelBorders.gray, text: colors.text },
   red: { gradient: gradients.gelRed, border: gelBorders.red, text: '#ffffff' },

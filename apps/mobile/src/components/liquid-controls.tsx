@@ -23,7 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, IconTint } from '@/components/icon';
 import { useReduceMotion, useSwell } from '@/components/glass-motion';
-import { GlassSurface, glassFont, glassText } from '@/components/liquid';
+import { GlassSurface, glassFont, glassText, useGlassInk } from '@/components/liquid';
 
 const font = { fontFamily: glassFont } as const;
 
@@ -76,6 +76,7 @@ export function GlassBarButton({
   ...rest
 }: Omit<PressableProps, 'children' | 'style'> & { title?: string; icon?: ReactNode; done?: boolean; style?: StyleProp<ViewStyle> }) {
   const swell = useSwell(rest);
+  const ink = useGlassInk();
   return (
     <Pressable
       accessibilityRole="button"
@@ -88,7 +89,7 @@ export function GlassBarButton({
       {({ pressed }) => (
         <Animated.View style={{ transform: [{ scale: swell.scale }] }}>
           <GlassSurface radius={22} tint={done ? glassText.blue : undefined} interactive style={[styles.barButton, title ? styles.barButtonTitled : null]}>
-            <IconTint.Provider value={done ? '#ffffff' : glassText.primary}>{icon}</IconTint.Provider>
+            <IconTint.Provider value={done ? '#ffffff' : ink.primary}>{icon}</IconTint.Provider>
             {title ? <Text style={[styles.barButtonText, done && styles.onTint]}>{title}</Text> : null}
             {pressed ? <View style={styles.lit} pointerEvents="none" /> : null}
           </GlassSurface>
@@ -111,10 +112,11 @@ export function GlassBackButton({ title = 'Back', onPress }: { title?: string; o
 /** A bottom toolbar: its contents float in a glass capsule. */
 export function GlassToolbar({ children, style, ...rest }: ViewProps) {
   const insets = useSafeAreaInsets();
+  const ink = useGlassInk();
   return (
     <View style={[styles.toolbarWrap, { paddingBottom: Math.max(insets.bottom, 8) }]} {...rest}>
       <GlassSurface radius={26} style={[styles.toolbar, style]}>
-        <IconTint.Provider value={glassText.primary}>{children}</IconTint.Provider>
+        <IconTint.Provider value={ink.primary}>{children}</IconTint.Provider>
       </GlassSurface>
     </View>
   );
@@ -273,10 +275,11 @@ export function GlassLinenHeader({ title, right }: { title: string; right?: Reac
 // Search, badges
 
 export function GlassSearchBar({ style, ...props }: TextInputProps & { style?: StyleProp<ViewStyle> }) {
+  const ink = useGlassInk();
   return (
     <View style={[styles.searchWrap, style]}>
       <GlassSurface radius={22} style={styles.search}>
-        <Icon name="search" size={17} strokeWidth={2.4} color={glassText.secondary} />
+        <Icon name="search" size={17} strokeWidth={2.4} color={ink.secondary} />
         <TextInput
           placeholderTextColor={glassText.secondary}
           autoCapitalize="none"
@@ -323,6 +326,7 @@ export function GlassButton({
   const tint = disabled ? undefined : tone === 'blue' ? glassText.blue : tone === 'red' ? glassText.red : undefined;
   const height = small ? 36 : 50;
   const swell = useSwell({ ...rest, to: rect ? 1.03 : 1.06 });
+  const ink = useGlassInk();
   return (
     <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} style={style} {...rest} {...swell.handlers}>
       {({ pressed }) => (
@@ -333,7 +337,7 @@ export function GlassButton({
             interactive
             style={[styles.button, { minHeight: height, paddingHorizontal: small ? 14 : 22 }]}>
             {pressed ? <View style={styles.lit} pointerEvents="none" /> : null}
-            <IconTint.Provider value={tint ? '#ffffff' : glassText.primary}>{icon}</IconTint.Provider>
+            <IconTint.Provider value={tint ? '#ffffff' : ink.primary}>{icon}</IconTint.Provider>
             {title ? <Text style={[styles.buttonText, small && styles.buttonTextSmall, tint && styles.onTint, disabled && styles.disabledText]}>{title}</Text> : null}
           </GlassSurface>
         </Animated.View>
@@ -491,7 +495,7 @@ export function GlassProgress({ progress, label }: { progress: number | null; la
 }
 
 const styles = StyleSheet.create({
-  navBar: { backgroundColor: 'rgba(242,242,247,0.92)', zIndex: 2 },
+  navBar: { backgroundColor: glassText.bar, zIndex: 2 },
   navRow: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
   navTitleWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 110 },
   navTitle: { ...font, fontSize: 17, fontWeight: '600', color: glassText.primary },
@@ -512,17 +516,17 @@ const styles = StyleSheet.create({
   section: { marginHorizontal: 16, marginTop: 22 },
   sectionTitle: { ...font, fontSize: 13, color: glassText.secondary, textTransform: 'uppercase', marginLeft: 16, marginBottom: 7 },
   sectionTitleAlone: { marginHorizontal: 32, marginTop: 22 },
-  group: { backgroundColor: '#ffffff', borderRadius: 26, overflow: 'hidden' },
+  group: { backgroundColor: glassText.surface, borderRadius: 26, overflow: 'hidden' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: glassText.separator, marginLeft: 16 },
   sectionFooter: { ...font, fontSize: 13, color: glassText.secondary, marginTop: 7, marginHorizontal: 16 },
   row: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 11 },
-  rowPressed: { backgroundColor: '#e5e5ea' },
+  rowPressed: { backgroundColor: glassText.surfacePressed },
   rowText: { flex: 1, gap: 2 },
   rowTitle: { ...font, fontSize: 17, color: glassText.primary },
   rowSub: { ...font, fontSize: 13, color: glassText.secondary },
   rowDetail: { ...font, fontSize: 17, color: glassText.secondary },
   danger: { color: glassText.red },
-  cell: { marginHorizontal: 16, backgroundColor: '#ffffff', overflow: 'hidden' },
+  cell: { marginHorizontal: 16, backgroundColor: glassText.surface, overflow: 'hidden' },
   cellFirst: { borderTopLeftRadius: 26, borderTopRightRadius: 26, marginTop: 4 },
   cellLast: { borderBottomLeftRadius: 26, borderBottomRightRadius: 26 },
   cellDivider: { position: 'absolute', top: 0, left: 16, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: glassText.separator },
@@ -543,13 +547,13 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
   segTrack: { flexDirection: 'row', padding: 3 },
   segItem: { flex: 1, minHeight: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  segThumb: { position: 'absolute', top: 3, bottom: 3, left: 3, borderRadius: 17, backgroundColor: '#ffffff', boxShadow: '0 2px 6px rgba(0,0,0,0.14)' },
+  segThumb: { position: 'absolute', top: 3, bottom: 3, left: 3, borderRadius: 17, backgroundColor: glassText.thumb, boxShadow: '0 2px 6px rgba(0,0,0,0.14)' },
   segText: { ...font, fontSize: 14, fontWeight: '600', color: glassText.primary },
   segTextDark: { color: '#ffffff' },
   avatar: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#8e9fb8', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.12)' },
   avatarFramed: { borderWidth: 3, borderColor: '#ffffff', boxShadow: '0 4px 14px rgba(0,0,0,0.18)' },
   avatarText: { ...font, color: '#ffffff', fontWeight: '600' },
-  card: { backgroundColor: '#ffffff', borderRadius: 22, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' },
+  card: { backgroundColor: glassText.surface, borderRadius: 22, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' },
   fieldWrap: { gap: 6 },
   fieldLabel: { ...font, fontSize: 13, color: glassText.secondary, marginLeft: 4 },
   field: { ...font, minHeight: 48, paddingHorizontal: 14, paddingVertical: 12, fontSize: 17, color: glassText.primary, backgroundColor: glassText.fill, borderRadius: 14, outlineWidth: 0 },

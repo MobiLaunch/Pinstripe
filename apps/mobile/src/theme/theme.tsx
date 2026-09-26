@@ -7,6 +7,7 @@
  */
 import type { Theme } from '@pinstripe/core';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useColorScheme } from 'react-native';
 
 import { useAuth } from '@/auth/session';
 import { getJson, setJson } from '@/auth/storage';
@@ -162,6 +163,19 @@ export function useAccent(): Accent {
 /** True for the Liquid Glass look, where components draw glass instead of iOS 6 chrome. */
 export function useGlass(): boolean {
   return useContext(ThemeContext).accent.theme === 'glass';
+}
+
+/**
+ * Plain text colours for the current look and appearance, for things that
+ * can't take a system-resolved colour (icons drawn as SVG).
+ */
+export function useInk(): { text: string; muted: string; subtle: string } {
+  const glass = useGlass();
+  const scheme = useColorScheme();
+  const dark = glass && scheme === 'dark';
+  return dark
+    ? { text: '#ffffff', muted: 'rgba(235,235,245,0.6)', subtle: 'rgba(235,235,245,0.7)' }
+    : { text: '#1a1a1a', muted: '#555555', subtle: '#444444' };
 }
 
 export function useSetTheme(): (theme: Theme) => void {

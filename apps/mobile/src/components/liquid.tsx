@@ -11,24 +11,42 @@ import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
-import { Platform, type StyleProp, StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
+import { Platform, type StyleProp, StyleSheet, useColorScheme, View, type ViewProps, type ViewStyle } from 'react-native';
 
 import { Texture } from '@/components/texture';
+import { themed } from '@/theme/appearance';
 
 const nativeGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
-/** Text and symbols on glass: the system's label colours. */
+/**
+ * The system's colours for text and surfaces on glass, light and dark
+ * (they follow the appearance by themselves; see theme/appearance.ts).
+ */
 export const glassText = {
-  primary: '#000000',
-  secondary: 'rgba(60,60,67,0.6)',
-  tertiary: 'rgba(60,60,67,0.3)',
-  separator: 'rgba(60,60,67,0.29)',
-  groupedBackground: '#f2f2f7',
-  fill: 'rgba(120,120,128,0.16)',
+  primary: themed('g-primary', '#000000', '#ffffff'),
+  secondary: themed('g-secondary', 'rgba(60,60,67,0.6)', 'rgba(235,235,245,0.6)'),
+  tertiary: themed('g-tertiary', 'rgba(60,60,67,0.3)', 'rgba(235,235,245,0.3)'),
+  separator: themed('g-separator', 'rgba(60,60,67,0.29)', 'rgba(84,84,88,0.65)'),
+  groupedBackground: themed('g-grouped', '#f2f2f7', '#000000'),
+  /** Cells, cards and groups. */
+  surface: themed('g-surface', '#ffffff', '#1c1c1e'),
+  surfacePressed: themed('g-surface-pressed', '#e5e5ea', '#2c2c2e'),
+  /** The frosted strip behind navigation bars. */
+  bar: themed('g-bar', 'rgba(242,242,247,0.92)', 'rgba(0,0,0,0.82)'),
+  fill: themed('g-fill', 'rgba(120,120,128,0.16)', 'rgba(120,120,128,0.36)'),
+  /** The segmented control's sliding capsule. */
+  thumb: themed('g-thumb', '#ffffff', '#636366'),
   blue: '#0a84ff',
   red: '#ff3b30',
   green: '#34c759',
 } as const;
+
+/** Plain colours for the current appearance, for icons (SVG can't take system-resolved colours). */
+export function useGlassInk(): { primary: string; secondary: string } {
+  return useColorScheme() === 'dark'
+    ? { primary: '#ffffff', secondary: 'rgba(235,235,245,0.6)' }
+    : { primary: '#000000', secondary: 'rgba(60,60,67,0.6)' };
+}
 
 /** The system font, which the Glass look uses throughout. */
 export const glassFont = Platform.select({ web: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif', default: undefined });
@@ -52,11 +70,14 @@ export function GlassSurface({
   tint?: string;
   interactive?: boolean;
 }) {
+  // Glass darkens with the system appearance, or when it sits over dark content.
+  const scheme = useColorScheme();
+  const isDark = dark || scheme === 'dark';
   if (nativeGlass) {
     return (
       <GlassView
         glassEffectStyle="regular"
-        colorScheme={dark ? 'dark' : 'light'}
+        colorScheme={dark ? 'dark' : 'auto'}
         tintColor={tint}
         isInteractive={interactive}
         style={[{ borderRadius: radius, overflow: 'hidden' }, style]}
@@ -66,17 +87,17 @@ export function GlassSurface({
     );
   }
   return (
-    <View style={[styles.surface, dark ? styles.surfaceDark : styles.surfaceLight, { borderRadius: radius }, style]} {...rest}>
-      <BlurView intensity={dark ? 40 : 55} tint={dark ? 'dark' : 'light'} experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: tint ?? (dark ? 'rgba(40,40,46,0.35)' : 'rgba(255,255,255,0.5)'), opacity: tint ? 0.88 : 1 }]} pointerEvents="none" />
+    <View style={[styles.surface, isDark ? styles.surfaceDark : styles.surfaceLight, { borderRadius: radius }, style]} {...rest}>
+      <BlurView intensity={isDark ? 40 : 55} tint={isDark ? 'dark' : 'light'} experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: tint ?? (isDark ? 'rgba(40,40,46,0.35)' : 'rgba(255,255,255,0.5)'), opacity: tint ? 0.88 : 1 }]} pointerEvents="none" />
       {/* The specular highlight: light caught along the top edge. */}
       <LinearGradient
-        colors={dark ? ['rgba(255,255,255,0.22)', 'rgba(255,255,255,0)'] : ['rgba(255,255,255,0.75)', 'rgba(255,255,255,0)']}
+        colors={isDark ? ['rgba(255,255,255,0.22)', 'rgba(255,255,255,0)'] : ['rgba(255,255,255,0.75)', 'rgba(255,255,255,0)']}
         locations={[0, 0.55]}
         style={[StyleSheet.absoluteFill, { borderRadius: radius }]}
         pointerEvents="none"
       />
-      <View style={[StyleSheet.absoluteFill, styles.rim, dark ? styles.rimDark : null, { borderRadius: radius }]} pointerEvents="none" />
+      <View style={[StyleSheet.absoluteFill, styles.rim, isDark ? styles.rimDark : null, { borderRadius: radius }]} pointerEvents="none" />
       {children}
     </View>
   );

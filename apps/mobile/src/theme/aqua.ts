@@ -2,8 +2,10 @@
  * Aqua design tokens, lifted from the "Fediverse Video App – Aqua Screens"
  * canvas. Gradients are [colors, locations] pairs for expo-linear-gradient.
  */
-import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+
+import { themed } from './appearance';
+import { startedInGlass } from './startup';
 
 type Stops = readonly [string, string, ...string[]];
 type Locations = readonly [number, number, ...number[]];
@@ -12,11 +14,12 @@ export interface Gradient {
   locations?: Locations;
 }
 
+// Text and surfaces take dark values in Liquid Glass's dark mode (see appearance.ts).
 export const colors = {
-  text: '#1a1a1a',
-  textMuted: '#555555',
-  textSubtle: '#444444',
-  link: '#1558b8',
+  text: themed('text', '#1a1a1a', '#ffffff'),
+  textMuted: themed('text-muted', '#555555', 'rgba(235,235,245,0.6)'),
+  textSubtle: themed('text-subtle', '#444444', 'rgba(235,235,245,0.7)'),
+  link: themed('link', '#1558b8', '#4da3ff'),
   accent: '#2a74d6',
   accentDeep: '#175cbe',
   accentActive: '#0e4fae',
@@ -24,9 +27,9 @@ export const colors = {
   danger: '#b31f14',
   border: '#adadad',
   borderStrong: '#6f6f6f',
-  hairline: '#d2d2d2',
-  card: '#ffffff',
-  groupFill: 'rgba(255,255,255,0.78)',
+  hairline: themed('hairline', '#d2d2d2', '#38383a'),
+  card: themed('card', '#ffffff', '#1c1c1e'),
+  groupFill: themed('group-fill', 'rgba(255,255,255,0.78)', '#1c1c1e'),
   pinstripeLight: '#f4f4f4',
   pinstripeDark: '#e3e3e3',
   videoBackdrop: '#07121f',
@@ -67,29 +70,14 @@ export const radii = { field: 5, segment: 7, card: 9, pill: 999 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
 
-/**
- * The Liquid Glass look was chosen when the app last ran. Styles are fixed
- * when the app loads, so this is read once, straight from storage.
- */
-function startedInGlass(): boolean {
-  // The web swaps fonts with a stylesheet rule instead (see web-fixes.ts).
-  if (Platform.OS === 'web') return false;
-  try {
-    const saved = SecureStore.getItem(THEME_KEY);
-    return !!saved && saved.includes('glass');
-  } catch {
-    return false;
-  }
-}
-
-export const THEME_KEY = 'pinstripe.theme';
+export { THEME_KEY } from './startup';
 
 /**
  * Lucida Grande is the Aqua system face (Geneva/Verdana its web fallbacks),
  * and iOS 6 used Helvetica Neue. Liquid Glass uses the system font, from
  * the next launch after it's chosen (on the web it switches at once).
  */
-export const fontFamily = startedInGlass()
+export const fontFamily = startedInGlass
   ? Platform.select({ ios: undefined, android: undefined, default: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif' })
   : Platform.select({
       ios: 'Helvetica Neue',

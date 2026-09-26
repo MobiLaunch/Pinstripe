@@ -1,13 +1,14 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
+import { useColorScheme } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/auth/session';
 import { DesktopFrame } from '@/components/desktop-frame';
 import { DialogHost } from '@/components/dialog';
 import { HudHost } from '@/components/hud';
 import { usePushNotifications } from '@/push/push';
-import { ThemeProvider } from '@/theme/theme';
+import { ThemeProvider, useGlass } from '@/theme/theme';
 import '@/web-fixes';
 
 // On web, the sign-in popup lands back on this app; this hands the result to the opener.
@@ -51,6 +52,13 @@ function RootStack() {
   );
 }
 
+/** Dark status bar text, except over Liquid Glass in dark mode. */
+function StatusBarStyle() {
+  const glass = useGlass();
+  const scheme = useColorScheme();
+  return <StatusBar style={glass && scheme === 'dark' ? 'light' : 'dark'} />;
+}
+
 /** Registers for push notifications and opens what a tapped one points at. */
 function PushNotifications() {
   usePushNotifications();
@@ -61,7 +69,7 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <StatusBar style="dark" />
+        <StatusBarStyle />
         <PushNotifications />
         <DesktopFrame>
           <RootStack />

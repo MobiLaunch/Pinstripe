@@ -9,6 +9,8 @@
  */
 import { Platform } from 'react-native';
 
+import { darkModeCss } from '@/theme/appearance';
+
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
   document.addEventListener(
     'scroll',
@@ -33,8 +35,10 @@ export function setSystemFontOnWeb(on: boolean) {
   if (!style) {
     style = document.createElement('style');
     style.id = 'glass-font';
+    // The font, and Liquid Glass's dark-mode colours (theme/appearance.ts).
     style.textContent =
-      'html.glass-font, html.glass-font * { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important; letter-spacing: -0.01em; }';
+      'html.glass-font, html.glass-font * { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important; letter-spacing: -0.01em; } ' +
+      darkModeCss();
     document.head.appendChild(style);
   }
   document.documentElement.classList.toggle('glass-font', on);

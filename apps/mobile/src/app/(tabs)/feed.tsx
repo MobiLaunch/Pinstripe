@@ -24,7 +24,7 @@ import { publishPostEvent, usePostList } from '@/hooks/use-post-list';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { play } from '@/sound/sounds';
 import { colors, fontFamily } from '@/theme/aqua';
-import { useGlass } from '@/theme/theme';
+import { useGlass, useInk } from '@/theme/theme';
 
 const TIMELINES = [
   { value: 'home', label: 'Home' },
@@ -135,6 +135,7 @@ interface Attachment {
 }
 
 function Composer() {
+  const ink = useInk();
   const glass = useGlass();
   const me = useAccount();
   const { state, refreshAccount } = useAuth();
@@ -247,7 +248,7 @@ function Composer() {
           accessibilityLabel="Attach photos"
           disabled={attachments.length >= 4}
           onPress={pickPhotos}
-          icon={<Icon name="photo" size={18} color={colors.text} />}
+          icon={<Icon name="photo" size={18} color={ink.text} />}
         />
         <GelButton
           tone="gray"

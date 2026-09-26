@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSwell } from '@/components/glass-motion';
 import { Icon, type IconName } from '@/components/icon';
 import { Badge } from '@/components/ios6';
-import { GlassSurface, glassFont, glassText } from '@/components/liquid';
+import { GlassSurface, glassFont, glassText, useGlassInk } from '@/components/liquid';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { fontFamily } from '@/theme/aqua';
 import { useAccent, useGlass } from '@/theme/theme';
@@ -116,7 +116,8 @@ function GlassTab({
   onPress: () => void;
 }) {
   const swell = useSwell({ to: 1.12 });
-  const color = focused ? glassText.blue : overVideo ? '#ffffff' : glassText.primary;
+  const ink = useGlassInk();
+  const color = focused ? glassText.blue : overVideo ? '#ffffff' : ink.primary;
   return (
     <Pressable accessibilityRole="tab" accessibilityState={{ selected: focused }} accessibilityLabel={label} onPress={onPress} style={styles.glassTab} {...swell.handlers}>
       <Animated.View style={[styles.glassTabInner, { transform: [{ scale: swell.scale }] }]}>

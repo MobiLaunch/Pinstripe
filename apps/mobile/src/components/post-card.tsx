@@ -8,8 +8,9 @@ import { Icon, type IconName } from '@/components/icon';
 import { initials } from '@/components/initials';
 import { MediaGrid } from '@/components/media-grid';
 import { relativeTime } from '@/components/relative-time';
-import { colors, fontFamily } from '@/theme/aqua';
+import { fontFamily } from '@/theme/aqua';
 import { RichText } from '@/components/rich-text';
+import { useInk } from '@/theme/theme';
 
 export interface PostCardProps {
   post: Post;
@@ -32,12 +33,13 @@ export function PostCard({ post, viewerId, onFavourite, onBoost, onDelete, focus
   const mine = shown.account.id === viewerId && !post.reblog;
   const openProfile = () => router.push(`/profile/${shown.account.id}`);
   const openThread = () => router.push(`/status/${shown.id}`);
+  const ink = useInk();
 
   return (
     <Card style={focused ? styles.focused : undefined}>
       {post.reblog ? (
         <View style={styles.boostedBy}>
-          <Icon name="boost" size={14} color={colors.textMuted} />
+          <Icon name="boost" size={14} color={ink.muted} />
           <Text style={aquaText.handle}>Boosted by {post.account.displayName}</Text>
         </View>
       ) : null}
@@ -55,7 +57,7 @@ export function PostCard({ post, viewerId, onFavourite, onBoost, onDelete, focus
             </Pressable>
             <View style={styles.push}>
               {shown.visibility === 'followers' || shown.visibility === 'direct' ? (
-                <Icon name="lock" size={12} color={colors.textMuted} />
+                <Icon name="lock" size={12} color={ink.muted} />
               ) : null}
               <Text style={aquaText.handle}>{relativeTime(shown.createdAt)}</Text>
             </View>
@@ -123,7 +125,8 @@ function Action({
   disabled?: boolean;
   onPress?: () => void;
 }) {
-  const color = disabled ? '#b0b0b0' : on ? '#0e59c4' : colors.textSubtle;
+  const ink = useInk();
+  const color = disabled ? '#b0b0b0' : on ? '#0e59c4' : ink.subtle;
   return (
     <Pressable
       accessibilityRole="button"

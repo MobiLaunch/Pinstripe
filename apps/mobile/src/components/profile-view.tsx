@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   tabs: { marginBottom: 12 },
   stats: { flexDirection: 'row' },
   stat: { flex: 1, paddingVertical: 10, alignItems: 'center' },
-  statDivider: { borderLeftWidth: 1, borderLeftColor: '#cfcfcf' },
+  statDivider: { borderLeftWidth: 1, borderLeftColor: colors.hairline },
   statN: { fontFamily, fontSize: 17, fontWeight: '700', color: colors.text },
   statLabel: { fontFamily, fontSize: 12, color: colors.textSubtle },
   list: { paddingBottom: 24 },
