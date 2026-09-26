@@ -1,29 +1,30 @@
-import { POST_MAX_LENGTH, type Post, type Visibility } from '@pinstripe/core';
+import type { Post } from '@pinstripe/core';
 import { Link } from 'expo-router';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { type MastodonMedia, type TimelineKind, toMastodonVisibility, toPost } from '@/api/mastodon';
-import { checkPicked, uploadMedia } from '@/api/upload';
-import { useAccount, useAuth, useSource } from '@/auth/session';
+import type { TimelineKind } from '@/api/mastodon';
+import { useAccount, useAuth } from '@/auth/session';
 import { aquaText, Avatar, Card, GelButton, Pinstripes, Segmented } from '@/components/aqua';
 import { Badge, BarButton, NavBar, Spinner } from '@/components/ios6';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
+import { VideosScreen } from '@/components/videos-screen';
 import { glassInput } from '@/components/liquid-controls';
+import { useM3Surfaces } from '@/components/m3/kit';
 import { PickerSheet } from '@/components/picker';
 import { PostCard } from '@/components/post-card';
 import { ProgressBar } from '@/components/progress-bar';
 import { usePullToRefresh } from '@/components/pull-refresh';
 import { useTabBarInset } from '@/components/tab-bar';
-import { publishPostEvent, usePostList } from '@/hooks/use-post-list';
+import { useComposer, VISIBILITIES } from '@/hooks/use-composer';
+import { usePostList } from '@/hooks/use-post-list';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
-import { play } from '@/sound/sounds';
 import { colors, fontFamily } from '@/theme/aqua';
+import { material } from '@/theme/startup';
 import { useGlass, useInk } from '@/theme/theme';
 
 const TIMELINES = [
@@ -32,15 +33,16 @@ const TIMELINES = [
   { value: 'federated', label: 'Federated' },
 ] as const;
 
-const VISIBILITIES: { value: Visibility; label: string }[] = [
-  { value: 'public', label: 'Public' },
-  { value: 'unlisted', label: 'Unlisted' },
-  { value: 'followers', label: 'Followers only' },
-  { value: 'direct', label: 'Mentioned only' },
-];
 
-/** Text and photo posts, Mastodon-style, with a composer on top. */
+/**
+ * Text and photo posts, Mastodon-style, with a composer on top. On Android
+ * this tab is Watch, the full-screen videos (the timeline is Home, index.tsx).
+ */
 export default function FeedScreen() {
+  return material ? <VideosScreen /> : <ClassicFeed />;
+}
+
+function ClassicFeed() {
   const me = useAccount();
   const { refreshAccount } = useAuth();
   const [timeline, setTimeline] = useState<TimelineKind>('home');
@@ -126,83 +128,14 @@ function NotificationsButton() {
   );
 }
 
-/** A photo being attached: uploading until `media` is set. */
-interface Attachment {
-  key: string;
-  uri: string;
-  progress: number;
-  media?: MastodonMedia;
-}
-
 function Composer() {
   const ink = useInk();
   const glass = useGlass();
+  const m3 = useM3Surfaces();
   const me = useAccount();
-  const { state, refreshAccount } = useAuth();
-  const [draft, setDraft] = useState('');
-  const source = useSource();
-  const [visibility, setVisibility] = useState<Visibility>(source.defaultVisibility);
-  const [posting, setPosting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const remaining = POST_MAX_LENGTH - [...draft].length;
-  const current = VISIBILITIES.find((v) => v.value === visibility)!;
-  const uploading = attachments.some((a) => !a.media);
-  const ready = attachments.filter((a) => a.media);
-
-  const pickPhotos = async () => {
-    if (state.status !== 'signedIn') return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      selectionLimit: 4 - attachments.length,
-      // JPEG rather than HEIC, so every server can show it.
-      preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
-      quality: 0.9,
-    });
-    if (result.canceled) return;
-    setError(null);
-    for (const asset of result.assets.slice(0, 4 - attachments.length)) {
-      const problem = checkPicked(asset);
-      if (problem) {
-        setError(problem);
-        continue;
-      }
-      const key = `${asset.uri}-${Date.now()}`;
-      setAttachments((list) => [...list, { key, uri: asset.uri, progress: 0 }]);
-      const update = (patch: Partial<Attachment>) => setAttachments((list) => list.map((a) => (a.key === key ? { ...a, ...patch } : a)));
-      uploadMedia(state.client, state.token, asset, { onProgress: (progress) => update({ progress }) })
-        .then((media) => update({ media, progress: 1 }))
-        .catch((e) => {
-          setAttachments((list) => list.filter((a) => a.key !== key));
-          setError(e instanceof Error ? e.message : 'Couldn’t upload that photo.');
-        });
-    }
-  };
-
   const [choosing, setChoosing] = useState(false);
-
-  const submit = async () => {
-    if (state.status !== 'signedIn') return;
-    setPosting(true);
-    setError(null);
-    try {
-      const status = await state.client.postStatus({
-        status: draft.trim(),
-        visibility: toMastodonVisibility(visibility),
-        media_ids: ready.map((a) => a.media!.id),
-      });
-      setDraft('');
-      setAttachments([]);
-      publishPostEvent({ type: 'created', post: toPost(status, state.server) });
-      play('sent');
-      refreshAccount();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Couldn’t post. Please try again.');
-    } finally {
-      setPosting(false);
-    }
-  };
+  const { draft, setDraft, visibility, setVisibility, posting, error, attachments, removeAttachment, remaining, canPost, pickPhotos, submit } = useComposer();
+  const current = VISIBILITIES.find((v) => v.value === visibility)!;
 
   return (
     <Card style={styles.composer}>
@@ -216,7 +149,7 @@ function Composer() {
           multiline
           value={draft}
           onChangeText={setDraft}
-          style={[styles.input, glass && glassInput]}
+          style={[styles.input, glass && glassInput, m3.input]}
         />
       </View>
       {attachments.length ? (
@@ -233,7 +166,7 @@ function Composer() {
                 accessibilityRole="button"
                 accessibilityLabel="Remove photo"
                 hitSlop={10}
-                onPress={() => setAttachments((list) => list.filter((x) => x.key !== a.key))}
+                onPress={() => removeAttachment(a.key)}
                 style={styles.remove}>
                 <Text style={styles.removeText}>×</Text>
               </Pressable>
@@ -269,7 +202,7 @@ function Composer() {
         <GelButton
           small
           title={posting ? 'Posting…' : 'Post'}
-          disabled={posting || uploading || (!draft.trim() && !ready.length) || remaining < 0}
+          disabled={!canPost}
           onPress={submit}
         />
       </View>

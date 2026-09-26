@@ -10,6 +10,7 @@ import { FormError } from '@/components/form-error';
 import { Icon } from '@/components/icon';
 import { BarButton, Spinner, TableBackground } from '@/components/ios6';
 import { glassInput } from '@/components/liquid-controls';
+import { useM3Surfaces } from '@/components/m3/kit';
 import { ScreenHeader } from '@/components/screen-header';
 import { PINSTRIPE_DOMAIN } from '@/config';
 import { colors, fontFamily } from '@/theme/aqua';
@@ -34,6 +35,7 @@ const COMMENT_MAX = 1000;
 /** Reporting an account (and some of its posts) to the moderators. */
 export default function ReportScreen() {
   const glass = useGlass();
+  const m3 = useM3Surfaces();
   const accent = useAccent();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { state } = useAuth();
@@ -155,7 +157,7 @@ export default function ReportScreen() {
               multiline
               value={comment}
               onChangeText={setComment}
-              style={[styles.input, glass && glassInput]}
+              style={[styles.input, glass && glassInput, m3.input]}
             />
             <Text style={[aquaText.handle, styles.right, [...comment].length > COMMENT_MAX && styles.over]}>
               {[...comment].length} / {COMMENT_MAX}

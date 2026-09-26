@@ -6,11 +6,16 @@
  */
 import { useEffect, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/icon';
 import { Spinner } from '@/components/ios6';
 import { GlassSurface, glassFont, glassText, useGlassInk } from '@/components/liquid';
+import { LoadingIndicator } from '@/components/m3/loaders';
+import { Glyph } from '@/components/m3/symbol';
 import { fontFamily } from '@/theme/aqua';
+import { type as m3Type, useM3 } from '@/theme/m3';
+import { material } from '@/theme/startup';
 import { useGlass } from '@/theme/theme';
 
 interface State {
@@ -58,6 +63,8 @@ export function HudHost() {
   const [opacity] = useState(() => new Animated.Value(0));
   const glass = useGlass();
   const glassInk = useGlassInk();
+  const { c } = useM3();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     set = setState;
@@ -76,6 +83,24 @@ export function HudHost() {
   }, [state, opacity]);
 
   if (!shown) return null;
+  if (material) {
+    // Android: a snackbar near the bottom instead of a box in the middle.
+    return (
+      <View style={styles.cover} pointerEvents={state && !state.done ? 'auto' : 'none'}>
+        <Animated.View
+          style={[
+            styles.snackbar,
+            { backgroundColor: c.inverseSurface, bottom: insets.bottom + 104, opacity, transform: [{ translateY: opacity.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }] },
+          ]}
+          accessibilityLiveRegion="polite"
+          accessible
+          accessibilityLabel={shown.label}>
+          {shown.done ? <Glyph name="check" color={c.inversePrimary} /> : <LoadingIndicator size={28} color={c.inversePrimary} accessibilityLabel={shown.label} />}
+          <Text style={[m3Type.bodyMedium, { color: c.inverseOnSurface, flex: 1 }]}>{shown.label}</Text>
+        </Animated.View>
+      </View>
+    );
+  }
   const ink = glass ? glassInk.primary : '#ffffff';
   return (
     <View style={styles.cover} pointerEvents={state ? 'auto' : 'none'}>
@@ -104,6 +129,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 14,
+  },
+  snackbar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    maxWidth: 560,
+    marginHorizontal: 'auto',
+    minHeight: 48,
+    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    boxShadow: '0 3px 8px rgba(0,0,0,0.25)',
   },
   boxGlass: { backgroundColor: 'transparent', borderRadius: 30 },
   labelGlass: { fontFamily: glassFont, fontWeight: '600', color: glassText.primary, textShadowColor: 'transparent' },

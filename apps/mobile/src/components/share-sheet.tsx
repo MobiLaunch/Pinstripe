@@ -13,7 +13,10 @@ import { Gloss } from '@/components/glass';
 import { flashHud } from '@/components/hud';
 import { Icon, type IconName } from '@/components/icon';
 import { glassFont, glassText } from '@/components/liquid';
+import { M3Sheet, M3ShareTargets } from '@/components/m3/overlays';
+import type { SymbolName } from '@/components/m3/symbol';
 import { fontFamily } from '@/theme/aqua';
+import { material } from '@/theme/startup';
 import { useGlass } from '@/theme/theme';
 
 interface Activity {
@@ -23,7 +26,40 @@ interface Activity {
   run: () => unknown;
 }
 
-export function ShareSheet({
+export function ShareSheet(props: Parameters<typeof Ios6ShareSheet>[0]) {
+  return material ? <M3ShareSheet {...props} /> : <Ios6ShareSheet {...props} />;
+}
+
+/** The Android share sheet: the link, a row of round targets, then everything else (the system's own sheet). */
+function M3ShareSheet({ visible, url, text, onSaveVideo, onClose }: Parameters<typeof Ios6ShareSheet>[0]) {
+  const body = text ? `${text}\n${url}` : url;
+  const run = (action: () => unknown) => () => {
+    onClose();
+    action();
+  };
+  const targets: { label: string; icon: SymbolName; run: () => void }[] = [
+    ...(Platform.OS === 'web' ? [] : [{ label: 'Messages', icon: 'chat_bubble' as const, run: run(() => Linking.openURL(`sms:?body=${encodeURIComponent(body)}`)) }]),
+    { label: 'Gmail', icon: 'mail', run: run(() => Linking.openURL(`mailto:?body=${encodeURIComponent(body)}`)) },
+    {
+      label: 'Copy link',
+      icon: 'content_copy',
+      run: run(async () => {
+        await Clipboard.setStringAsync(url);
+        flashHud('Link copied');
+      }),
+    },
+    ...(onSaveVideo ? [{ label: 'Save video', icon: 'download' as const, run: run(onSaveVideo) }] : []),
+    { label: 'Open in Chrome', icon: 'public', run: run(() => Linking.openURL(url)) },
+    { label: 'More', icon: 'share', run: run(() => Share.share({ message: body, url }).catch(() => {})) },
+  ];
+  return (
+    <M3Sheet visible={visible} onClose={onClose} title={text ?? url.replace(/^https?:\/\//, '')}>
+      <M3ShareTargets targets={targets} />
+    </M3Sheet>
+  );
+}
+
+function Ios6ShareSheet({
   visible,
   url,
   text,

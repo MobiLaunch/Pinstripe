@@ -20,6 +20,9 @@ importers:
       '@expo/ui':
         specifier: ~57.0.20
         version: 57.0.20(@babel/core@7.29.7)(@types/react@19.2.18)(expo@57.0.25)(react-dom@19.2.3(react@19.2.3))(react-native-worklets@0.10.1(@babel/core@7.29.7)(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+      '@material/material-color-utilities':
+        specifier: 0.4.0
+        version: 0.4.0
       '@pinstripe/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -1758,6 +1761,9 @@ packages:
 
   '@logtape/logtape@2.3.7':
     resolution: {integrity: sha512-y0X4Liaj9voRRn0aAffCw2HCRpZEibOdmHiOgwsAT0hgHS8MaDKHl9cQGZ8r8uZR+b+yN9qznNYru6z9oOEMVw==}
+
+  '@material/material-color-utilities@0.4.0':
+    resolution: {integrity: sha512-dlq6VExJReb8dhjj3a/yTigr3ncNwoFmL5Iy2ENtbDX03EmNeOEdZ+vsaGrj7RTuO+mB7L58II4LCsl4NpM8uw==}
 
   '@multiformats/base-x@4.0.1':
     resolution: {integrity: sha512-eMk0b9ReBbV23xXU693TAIrLyeO5iTgBZGSJfpqriG8UkYvr/hC9u9pyMlAakDNHWmbhMZCDs6KQO0jzKD8OTw==}
@@ -7343,6 +7349,8 @@ snapshots:
       jsbi: 4.3.2
 
   '@logtape/logtape@2.3.7': {}
+
+  '@material/material-color-utilities@0.4.0': {}
 
   '@multiformats/base-x@4.0.1': {}
 

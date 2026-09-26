@@ -21,6 +21,8 @@ import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { Spinner } from '@/components/ios6';
 import { play } from '@/sound/sounds';
+import { useM3 } from '@/theme/m3';
+import { material } from '@/theme/startup';
 import { useGlass } from '@/theme/theme';
 
 const RADIUS = 15;
@@ -42,6 +44,7 @@ type ListProps = Pick<ScrollViewProps, 'refreshControl' | 'onScroll' | 'onScroll
  */
 export function usePullToRefresh(onRefresh: () => unknown, busy = false): { listProps: ListProps; header: ReactNode } {
   const glass = useGlass();
+  const { c } = useM3();
   const [running, setRunning] = useState(false);
   const refreshing = running || busy;
   const [pull] = useState(() => new Animated.Value(0));
@@ -60,7 +63,16 @@ export function usePullToRefresh(onRefresh: () => unknown, busy = false): { list
   // The drop is iOS 6's; Liquid Glass (and other platforms) use the standard spinner.
   if (Platform.OS !== 'ios' || glass) {
     return {
-      listProps: { refreshControl: <RefreshControl refreshing={refreshing} onRefresh={run} colors={['#5d7495']} progressBackgroundColor="#ffffff" /> },
+      listProps: {
+        refreshControl: (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={run}
+            colors={[material ? c.primary : '#5d7495']}
+            progressBackgroundColor={material ? c.surfaceContainerHigh : '#ffffff'}
+          />
+        ),
+      },
       header: null,
     };
   }

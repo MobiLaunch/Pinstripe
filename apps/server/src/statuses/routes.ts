@@ -12,6 +12,7 @@
  *   GET    /api/v1/timelines/public          ?local=true for Local, ?remote=true for other servers only
  *   GET    /api/v1/timelines/tag/:hashtag    public posts with a hashtag; ?local=true, ?only_media / ?only_video
  *   GET    /api/v1/tags/:name
+ *   GET    /api/v1/trends/tags               hashtags in the most people's public posts this week
  *
  * Posts, deletes, boosts and favourites are also sent to the servers that
  * need to know: the author's remote followers, anyone mentioned, and the
@@ -278,6 +279,13 @@ export function statusRoutes({ store, statuses, media, domain, render, federatio
     const name = c.req.param("name").replace(/^#/, "").toLowerCase();
     if (!/^[\p{L}\p{N}_]+$/u.test(name)) return notFound(c);
     return c.json({ name, url: new URL(`/tags/${encodeURIComponent(name)}`, federationContext(c).canonicalOrigin).href, history: [], following: false });
+  });
+
+  app.get("/api/v1/trends/tags", async (c) => {
+    const limit = Math.min(20, Math.max(1, Number(c.req.query("limit")) || 10));
+    const origin = federationContext(c).canonicalOrigin;
+    const tags = await statuses.trendingTags(limit);
+    return c.json(tags.map((t) => ({ ...t, url: new URL(`/tags/${encodeURIComponent(t.name)}`, origin).href, following: false })));
   });
 
   app.get("/api/v1/timelines/home", async (c) => {

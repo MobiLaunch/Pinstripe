@@ -24,6 +24,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, G, LinearGradient as SvgGradient, Path, Pattern, Rect, Stop } from 'react-native-svg';
 
 import { FitGloss } from '@/components/glass';
+import {
+  M3Badge,
+  M3BackButton,
+  M3BarButton,
+  M3Empty,
+  M3Header,
+  M3ListBackground,
+  M3ListCell,
+  M3ListGroup,
+  M3ListRow,
+  M3ListTitle,
+  M3SearchBar,
+  M3Surface,
+  M3Switch,
+  M3Toolbar,
+  M3TopAppBar,
+} from '@/components/m3/kit';
+import { LoadingIndicator } from '@/components/m3/loaders';
 import { Icon } from '@/components/icon';
 import { Texture } from '@/components/texture';
 import {
@@ -44,6 +62,7 @@ import {
 } from '@/components/liquid-controls';
 import { Wallpaper } from '@/components/liquid';
 import { fontFamily, type Gradient } from '@/theme/aqua';
+import { material } from '@/theme/startup';
 import { useAccent, useGlass } from '@/theme/theme';
 
 function Fill({ gradient, style }: { gradient: Gradient; style?: StyleProp<ViewStyle> }) {
@@ -352,7 +371,7 @@ const SPOKES = 12;
  * a spoke at a time. `size` is 'small' (20), 'large' (37) or a number;
  * `color` defaults to the grey style.
  */
-export function Spinner({
+function Ios6Spinner({
   size = 'small',
   color = '#8a8a8a',
   style,
@@ -640,64 +659,73 @@ const styles = StyleSheet.create({
   badgeText: { fontFamily, fontSize: 13, fontWeight: '700', color: '#ffffff', textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: -1 }, textShadowRadius: 0 },
 });
 
-// Each control draws Liquid Glass when that look is on, iOS 6 otherwise.
+// Each control draws Material 3 in the Android look, Liquid Glass when that look is on, iOS 6 otherwise.
+
+export function Spinner(props: ComponentProps<typeof Ios6Spinner>) {
+  if (material) {
+    const px = props.size === 'small' || props.size === undefined ? 32 : props.size === 'large' ? 48 : props.size;
+    // The grey default was iOS 6's; Material uses the primary colour.
+    return <LoadingIndicator size={px} color={props.color === '#fff' || props.color === '#ffffff' ? '#ffffff' : undefined} style={props.style} accessibilityLabel={props.accessibilityLabel} />;
+  }
+  return <Ios6Spinner {...props} />;
+}
 
 export function NavBar(props: ComponentProps<typeof Ios6NavBar>) {
-  return useGlass() ? <GlassNavBar {...props} /> : <Ios6NavBar {...props} />;
+  return useGlass() ? <GlassNavBar {...props} /> : material ? <M3TopAppBar {...props} /> : <Ios6NavBar {...props} />;
 }
 
 export function BarButton(props: ComponentProps<typeof Ios6BarButton>) {
-  return useGlass() ? <GlassBarButton {...props} /> : <Ios6BarButton {...props} />;
+  return useGlass() ? <GlassBarButton {...props} /> : material ? <M3BarButton {...props} /> : <Ios6BarButton {...props} />;
 }
 
 export function BackButton(props: ComponentProps<typeof Ios6BackButton>) {
-  return useGlass() ? <GlassBackButton {...props} /> : <Ios6BackButton {...props} />;
+  return useGlass() ? <GlassBackButton {...props} /> : material ? <M3BackButton {...props} /> : <Ios6BackButton {...props} />;
 }
 
 export function Toolbar(props: ComponentProps<typeof Ios6Toolbar>) {
-  return useGlass() ? <GlassToolbar {...props} /> : <Ios6Toolbar {...props} />;
+  return useGlass() ? <GlassToolbar {...props} /> : material ? <M3Toolbar {...props} /> : <Ios6Toolbar {...props} />;
 }
 
 export function Switch(props: ComponentProps<typeof Ios6Switch>) {
-  return useGlass() ? <GlassSwitch {...props} /> : <Ios6Switch {...props} />;
+  return useGlass() ? <GlassSwitch {...props} /> : material ? <M3Switch {...props} /> : <Ios6Switch {...props} />;
 }
 
 export function TableBackground(props: ComponentProps<typeof Ios6TableBackground>) {
-  return useGlass() ? <GlassListBackground {...props} /> : <Ios6TableBackground {...props} />;
+  return useGlass() ? <GlassListBackground {...props} /> : material ? <M3ListBackground {...props} /> : <Ios6TableBackground {...props} />;
 }
 
 export function TableGroup(props: ComponentProps<typeof Ios6TableGroup>) {
-  return useGlass() ? <GlassListGroup {...props} /> : <Ios6TableGroup {...props} />;
+  return useGlass() ? <GlassListGroup {...props} /> : material ? <M3ListGroup {...props} /> : <Ios6TableGroup {...props} />;
 }
 
 export function TableRow(props: ComponentProps<typeof Ios6TableRow>) {
-  return useGlass() ? <GlassListRow {...props} /> : <Ios6TableRow {...props} />;
+  return useGlass() ? <GlassListRow {...props} /> : material ? <M3ListRow {...props} /> : <Ios6TableRow {...props} />;
 }
 
 export function TableCell(props: ComponentProps<typeof Ios6TableCell>) {
-  return useGlass() ? <GlassListCell {...props} /> : <Ios6TableCell {...props} />;
+  return useGlass() ? <GlassListCell {...props} /> : material ? <M3ListCell {...props} /> : <Ios6TableCell {...props} />;
 }
 
 export function TableTitle(props: ComponentProps<typeof Ios6TableTitle>) {
-  return useGlass() ? <GlassListTitle {...props} /> : <Ios6TableTitle {...props} />;
+  return useGlass() ? <GlassListTitle {...props} /> : material ? <M3ListTitle {...props} /> : <Ios6TableTitle {...props} />;
 }
 
 export function TableEmpty(props: ComponentProps<typeof Ios6TableEmpty>) {
-  return useGlass() ? <GlassEmpty {...props} /> : <Ios6TableEmpty {...props} />;
+  return useGlass() ? <GlassEmpty {...props} /> : material ? <M3Empty {...props} /> : <Ios6TableEmpty {...props} />;
 }
 
 export function SearchBar(props: ComponentProps<typeof Ios6SearchBar>) {
-  return useGlass() ? <GlassSearchBar {...props} /> : <Ios6SearchBar {...props} />;
+  return useGlass() ? <GlassSearchBar {...props} /> : material ? <M3SearchBar {...props} /> : <Ios6SearchBar {...props} />;
 }
 
 export function Badge(props: ComponentProps<typeof Ios6Badge>) {
-  return useGlass() ? <GlassBadge {...props} /> : <Ios6Badge {...props} />;
+  return useGlass() ? <GlassBadge {...props} /> : material ? <M3Badge {...props} /> : <Ios6Badge {...props} />;
 }
 
 export function Linen(props: ComponentProps<typeof Ios6Linen>) {
-  return useGlass() ? <Wallpaper {...props} /> : <Ios6Linen {...props} />;
+  return useGlass() ? <Wallpaper {...props} /> : material ? <M3Surface {...props} /> : <Ios6Linen {...props} />;
 }
 
 export function LinenHeader(props: ComponentProps<typeof Ios6LinenHeader>) {
-  return useGlass() ? <GlassLinenHeader {...props} /> : <Ios6LinenHeader {...props} />;
+  return useGlass() ? <GlassLinenHeader {...props} /> : material ? <M3Header {...props} /> : <Ios6LinenHeader {...props} />;
 }

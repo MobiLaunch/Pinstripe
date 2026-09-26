@@ -7,6 +7,7 @@
  * containers are never meant to scroll, so the page ends up shifted
  * sideways. Undo any scroll of an overflow-hidden element.
  */
+import { Asset } from 'expo-asset';
 import { Platform } from 'react-native';
 
 import { darkModeCss } from '@/theme/appearance';
@@ -42,4 +43,31 @@ export function setSystemFontOnWeb(on: boolean) {
     document.head.appendChild(style);
   }
   document.documentElement.classList.toggle('glass-font', on);
+}
+
+const GOOGLE_SANS_FLEX = [
+  [400, require('../assets/fonts/GoogleSansFlex_400Regular.ttf')],
+  [500, require('../assets/fonts/GoogleSansFlex_500Medium.ttf')],
+  [600, require('../assets/fonts/GoogleSansFlex_600SemiBold.ttf')],
+  [700, require('../assets/fonts/GoogleSansFlex_700Bold.ttf')],
+  [800, require('../assets/fonts/GoogleSansFlex_800ExtraBold.ttf')],
+] as const;
+
+/**
+ * The Android look previewed on the web: Google Sans Flex in every weight
+ * (Android gets it from the build, see app.json), and the dark-mode colours.
+ */
+export function applyMaterialOnWeb() {
+  if (Platform.OS !== 'web' || typeof document === 'undefined' || document.getElementById('material-look')) return;
+  const style = document.createElement('style');
+  style.id = 'material-look';
+  style.textContent =
+    GOOGLE_SANS_FLEX.map(
+      ([weight, file]) =>
+        `@font-face { font-family: "Google Sans Flex"; font-weight: ${weight}; font-display: swap; src: url(${Asset.fromModule(file).uri}) format("truetype"); }`,
+    ).join(' ') +
+    ' html.material { -webkit-font-smoothing: antialiased; } ' +
+    darkModeCss();
+  document.head.appendChild(style);
+  document.documentElement.classList.add('material');
 }

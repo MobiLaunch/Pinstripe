@@ -10,10 +10,12 @@ import { showHud } from '@/components/hud';
 import { PINSTRIPE_SERVER } from '@/config';
 import { fontFamily } from '@/theme/aqua';
 import { glassGroup } from '@/components/liquid-controls';
+import { useM3Surfaces } from '@/components/m3/kit';
 import { useGlass } from '@/theme/theme';
 
 export default function SignInScreen() {
   const glass = useGlass();
+  const m3 = useM3Surfaces();
   const { signInWithPassword } = useAuth();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
@@ -43,7 +45,7 @@ export default function SignInScreen() {
             <Text style={aquaText.handle}>Short videos for the fediverse.</Text>
           </View>
           <FormError message={error} />
-          <View style={[styles.table, glass && glassGroup]}>
+          <View style={[styles.table, glass && glassGroup, m3.group]}>
             <TableField
               label="Username"
               accessibilityLabel="Username or email"

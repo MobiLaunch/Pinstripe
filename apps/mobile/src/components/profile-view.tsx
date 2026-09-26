@@ -4,13 +4,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { type ReactNode, useState } from 'react';
 import { FlatList, Pressable, type StyleProp, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import Svg, { Line } from 'react-native-svg';
+import Svg, { Line, Path } from 'react-native-svg';
 
 import { aquaText, Avatar, Group, Pinstripes, Segmented } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
 import { Icon } from '@/components/icon';
 import { initials } from '@/components/initials';
 import { NavBar, Spinner } from '@/components/ios6';
+import { shapePath } from '@/components/m3/loaders';
+import { PostRow } from '@/components/m3/post-row';
 import { PostCard } from '@/components/post-card';
 import { Wallpaper } from '@/components/liquid';
 import { usePullToRefresh } from '@/components/pull-refresh';
@@ -18,6 +20,8 @@ import { useTabBarInset } from '@/components/tab-bar';
 import { Texture } from '@/components/texture';
 import { usePostList } from '@/hooks/use-post-list';
 import { colors, fontFamily } from '@/theme/aqua';
+import { useM3 } from '@/theme/m3';
+import { material } from '@/theme/startup';
 import { useGlass } from '@/theme/theme';
 
 const TABS = [
@@ -147,15 +151,25 @@ export function ProfileView({
           grid ? (
             <Shelf posts={row} onOpen={(post) => router.push({ pathname: '/videos/[accountId]', params: { accountId: account.id, start: post.id } })} />
           ) : (
-          <View style={styles.item}>
-            <PostCard
+          material ? (
+            <PostRow
               post={row[0]!}
               viewerId={viewerId}
               onFavourite={(p) => list.toggle(p, 'favourite')}
               onBoost={(p) => list.toggle(p, 'boost')}
               onDelete={remove}
             />
-          </View>
+          ) : (
+            <View style={styles.item}>
+              <PostCard
+                post={row[0]!}
+                viewerId={viewerId}
+                onFavourite={(p) => list.toggle(p, 'favourite')}
+                onBoost={(p) => list.toggle(p, 'boost')}
+                onDelete={remove}
+              />
+            </View>
+          )
           )
         }
       />
@@ -172,6 +186,19 @@ const LEATHER = require('../../assets/textures/leather.png');
  */
 function Banner({ uri }: { uri: string | null }) {
   const glass = useGlass();
+  const { c } = useM3();
+  if (material && !uri) {
+    // Android: the palette's colours in big, soft Material shapes, like a Pixel wallpaper.
+    return (
+      <View style={[styles.banner, styles.glassBanner, { backgroundColor: c.primaryContainer }]}>
+        <Svg width="100%" height="100%" viewBox="0 0 400 110" preserveAspectRatio="xMidYMid slice" style={StyleSheet.absoluteFill}>
+          <Path d={shapePath(1, 90, 330, 30, 0.2)} fill={c.tertiaryContainer} />
+          <Path d={shapePath(0, 54, 70, 100, 0.5)} fill={c.secondaryContainer} />
+          <Path d={shapePath(5, 26, 215, 22, 0.3)} fill={c.inversePrimary} opacity={0.7} />
+        </Svg>
+      </View>
+    );
+  }
   if (glass && !uri) {
     return (
       <View style={[styles.banner, styles.glassBanner]}>
@@ -223,8 +250,8 @@ function shelves(posts: Post[]): Post[][] {
  * wooden back, on a lit plank with a rounded front edge.
  */
 function Shelf({ posts, onOpen }: { posts: Post[]; onOpen: (post: Post) => void }) {
-  // Liquid Glass keeps it plain: a grid of rounded posters.
-  if (useGlass()) {
+  // Liquid Glass and Android keep it plain: a grid of rounded posters.
+  if (useGlass() || material) {
     return (
       <View style={styles.glassRow}>
         {Array.from({ length: PER_SHELF }, (_, i) =>

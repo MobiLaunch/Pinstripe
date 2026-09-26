@@ -10,13 +10,18 @@ import { FormError } from '@/components/form-error';
 import { Icon, type IconName } from '@/components/icon';
 import { initials } from '@/components/initials';
 import { GlassSurface, glassFont, glassText } from '@/components/liquid';
-import { Linen, LinenHeader, Spinner, TableEmpty } from '@/components/ios6';
+import { BackButton, Linen, LinenHeader, NavBar, Spinner, TableEmpty } from '@/components/ios6';
+import { DrawerButton } from '@/components/m3/drawer';
+import { M3Pressable } from '@/components/m3/pressable';
+import { Glyph, type SymbolName } from '@/components/m3/symbol';
 import { usePullToRefresh } from '@/components/pull-refresh';
 import { relativeTime } from '@/components/relative-time';
 import { ScreenHeader } from '@/components/screen-header';
 import { setUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { usePushStatus } from '@/push/push';
 import { fontFamily } from '@/theme/aqua';
+import { alpha, type as m3Type, useM3 } from '@/theme/m3';
+import { material } from '@/theme/startup';
 import { useAccent, useGlass } from '@/theme/theme';
 
 interface Item {
@@ -39,8 +44,12 @@ const KINDS: Record<string, { icon: IconName; color: string; text: string }> = {
   mention: { icon: 'at', color: ACCENT, text: 'mentioned you' },
 };
 
-/** Follows, requests, likes, boosts, mentions and replies. Opening it marks everything read. */
-export default function NotificationsScreen() {
+/**
+ * Follows, requests, likes, boosts, mentions and replies. Opening it marks
+ * everything read. In the Android look it's also a tab (`tab`), with the
+ * drawer's avatar where Back would be.
+ */
+export default function NotificationsScreen({ tab = false }: { tab?: boolean }) {
   const { state, refreshAccount } = useAuth();
   const client = state.status === 'signedIn' ? state.client : null;
   const server = state.status === 'signedIn' ? state.server : '';
@@ -112,7 +121,7 @@ export default function NotificationsScreen() {
 
   return (
     <Linen>
-      <ScreenHeader title="Notifications" back="Back" />
+      {material ? <NavBar title="Notifications" left={tab ? <DrawerButton /> : <BackButton />} /> : <ScreenHeader title="Notifications" back="Back" />}
       <FlatList
         data={items ?? []}
         keyExtractor={(n) => n.id}
@@ -123,7 +132,7 @@ export default function NotificationsScreen() {
         ListHeaderComponent={
           <>
             {pull.header}
-            <LinenHeader title="Pinstripe" />
+            {material ? null : <LinenHeader title="Pinstripe" />}
             <FormError message={error} />
             {push === 'ask' ? (
               <Card style={styles.pushCard}>
@@ -136,12 +145,14 @@ export default function NotificationsScreen() {
         }
         ListEmptyComponent={
           items === null ? (
-            error ? null : <Spinner color="#ffffff" style={styles.empty} />
+            error ? null : <Spinner color={material ? undefined : '#ffffff'} style={styles.empty} />
           ) : (
             <TableEmpty title="No Notifications" dark />
           )
         }
-        renderItem={({ item }) => <Row item={item} onAnswer={(action) => answer(item, action)} />}
+        renderItem={({ item }) =>
+          material ? <M3Row item={item} onAnswer={(action) => answer(item, action)} /> : <Row item={item} onAnswer={(action) => answer(item, action)} />
+        }
       />
     </Linen>
   );
@@ -193,6 +204,63 @@ function Row({ item, onAnswer }: { item: Item; onAnswer: (action: 'authorize' | 
     </Platter>
   );
 }
+
+const M3_KINDS: Record<string, { icon: SymbolName; tone: 'like' | 'boost' | 'primary'; text: string }> = {
+  follow: { icon: 'person', tone: 'primary', text: 'followed you' },
+  follow_request: { icon: 'lock', tone: 'primary', text: 'asked to follow you' },
+  favourite: { icon: 'favorite', tone: 'like', text: 'liked your post' },
+  reblog: { icon: 'repeat', tone: 'boost', text: 'boosted your post' },
+  mention: { icon: 'alternate_email', tone: 'primary', text: 'mentioned you' },
+};
+
+/**
+ * A notification as classic Twitter showed them: a big coloured icon in the
+ * gutter (a red heart, green arrows), the avatar, who did what, and the post
+ * greyed underneath.
+ */
+function M3Row({ item, onAnswer }: { item: Item; onAnswer: (action: 'authorize' | 'reject') => void }) {
+  const { c } = useM3();
+  const found = M3_KINDS[item.type] ?? { icon: 'notifications' as const, tone: 'primary' as const, text: 'did something' };
+  const reply = item.type === 'mention' && item.post?.inReplyToId;
+  const color = found.tone === 'like' ? c.like : found.tone === 'boost' ? c.boost : c.primary;
+  const open = () => (item.post ? router.push(`/status/${item.post.id}`) : router.push(`/profile/${item.account.id}`));
+  const text = reply ? 'replied to you' : found.text;
+  return (
+    <View style={[m3Styles.row, { borderBottomColor: c.outlineVariant, backgroundColor: item.unread ? alpha(c.primary, 0.06) : 'transparent' }]}>
+      <M3Pressable content={c.onSurface} accessibilityRole="link" accessibilityLabel={`${item.account.displayName} ${text}`} onPress={open} style={m3Styles.main}>
+        <View style={m3Styles.gutter}>
+          <Glyph name={reply ? 'reply' : found.icon} size={28} color={color} filled />
+        </View>
+        <View style={m3Styles.flex}>
+          <Avatar initials={initials(item.account.displayName)} uri={item.account.avatarUrl} size={36} />
+          <Text style={[m3Type.bodyLarge, { color: c.onSurface }]}>
+            <Text style={{ fontWeight: '700' }}>{item.account.displayName}</Text> {text}
+            <Text style={{ color: c.onSurfaceVariant }}> · {relativeTime(item.createdAt)}</Text>
+          </Text>
+          {item.post?.content ? (
+            <Text style={[m3Type.bodyMedium, { color: c.onSurfaceVariant }]} numberOfLines={item.type === 'mention' ? 5 : 3}>
+              {item.post.content}
+            </Text>
+          ) : null}
+        </View>
+      </M3Pressable>
+      {item.type === 'follow_request' ? (
+        <View style={m3Styles.buttons}>
+          <GelButton tone="gray" small title="Reject" accessibilityLabel={`Reject ${item.account.displayName}`} onPress={() => onAnswer('reject')} />
+          <GelButton small title="Approve" accessibilityLabel={`Approve ${item.account.displayName}`} onPress={() => onAnswer('authorize')} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const m3Styles = StyleSheet.create({
+  row: { borderBottomWidth: StyleSheet.hairlineWidth },
+  main: { flexDirection: 'row', gap: 12, paddingVertical: 12, paddingRight: 16 },
+  gutter: { width: 64, alignItems: 'flex-end' },
+  flex: { flex: 1, minWidth: 0, gap: 6 },
+  buttons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
+});
 
 /** A notification's own pane of glass, as on the Lock Screen. */
 function GlassPlatter({ style, children }: { style?: StyleProp<ViewStyle>; children: ReactNode }) {

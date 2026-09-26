@@ -8,7 +8,9 @@ import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { GlassSurface, glassFont, glassText } from '@/components/liquid';
+import { M3Dialog } from '@/components/m3/overlays';
 import { fontFamily } from '@/theme/aqua';
+import { material } from '@/theme/startup';
 import { useGlass } from '@/theme/theme';
 
 export interface DialogButton {
@@ -58,7 +60,11 @@ export function DialogHost() {
   const cancel = current.buttons.findIndex((b) => b.style === 'cancel');
   return (
     <Modal transparent visible animationType="fade" onRequestClose={() => answer(cancel >= 0 ? cancel : 0)}>
-      <AlertView request={current} onAnswer={answer} />
+      {material ? (
+        <M3Dialog title={current.title} message={current.message} buttons={current.buttons} onAnswer={answer} />
+      ) : (
+        <AlertView request={current} onAnswer={answer} />
+      )}
     </Modal>
   );
 }

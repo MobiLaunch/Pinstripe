@@ -3,7 +3,9 @@ import { Modal, Pressable, type StyleProp, StyleSheet, Text, View, type ViewStyl
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GlassSurface, glassFont, glassText } from '@/components/liquid';
+import { M3ActionSheet } from '@/components/m3/overlays';
 import { fontFamily } from '@/theme/aqua';
+import { material } from '@/theme/startup';
 import { useGlass } from '@/theme/theme';
 
 export interface MenuAction {
@@ -16,7 +18,11 @@ export interface MenuAction {
  * The iOS 6 action sheet: dark glass sliding up from the bottom, with white
  * glossy buttons, a red one for destructive choices, and a dark Cancel.
  */
-export function ActionMenu({
+export function ActionMenu(props: { visible: boolean; title?: string; actions: MenuAction[]; onClose: () => void }) {
+  return material ? <M3ActionSheet {...props} /> : <Ios6ActionMenu {...props} />;
+}
+
+function Ios6ActionMenu({
   visible,
   title,
   actions,

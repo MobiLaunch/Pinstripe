@@ -54,6 +54,13 @@ To use the app on a computer, press `w` in the `pnpm dev:mobile` terminal
 column. http://localhost:8000 is the server's own read-only public page, not
 the app.
 
+On Android the app has its own look and layout: Material 3 Expressive in
+your wallpaper's colours (Material You), laid out like classic Twitter with
+TikTok-style videos: Home, Watch, Search and Notifications, and a drawer
+behind your avatar. To preview it in the browser, open
+http://localhost:8081/?android=1 (it's remembered; `?android=0` goes back).
+Android needs a development build for its font and wallpaper colours.
+
 In development, emails (confirmation and password-reset links) are printed
 in the server's output. To make yourself a moderator:
 `pnpm --filter @pinstripe/server role <username> moderator`, then sign in again.

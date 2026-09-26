@@ -4,6 +4,8 @@ import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-nat
 import Svg, { Defs, Pattern, Polygon, Rect } from 'react-native-svg';
 
 import { GlassProgress } from '@/components/liquid-controls';
+import { WavyProgress } from '@/components/m3/loaders';
+import { material } from '@/theme/startup';
 import { useAccent, useGlass } from '@/theme/theme';
 
 const STRIPE = 10;
@@ -81,5 +83,5 @@ const styles = StyleSheet.create({
 });
 
 export function ProgressBar(props: { progress: number | null; label: string }) {
-  return useGlass() ? <GlassProgress {...props} /> : <Ios6ProgressBar {...props} />;
+  return useGlass() ? <GlassProgress {...props} /> : material ? <WavyProgress {...props} /> : <Ios6ProgressBar {...props} />;
 }

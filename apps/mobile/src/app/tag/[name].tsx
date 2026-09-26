@@ -8,6 +8,7 @@ import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { Spinner } from '@/components/ios6';
 import { PostCard } from '@/components/post-card';
+import { material } from '@/theme/startup';
 import { usePullToRefresh } from '@/components/pull-refresh';
 import { ScreenHeader } from '@/components/screen-header';
 import { usePostList } from '@/hooks/use-post-list';
@@ -32,7 +33,7 @@ export default function TagScreen() {
       <FlatList
         data={list.posts}
         keyExtractor={(p) => p.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, material && styles.listM3]}
         {...pull.listProps}
         ListHeaderComponent={<>{pull.header}</>}
         onEndReached={list.loadMore}
@@ -59,6 +60,8 @@ export default function TagScreen() {
 
 const styles = StyleSheet.create({
   list: { padding: 12, gap: 12, flexGrow: 1 },
+  // Android: timeline rows edge to edge.
+  listM3: { padding: 0, gap: 0 },
   empty: { marginTop: 32, gap: 12, alignItems: 'center' },
   emptyText: { textAlign: 'center', marginTop: 32 },
 });

@@ -11,12 +11,14 @@ import { BarButton, Spinner, Toolbar } from '@/components/ios6';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { glassInput } from '@/components/liquid-controls';
+import { useM3Surfaces } from '@/components/m3/kit';
 import { PostCard } from '@/components/post-card';
+import { material } from '@/theme/startup';
 import { ScreenHeader } from '@/components/screen-header';
 import { publishPostEvent, usePostList } from '@/hooks/use-post-list';
 import { play } from '@/sound/sounds';
 import { colors, fontFamily } from '@/theme/aqua';
-import { useGlass } from '@/theme/theme';
+import { useGlass, useInk } from '@/theme/theme';
 
 /** The whole thread, oldest first; a thread has no further pages. */
 async function loadThread(client: MastodonClient, id: string, maxId?: string) {
@@ -45,7 +47,7 @@ export default function ThreadScreen() {
         <FlatList
           data={list.posts}
           keyExtractor={(p) => p.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, material && styles.listM3]}
           ListEmptyComponent={
             list.loading ? (
               <Spinner style={styles.state} />
@@ -74,6 +76,8 @@ export default function ThreadScreen() {
 
 function ReplyBox({ to, autoFocus, onPosted }: { to: Post; autoFocus: boolean; onPosted: () => void }) {
   const glass = useGlass();
+  const ink = useInk();
+  const m3 = useM3Surfaces();
   const insets = useSafeAreaInsets();
   const me = useAccount();
   const { state, refreshAccount } = useAuth();
@@ -109,9 +113,9 @@ function ReplyBox({ to, autoFocus, onPosted }: { to: Post; autoFocus: boolean; o
   };
 
   return (
-    <Toolbar style={[styles.replyBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+    <Toolbar style={[styles.replyBar, material && styles.replyBarM3, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       <FormError message={error} />
-      <Text style={styles.replying}>Replying to {to.account.displayName}</Text>
+      <Text style={[styles.replying, material && { color: ink.muted, textShadowColor: 'transparent' }]}>Replying to {to.account.displayName}</Text>
       <View style={styles.replyRow}>
         <TextInput
           accessibilityLabel="Write a reply"
@@ -121,7 +125,7 @@ function ReplyBox({ to, autoFocus, onPosted }: { to: Post; autoFocus: boolean; o
           autoFocus={autoFocus}
           value={draft}
           onChangeText={setDraft}
-          style={[styles.input, glass && glassInput]}
+          style={[styles.input, glass && glassInput, m3.input]}
         />
         <BarButton done title={posting ? '…' : 'Reply'} disabled={posting || !draft.trim() || remaining < 0} onPress={submit} style={styles.send} />
       </View>
@@ -133,8 +137,11 @@ function ReplyBox({ to, autoFocus, onPosted }: { to: Post; autoFocus: boolean; o
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   list: { padding: 12, gap: 12, flexGrow: 1 },
+  // Android: timeline rows edge to edge.
+  listM3: { padding: 0, gap: 0 },
   state: { marginTop: 32, alignItems: 'center' },
   replyBar: { gap: 6 },
+  replyBarM3: { flexDirection: 'column', alignItems: 'stretch' },
   replying: {
     fontFamily,
     fontSize: 12,

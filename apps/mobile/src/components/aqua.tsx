@@ -34,6 +34,8 @@ import {
   GlassOrb,
   GlassSegmented,
 } from '@/components/liquid-controls';
+import { M3Avatar, M3Button, M3Card, M3Field, M3Group, M3ListField, M3Orb, M3Segmented, M3Surface } from '@/components/m3/kit';
+import { material } from '@/theme/startup';
 import { useAccent, useGlass } from '@/theme/theme';
 
 function Fill({ gradient, style }: { gradient: Gradient; style?: ViewStyle }) {
@@ -399,29 +401,29 @@ const styles = StyleSheet.create({
 // Each control draws Liquid Glass when that look is on, the Aqua / iOS 6 look otherwise.
 
 export function Pinstripes(props: ComponentProps<typeof Ios6Pinstripes>) {
-  return useGlass() ? <GlassListBackground {...props} /> : <Ios6Pinstripes {...props} />;
+  return useGlass() ? <GlassListBackground {...props} /> : material ? <M3Surface {...props} /> : <Ios6Pinstripes {...props} />;
 }
 export function GelButton(props: ComponentProps<typeof Ios6GelButton>) {
-  return useGlass() ? <GlassButton {...props} /> : <Ios6GelButton {...props} />;
+  return useGlass() ? <GlassButton {...props} /> : material ? <M3Button {...props} /> : <Ios6GelButton {...props} />;
 }
 export function Orb(props: ComponentProps<typeof Ios6Orb>) {
-  return useGlass() ? <GlassOrb {...props} /> : <Ios6Orb {...props} />;
+  return useGlass() ? <GlassOrb {...props} /> : material ? <M3Orb {...props} /> : <Ios6Orb {...props} />;
 }
 export function Avatar(props: ComponentProps<typeof Ios6Avatar>) {
-  return useGlass() ? <GlassAvatar {...props} /> : <Ios6Avatar {...props} />;
+  return useGlass() ? <GlassAvatar {...props} /> : material ? <M3Avatar {...props} /> : <Ios6Avatar {...props} />;
 }
 export function Card(props: ComponentProps<typeof Ios6Card>) {
-  return useGlass() ? <GlassCard {...props} /> : <Ios6Card {...props} />;
+  return useGlass() ? <GlassCard {...props} /> : material ? <M3Card {...props} /> : <Ios6Card {...props} />;
 }
 export function Group(props: ComponentProps<typeof Ios6Group>) {
-  return useGlass() ? <GlassGroup {...props} /> : <Ios6Group {...props} />;
+  return useGlass() ? <GlassGroup {...props} /> : material ? <M3Group {...props} /> : <Ios6Group {...props} />;
 }
 export function Field(props: ComponentProps<typeof Ios6Field>) {
-  return useGlass() ? <GlassField {...props} /> : <Ios6Field {...props} />;
+  return useGlass() ? <GlassField {...props} /> : material ? <M3Field {...props} /> : <Ios6Field {...props} />;
 }
 export function TableField(props: ComponentProps<typeof Ios6TableField>) {
-  return useGlass() ? <GlassListField {...props} /> : <Ios6TableField {...props} />;
+  return useGlass() ? <GlassListField {...props} /> : material ? <M3ListField {...props} /> : <Ios6TableField {...props} />;
 }
 export function Segmented<T extends string>(props: Parameters<typeof Ios6Segmented<T>>[0]) {
-  return useGlass() ? <GlassSegmented {...props} /> : <Ios6Segmented {...props} />;
+  return useGlass() ? <GlassSegmented {...props} /> : material ? <M3Segmented {...props} /> : <Ios6Segmented {...props} />;
 }

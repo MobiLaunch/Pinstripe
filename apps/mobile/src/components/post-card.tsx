@@ -6,10 +6,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { aquaText, Avatar, Card, GelButton } from '@/components/aqua';
 import { Icon, type IconName } from '@/components/icon';
 import { initials } from '@/components/initials';
+import { PostRow } from '@/components/m3/post-row';
 import { MediaGrid } from '@/components/media-grid';
 import { relativeTime } from '@/components/relative-time';
 import { fontFamily } from '@/theme/aqua';
 import { RichText } from '@/components/rich-text';
+import { material } from '@/theme/startup';
 import { useInk } from '@/theme/theme';
 
 export interface PostCardProps {
@@ -23,8 +25,12 @@ export interface PostCardProps {
   focused?: boolean;
 }
 
-/** A post in the Feed and on profiles. Boosts show the original with a "Boosted by" line. */
-export function PostCard({ post, viewerId, onFavourite, onBoost, onDelete, focused = false }: PostCardProps) {
+/** A post in the Feed and on profiles. Boosts show the original with a "Boosted by" line. Android draws timeline rows instead. */
+export function PostCard(props: PostCardProps) {
+  return material ? <PostRow {...props} /> : <Ios6PostCard {...props} />;
+}
+
+function Ios6PostCard({ post, viewerId, onFavourite, onBoost, onDelete, focused = false }: PostCardProps) {
   const shown = post.reblog ?? post;
   const [revealed, setRevealed] = useState(false);
   const favourited = !!shown.viewer?.favourited;

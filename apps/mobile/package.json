@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "dependencies": {
     "@expo/ui": "~57.0.20",
+    "@material/material-color-utilities": "0.4.0",
     "@pinstripe/core": "workspace:*",
     "expo": "~57.0.25",
     "expo-asset": "~57.0.18",

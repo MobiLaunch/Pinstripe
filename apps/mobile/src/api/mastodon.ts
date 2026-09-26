@@ -66,6 +66,13 @@ export interface MastodonStatus {
   pinstripe?: { views_count?: number };
 }
 
+export interface MastodonTag {
+  name: string;
+  url: string;
+  /** Per day, today first: posts and people (numbers as strings). */
+  history?: { day: string; uses: string; accounts: string }[];
+}
+
 export type TimelineKind = 'home' | 'local' | 'federated';
 
 export type NotificationType = 'mention' | 'reblog' | 'favourite' | 'follow' | 'follow_request' | 'status' | 'poll' | 'update';
@@ -466,6 +473,15 @@ export class MastodonClient {
   }
 
   /** Public posts with a hashtag (no #). */
+  /** The week's most-used hashtags (Mastodon's trends; servers that don't have them answer 404, so none). */
+  async trendingTags(limit = 10): Promise<MastodonTag[]> {
+    try {
+      return await this.request<MastodonTag[]>('GET', `/api/v1/trends/tags${query({ limit: String(limit) })}`);
+    } catch {
+      return [];
+    }
+  }
+
   tagTimeline(tag: string, options: { maxId?: string; onlyVideo?: boolean } = {}) {
     return this.request<MastodonStatus[]>(
       'GET',

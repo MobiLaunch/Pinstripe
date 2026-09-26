@@ -13,13 +13,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BarButton, Toolbar } from '@/components/ios6';
 import { detent } from '@/sound/sounds';
 import { GlassSurface, glassFont, glassText } from '@/components/liquid';
+import { M3RadioSheet } from '@/components/m3/overlays';
 import { fontFamily } from '@/theme/aqua';
+import { material } from '@/theme/startup';
 import { useGlass } from '@/theme/theme';
 
 const ROW = 44;
 const VISIBLE = 5;
 
-export function PickerSheet<T extends string>({
+export function PickerSheet<T extends string>(props: Parameters<typeof Ios6PickerSheet<T>>[0]) {
+  // Android has no wheel: a sheet of radio choices.
+  return material ? <M3RadioSheet {...props} /> : <Ios6PickerSheet {...props} />;
+}
+
+function Ios6PickerSheet<T extends string>({
   visible,
   title,
   options,

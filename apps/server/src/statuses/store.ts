@@ -373,6 +373,48 @@ export class StatusStore {
     );
   }
 
+  /**
+   * Hashtags in the most people's public posts over the last week (Mastodon's
+   * trends): for each, uses and people per day, today first.
+   */
+  async trendingTags(limit: number, days = 7): Promise<{ name: string; history: { day: string; uses: string; accounts: string }[] }[]> {
+    const rows = (await this.db.execute(sql`
+      with recent as (
+        select lower(tag) as tag, ${statuses.accountId} as account_id, date_trunc('day', ${statuses.createdAt} at time zone 'UTC') as day
+        from ${statuses}, unnest(${statuses.tags}) as tag
+        where ${statuses.visibility} = 'public' and ${statuses.reblogOfId} is null
+          and ${statuses.createdAt} > now() - make_interval(days => ${days})
+          and not ${authorSuspended(statuses.accountId)}
+      ),
+      top as (
+        select tag from recent group by tag
+        order by count(distinct account_id) desc, count(*) desc, tag
+        limit ${limit}
+      )
+      select recent.tag, extract(epoch from recent.day)::bigint as day, count(*)::int as uses, count(distinct recent.account_id)::int as accounts,
+        (select count(distinct r.account_id) from recent r where r.tag = recent.tag)::int as people
+      from recent join top on top.tag = recent.tag
+      group by recent.tag, recent.day`)) as unknown as { tag: string; day: string | number; uses: number; accounts: number; people: number }[];
+    const byTag = new Map<string, { people: number; uses: number; days: Map<number, { uses: number; accounts: number }> }>();
+    for (const r of rows) {
+      const entry = byTag.get(r.tag) ?? { people: r.people, uses: 0, days: new Map() };
+      entry.uses += r.uses;
+      entry.days.set(Number(r.day), { uses: r.uses, accounts: r.accounts });
+      byTag.set(r.tag, entry);
+    }
+    const today = Math.floor(Date.now() / 86_400_000) * 86_400;
+    return [...byTag]
+      .sort(([a, x], [b, y]) => y.people - x.people || y.uses - x.uses || a.localeCompare(b))
+      .map(([name, entry]) => ({
+        name,
+        history: Array.from({ length: days }, (_, i) => {
+          const day = today - i * 86_400;
+          const d = entry.days.get(day);
+          return { day: String(day), uses: String(d?.uses ?? 0), accounts: String(d?.accounts ?? 0) };
+        }),
+      }));
+  }
+
   homeTimeline(accountId: string, page: Page, media?: MediaFilter) {
     return this.#page(
       and(

@@ -2,6 +2,9 @@ import { createContext, useContext } from 'react';
 import { View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
+import { Glyph, type SymbolName } from '@/components/m3/symbol';
+import { material } from '@/theme/startup';
+
 /** A cog: eight square-shouldered teeth round a ring. */
 const GEAR = (() => {
   const teeth = 8;
@@ -125,6 +128,43 @@ export type IconName = keyof typeof ICONS;
  */
 export const IconTint = createContext<string | null>(null);
 
+/** The Material Symbol each icon becomes in the Android look. */
+const SYMBOL_FOR: Record<IconName, SymbolName> = {
+  feed: 'home',
+  play: 'play_arrow',
+  account: 'person',
+  camera: 'videocam',
+  heart: 'favorite',
+  comment: 'chat_bubble',
+  boost: 'repeat',
+  share: 'share',
+  reply: 'mode_comment',
+  photo: 'image',
+  bell: 'notifications',
+  person: 'person',
+  at: 'alternate_email',
+  download: 'download',
+  more: 'more_vert',
+  flag: 'flag',
+  plus: 'add',
+  check: 'check',
+  search: 'search',
+  sound: 'volume_up',
+  soundOff: 'volume_off',
+  trash: 'delete',
+  lock: 'lock',
+  chevronLeft: 'arrow_back',
+  chevronRight: 'chevron_right',
+  flash: 'flash_on',
+  flip: 'flip_camera_android',
+  video: 'video_library',
+  mail: 'mail',
+  copy: 'content_copy',
+  compass: 'explore',
+  bubble: 'forum',
+  gear: 'settings',
+};
+
 export function Icon({
   name,
   size = 20,
@@ -140,6 +180,7 @@ export function Icon({
 }) {
   const tint = useContext(IconTint);
   if (tint) color = tint;
+  if (material) return <Glyph name={SYMBOL_FOR[name]} size={Math.round(size * 1.15)} color={color} filled={filled} />;
   // The View keeps the icon above absolutely-positioned gradient layers on web.
   return (
     <View style={{ width: size, height: size }} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">

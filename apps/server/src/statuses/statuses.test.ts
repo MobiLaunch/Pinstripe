@@ -331,5 +331,19 @@ describe("hashtags", () => {
     expect(await json(await get("/api/v1/timelines/tag/nothing", api))).toEqual([]);
     expect(await json(await get("/api/v1/tags/RetroComputing", api))).toMatchObject({ name: "retrocomputing", following: false });
   });
+
+  it("trends the tags the most people used in public this week", async () => {
+    const sam = await signedInUser("sam");
+    const kim = await signedInUser("kim");
+    await post(sam.headers, { status: "#Synths all day" });
+    await post(sam.headers, { status: "more #synths #tape" });
+    await post(kim.headers, { status: "#synths are back" });
+    await post(kim.headers, { status: "secret #hidden", visibility: "private" });
+    const trends = await json(await get("/api/v1/trends/tags", api));
+    expect(trends.map((t: Json) => t.name)).toEqual(["synths", "tape"]);
+    expect(trends[0].history).toHaveLength(7);
+    expect(trends[0].history[0]).toMatchObject({ uses: "3", accounts: "2" });
+    expect(trends[0].url).toBe(`${ORIGIN}/tags/synths`);
+  });
 });
 

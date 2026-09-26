@@ -12,6 +12,7 @@ import { aquaText, Card, GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { BarButton, TableBackground, TableRow } from '@/components/ios6';
 import { glassGroup, glassInput } from '@/components/liquid-controls';
+import { useM3Surfaces } from '@/components/m3/kit';
 import { PickerSheet } from '@/components/picker';
 import { ProgressBar } from '@/components/progress-bar';
 import { ScreenHeader } from '@/components/screen-header';
@@ -35,6 +36,7 @@ type Stage = { kind: 'uploading'; progress: number } | { kind: 'processing' } | 
  */
 export default function NewVideoScreen() {
   const glass = useGlass();
+  const m3 = useM3Surfaces();
   const insets = useSafeAreaInsets();
   const { state, refreshAccount } = useAuth();
   const source = useSource();
@@ -163,11 +165,11 @@ export default function NewVideoScreen() {
               multiline
               value={caption}
               onChangeText={setCaption}
-              style={[styles.input, glass && glassInput]}
+              style={[styles.input, glass && glassInput, m3.input]}
             />
             <Text style={[aquaText.handle, styles.count, remaining < 0 && styles.over]}>{remaining}</Text>
           </Card>
-          <View style={[styles.group, glass && glassGroup]}>
+          <View style={[styles.group, glass && glassGroup, m3.group]}>
             <TableRow
               title="Who Can See It"
               detail={VISIBILITIES.find((v) => v.value === visibility)?.label ?? 'Public'}

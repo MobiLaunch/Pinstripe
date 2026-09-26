@@ -14,6 +14,8 @@ import { getJson, setJson } from '@/auth/storage';
 import { setSystemFontOnWeb } from '@/web-fixes';
 
 import { colors, type Gradient, gradients, THEME_KEY } from './aqua';
+import { type M3Colors, useM3 } from './m3';
+import { material } from './startup';
 
 export interface Accent {
   theme: Theme;
@@ -150,19 +152,53 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
   }, [client, setTheme]);
 
-  useEffect(() => setSystemFontOnWeb(theme === 'glass'), [theme]);
+  useEffect(() => setSystemFontOnWeb(theme === 'glass' && !material), [theme]);
 
   const value = useMemo(() => ({ accent: ACCENTS[theme], setTheme }), [theme, setTheme]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
+const materialAccents = new WeakMap<M3Colors, Accent>();
+
+/** The Android look's accent: the Material You primary, for the few places that read the accent directly. */
+function materialAccent(c: M3Colors): Accent {
+  let accent = materialAccents.get(c);
+  if (!accent) {
+    const solid = (color: string): Gradient => ({ colors: [color, color] });
+    accent = {
+      ...ACCENTS.blue,
+      color: c.primary,
+      colorActive: c.primary,
+      gel: solid(c.primary),
+      gelBorder: 'transparent',
+      segmentOn: solid(c.secondaryContainer),
+      orbActive: solid(c.primaryContainer),
+      orbActiveBorder: 'transparent',
+      avatar: solid(c.primaryContainer),
+      switchOn: solid(c.primary),
+      switchOnBorder: c.primary,
+      selection: solid(c.surfaceContainerHighest),
+      tabIcon: c.onSecondaryContainer,
+    };
+    materialAccents.set(c, accent);
+  }
+  return accent;
+}
+
 export function useAccent(): Accent {
-  return useContext(ThemeContext).accent;
+  const accent = useContext(ThemeContext).accent;
+  const { c } = useM3();
+  return material ? materialAccent(c) : accent;
 }
 
 /** True for the Liquid Glass look, where components draw glass instead of iOS 6 chrome. */
 export function useGlass(): boolean {
-  return useContext(ThemeContext).accent.theme === 'glass';
+  return useContext(ThemeContext).accent.theme === 'glass' && !material;
+}
+
+/** True for the Android look (Material 3 Expressive); see theme/startup.ts. */
+export function useMaterial(): boolean {
+  return material;
 }
 
 /**
@@ -172,6 +208,8 @@ export function useGlass(): boolean {
 export function useInk(): { text: string; muted: string; subtle: string } {
   const glass = useGlass();
   const scheme = useColorScheme();
+  const { c } = useM3();
+  if (material) return { text: c.onSurface, muted: c.onSurfaceVariant, subtle: c.onSurfaceVariant };
   const dark = glass && scheme === 'dark';
   return dark
     ? { text: '#ffffff', muted: 'rgba(235,235,245,0.6)', subtle: 'rgba(235,235,245,0.7)' }

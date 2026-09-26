@@ -8,9 +8,12 @@ import { AquaSwitch, GelButton } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
 import { FormError } from '@/components/form-error';
 import { TableBackground, TableGroup, TableRow } from '@/components/ios6';
+import { ColourPicker } from '@/components/m3/colour-picker';
 import { ScreenHeader } from '@/components/screen-header';
 import { useSoundEffects } from '@/sound/sounds';
 import { fontFamily } from '@/theme/aqua';
+import { useM3 } from '@/theme/m3';
+import { material } from '@/theme/startup';
 import { useAccent, useSetTheme } from '@/theme/theme';
 
 type Toggle = { [K in keyof AccountSettings]: AccountSettings[K] extends boolean ? K : never }[keyof AccountSettings];
@@ -38,6 +41,8 @@ export default function SettingsScreen() {
   const accent = useAccent();
   const setTheme = useSetTheme();
   const [sounds, setSounds] = useSoundEffects();
+  const { c, wallpaperAvailable } = useM3();
+  const footer = [styles.footer, material && { color: c.onSurfaceVariant, textShadowColor: 'transparent' }];
   const [settings, setSettings] = useState<AccountSettings>({
     ...DEFAULT_SETTINGS,
     theme: accent.theme,
@@ -109,7 +114,7 @@ export default function SettingsScreen() {
 
   return (
     <TableBackground>
-      <ScreenHeader title="Settings" back="Account" />
+      <ScreenHeader title={material ? 'Settings and privacy' : 'Settings'} back="Account" />
       <ScrollView contentContainerStyle={styles.content}>
         {error ? (
           <View style={styles.pad}>
@@ -161,27 +166,35 @@ export default function SettingsScreen() {
         <TableGroup title="Sounds" footer="Sent posts, refreshing and the camera. Silent when your phone is.">
           <TableRow title="Sound Effects" right={<AquaSwitch value={sounds} onValueChange={setSounds} accessibilityLabel="Sound Effects" />} />
         </TableGroup>
-        <TableGroup
-          title="Appearance"
-          footer={Platform.OS === 'web' ? undefined : 'Switching to or from Liquid Glass changes the font the next time Pinstripe opens.'}>
-          {THEMES.map((t) => (
-            <TableRow
-              key={t.value}
-              title={t.label}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: settings.theme === t.value }}
-              accessory={settings.theme === t.value ? 'check' : 'none'}
-              onPress={() => change('theme', t.value)}
-            />
-          ))}
-        </TableGroup>
+        {material ? (
+          <TableGroup
+            title="Colour"
+            footer={wallpaperAvailable ? 'Wallpaper uses the colours Android picks from your wallpaper, like the rest of your phone.' : 'Pick the colour Pinstripe is built around.'}>
+            <ColourPicker />
+          </TableGroup>
+        ) : (
+          <TableGroup
+            title="Appearance"
+            footer={Platform.OS === 'web' ? undefined : 'Switching to or from Liquid Glass changes the font the next time Pinstripe opens.'}>
+            {THEMES.map((t) => (
+              <TableRow
+                key={t.value}
+                title={t.label}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: settings.theme === t.value }}
+                accessory={settings.theme === t.value ? 'check' : 'none'}
+                onPress={() => change('theme', t.value)}
+              />
+            ))}
+          </TableGroup>
+        )}
         {preferencesAvailable === false ? (
-          <Text style={styles.footer}>Some settings are Pinstripe features your server doesn’t have, so they’re turned off here.</Text>
+          <Text style={footer}>Some settings are Pinstripe features your server doesn’t have, so they’re turned off here.</Text>
         ) : null}
         <View style={styles.pad}>
           <GelButton tone="red" rect title="Sign Out" style={styles.signOut} onPress={confirmSignOut} />
         </View>
-        <Text style={styles.footer}>Pinstripe · ActivityPub</Text>
+        <Text style={footer}>Pinstripe · ActivityPub</Text>
       </ScrollView>
     </TableBackground>
   );

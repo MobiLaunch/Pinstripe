@@ -19,6 +19,8 @@ import { GlassSurface } from '@/components/liquid';
 import { ShareSheet } from '@/components/share-sheet';
 import { target } from '@/hooks/use-post-list';
 import { colors, fontFamily, gradients } from '@/theme/aqua';
+import { useM3 } from '@/theme/m3';
+import { material } from '@/theme/startup';
 import { useAccent, useGlass } from '@/theme/theme';
 import { RichText } from '@/components/rich-text';
 
@@ -70,6 +72,7 @@ export function VideoPage({
   const viewerId = state.status === 'signedIn' ? state.account.id : null;
   const accent = useAccent();
   const glass = useGlass();
+  const { c } = useM3();
   const shown = target(post);
   const video = shown.media[0]!;
   const [started, setStarted] = useState(false);
@@ -173,34 +176,34 @@ export function VideoPage({
           ) : null}
         </View>
         <RailAction label={shown.counts.favourites.toLocaleString()}>
-          <Orb active={favourited} accessibilityLabel={favourited ? 'Unlike' : 'Like'} accessibilityState={{ selected: favourited }} onPress={onFavourite}>
-            <Icon name="heart" size={24} color="#fff" filled={favourited} />
+          <Orb active={favourited && !material} style={railOrb} accessibilityLabel={favourited ? 'Unlike' : 'Like'} accessibilityState={{ selected: favourited }} onPress={onFavourite}>
+            <Icon name="heart" size={material ? 30 : 24} color={material && favourited ? c.like : '#fff'} filled={favourited} />
           </Orb>
         </RailAction>
         <RailAction label={shown.counts.replies.toLocaleString()}>
-          <Orb accessibilityLabel="Comments" onPress={() => router.push(`/status/${shown.id}`)}>
-            <Icon name="comment" size={24} color="#fff" />
+          <Orb style={railOrb} accessibilityLabel="Comments" onPress={() => router.push(`/status/${shown.id}`)}>
+            <Icon name="comment" size={material ? 28 : 24} color="#fff" filled={material} />
           </Orb>
         </RailAction>
         <RailAction label={shown.counts.boosts.toLocaleString()}>
-          <Orb active={boosted} accessibilityLabel={boosted ? 'Undo boost' : 'Boost'} accessibilityState={{ selected: boosted, disabled: !boostable }} disabled={!boostable} onPress={onBoost}>
-            <Icon name="boost" size={24} color="#fff" />
+          <Orb active={boosted && !material} style={railOrb} accessibilityLabel={boosted ? 'Undo boost' : 'Boost'} accessibilityState={{ selected: boosted, disabled: !boostable }} disabled={!boostable} onPress={onBoost}>
+            <Icon name="boost" size={material ? 30 : 24} color={material && boosted ? c.boost : '#fff'} />
           </Orb>
         </RailAction>
         <RailAction label={muted ? 'Muted' : 'Sound'}>
-          <Orb accessibilityLabel={muted ? 'Unmute' : 'Mute'} onPress={() => toggleMuted(player)}>
+          <Orb style={railOrb} accessibilityLabel={muted ? 'Unmute' : 'Mute'} onPress={() => toggleMuted(player)}>
             <Icon name={muted ? 'soundOff' : 'sound'} size={24} color="#fff" />
           </Orb>
         </RailAction>
         {canSave ? (
           <RailAction label={saving ? 'Saving…' : 'Save'}>
-            <Orb accessibilityLabel="Save video" disabled={saving} onPress={save}>
+            <Orb style={railOrb} accessibilityLabel="Save video" disabled={saving} onPress={save}>
               <Icon name="download" size={24} color="#fff" />
             </Orb>
           </RailAction>
         ) : null}
         <RailAction label="Share">
-          <Orb accessibilityLabel="Share" onPress={() => setSharing(true)}>
+          <Orb style={railOrb} accessibilityLabel="Share" onPress={() => setSharing(true)}>
             <Icon name="share" size={24} color="#fff" />
           </Orb>
         </RailAction>
@@ -214,8 +217,8 @@ export function VideoPage({
         onClose={() => setSharing(false)}
       />
       {/* Frosted glass behind the caption: the video blurs and darkens through it. */}
-      <View style={[styles.caption, glass && styles.captionGlass, { bottom: 30 + bottomInset }]}>
-        {glass ? (
+      <View style={[styles.caption, glass && styles.captionGlass, material && styles.captionM3, { bottom: 30 + bottomInset }]}>
+        {material ? null : glass ? (
           <GlassSurface radius={24} dark style={StyleSheet.absoluteFill} />
         ) : (
           <>
@@ -230,10 +233,10 @@ export function VideoPage({
         </Text>
         {shown.content ? <RichText post={shown} style={styles.body} linkStyle={styles.captionLink} numberOfLines={4} /> : null}
       </View>
-      <View style={[styles.progress, glass && styles.progressGlass, { bottom: 12 + bottomInset }]} accessibilityRole="progressbar" accessibilityLabel="Playback" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
+      <View style={[styles.progress, glass && styles.progressGlass, material && styles.progressM3, { bottom: (material ? 0 : 12) + bottomInset }]} accessibilityRole="progressbar" accessibilityLabel="Playback" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
         <View style={[styles.progressFill, { width: `${progress * 100}%` }]}>
-          {glass ? (
-            <View style={[StyleSheet.absoluteFill, styles.progressFillGlass]} />
+          {glass || material ? (
+            <View style={[StyleSheet.absoluteFill, glass ? styles.progressFillGlass : { backgroundColor: c.primary }]} />
           ) : (
             <LinearGradient colors={['#bfe0ff', '#5aa3f2', '#1f6fd4', '#3b8cea']} locations={[0, 0.5, 0.5, 1]} style={StyleSheet.absoluteFill} />
           )}
@@ -256,6 +259,9 @@ function RailAction({ label, children }: { label: string; children: ReactNode })
     </View>
   );
 }
+
+/** Android: TikTok's bare icons on the video, no discs. */
+const railOrb = material ? ({ backgroundColor: 'transparent' } as const) : undefined;
 
 const shadow = { textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 };
 
@@ -296,6 +302,8 @@ const styles = StyleSheet.create({
   captionGlass: { borderWidth: 0, borderRadius: 24, boxShadow: 'none' },
   progressGlass: { height: 4, borderRadius: 2, borderWidth: 0, backgroundColor: 'rgba(255,255,255,0.3)', boxShadow: 'none' },
   progressFillGlass: { backgroundColor: '#ffffff' },
+  captionM3: { borderWidth: 0, boxShadow: 'none', paddingHorizontal: 6, left: 8 },
+  progressM3: { left: 0, right: 0, height: 3, borderRadius: 0, borderWidth: 0, backgroundColor: 'rgba(255,255,255,0.25)', boxShadow: 'none' },
   captionTint: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(10,14,22,0.35)' },
   captionSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: 18 },
   boosted: { fontFamily, fontSize: 12, color: colors.onVideoMuted, ...shadow },

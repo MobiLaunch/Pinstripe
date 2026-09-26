@@ -5,7 +5,7 @@
 import { Platform } from 'react-native';
 
 import { themed } from './appearance';
-import { startedInGlass } from './startup';
+import { material, startedInGlass } from './startup';
 
 type Stops = readonly [string, string, ...string[]];
 type Locations = readonly [number, number, ...number[]];
@@ -75,9 +75,12 @@ export { THEME_KEY } from './startup';
 /**
  * Lucida Grande is the Aqua system face (Geneva/Verdana its web fallbacks),
  * and iOS 6 used Helvetica Neue. Liquid Glass uses the system font, from
- * the next launch after it's chosen (on the web it switches at once).
+ * the next launch after it's chosen (on the web it switches at once). The
+ * Android look uses Google Sans Flex, as Pixel phones do.
  */
-export const fontFamily = startedInGlass
+export const fontFamily = material
+  ? Platform.select({ android: 'Google Sans Flex', default: '"Google Sans Flex", Roboto, "Segoe UI", sans-serif' })
+  : startedInGlass
   ? Platform.select({ ios: undefined, android: undefined, default: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif' })
   : Platform.select({
       ios: 'Helvetica Neue',
