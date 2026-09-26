@@ -65,14 +65,26 @@ export function DialogHost() {
 
 function AlertView({ request, onAnswer }: { request: Request; onAnswer: (index: number) => void }) {
   const glass = useGlass();
-  const [scale] = useState(() => new Animated.Value(0.6));
+  const [scale] = useState(() => new Animated.Value(glass ? 1.12 : 0.6));
+  const [fade] = useState(() => new Animated.Value(glass ? 0 : 1));
   useEffect(() => {
     let cancelled = false;
     AccessibilityInfo.isReduceMotionEnabled()
       .catch(() => false)
       .then((reduce) => {
         if (cancelled) return;
-        if (reduce) return scale.setValue(1);
+        if (reduce) {
+          fade.setValue(1);
+          return scale.setValue(1);
+        }
+        if (glass) {
+          // Liquid Glass: the alert settles down onto the screen as it fades in.
+          Animated.parallel([
+            Animated.spring(scale, { toValue: 1, speed: 14, bounciness: 8, useNativeDriver: true }),
+            Animated.timing(fade, { toValue: 1, duration: 160, useNativeDriver: true }),
+          ]).start();
+          return;
+        }
         // The iOS 6 pop: overshoot, settle back, land.
         Animated.sequence([
           Animated.timing(scale, { toValue: 1.08, duration: 130, useNativeDriver: true }),
@@ -83,13 +95,13 @@ function AlertView({ request, onAnswer }: { request: Request; onAnswer: (index: 
     return () => {
       cancelled = true;
     };
-  }, [scale]);
+  }, [scale, fade, glass]);
 
   const side = request.buttons.length === 2;
   if (glass) {
     return (
       <View style={[styles.backdrop, glassStyles.backdrop]}>
-        <Animated.View style={[glassStyles.alert, { transform: [{ scale }] }]} accessibilityViewIsModal accessibilityRole="alert">
+        <Animated.View style={[glassStyles.alert, { opacity: fade, transform: [{ scale }] }]} accessibilityViewIsModal accessibilityRole="alert">
           <GlassSurface radius={34} style={StyleSheet.absoluteFill} />
           <Text style={glassStyles.title}>{request.title}</Text>
           {request.message ? <Text style={glassStyles.message}>{request.message}</Text> : null}

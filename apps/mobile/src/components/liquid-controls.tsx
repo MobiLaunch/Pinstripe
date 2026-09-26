@@ -8,7 +8,6 @@ import { router } from 'expo-router';
 import { Children, type ReactNode, useEffect, useState } from 'react';
 import {
   Animated,
-  Easing,
   Pressable,
   type PressableProps,
   type StyleProp,
@@ -23,6 +22,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, IconTint } from '@/components/icon';
+import { useReduceMotion, useSwell } from '@/components/glass-motion';
 import { GlassSurface, glassFont, glassText } from '@/components/liquid';
 
 const font = { fontFamily: glassFont } as const;
@@ -75,17 +75,24 @@ export function GlassBarButton({
   style,
   ...rest
 }: Omit<PressableProps, 'children' | 'style'> & { title?: string; icon?: ReactNode; done?: boolean; style?: StyleProp<ViewStyle> }) {
+  const swell = useSwell(rest);
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} hitSlop={4} style={[{ opacity: disabled ? 0.4 : 1 }, style]} {...rest}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      hitSlop={4}
+      style={[{ opacity: disabled ? 0.4 : 1 }, style]}
+      {...rest}
+      {...swell.handlers}>
       {({ pressed }) => (
-        <GlassSurface
-          radius={22}
-          tint={done ? glassText.blue : undefined}
-          interactive
-          style={[styles.barButton, title ? styles.barButtonTitled : null, pressed && styles.pressedScale]}>
-          <IconTint.Provider value={done ? '#ffffff' : glassText.primary}>{icon}</IconTint.Provider>
-          {title ? <Text style={[styles.barButtonText, done && styles.onTint]}>{title}</Text> : null}
-        </GlassSurface>
+        <Animated.View style={{ transform: [{ scale: swell.scale }] }}>
+          <GlassSurface radius={22} tint={done ? glassText.blue : undefined} interactive style={[styles.barButton, title ? styles.barButtonTitled : null]}>
+            <IconTint.Provider value={done ? '#ffffff' : glassText.primary}>{icon}</IconTint.Provider>
+            {title ? <Text style={[styles.barButtonText, done && styles.onTint]}>{title}</Text> : null}
+            {pressed ? <View style={styles.lit} pointerEvents="none" /> : null}
+          </GlassSurface>
+        </Animated.View>
       )}
     </Pressable>
   );
@@ -117,8 +124,11 @@ export function GlassToolbar({ children, style, ...rest }: ViewProps) {
 
 const TRACK_W = 51;
 const TRACK_H = 31;
+const KNOB = 27;
+/** How much wider the knob grows under a finger. */
+const STRETCH = 8;
 
-/** The modern switch: a green capsule and a white knob that slides across. */
+/** The modern switch: a green capsule and a white knob that slides across, stretching while it's held. */
 export function GlassSwitch({
   value,
   onValueChange,
@@ -131,9 +141,18 @@ export function GlassSwitch({
   accessibilityLabel?: string;
 }) {
   const [position] = useState(() => new Animated.Value(value ? 1 : 0));
+  const [stretch] = useState(() => new Animated.Value(0));
+  const reduce = useReduceMotion();
   useEffect(() => {
-    Animated.timing(position, { toValue: value ? 1 : 0, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
-  }, [value, position]);
+    Animated.spring(position, { toValue: value ? 1 : 0, speed: 16, bounciness: reduce ? 0 : 6, useNativeDriver: false }).start();
+  }, [value, position, reduce]);
+  const hold = (to: number) => !reduce && Animated.spring(stretch, { toValue: to, speed: 30, bounciness: 4, useNativeDriver: false }).start();
+  const knob = Animated.add(KNOB, Animated.multiply(stretch, STRETCH));
+  // Stretched, the knob grows away from the edge it's resting against.
+  const left = Animated.subtract(
+    Animated.add(2, Animated.multiply(position, TRACK_W - KNOB - 4)),
+    Animated.multiply(position, Animated.multiply(stretch, STRETCH)),
+  );
   return (
     <Pressable
       accessibilityRole="switch"
@@ -141,14 +160,13 @@ export function GlassSwitch({
       accessibilityState={{ checked: value, disabled: !!disabled }}
       disabled={disabled}
       onPress={() => onValueChange?.(!value)}
+      onPressIn={() => hold(1)}
+      onPressOut={() => hold(0)}
       hitSlop={8}
       style={{ opacity: disabled ? 0.4 : 1 }}>
       <Animated.View
-        style={[
-          styles.track,
-          { backgroundColor: position.interpolate({ inputRange: [0, 1], outputRange: ['rgba(120,120,128,0.16)', glassText.green] }) },
-        ]}>
-        <Animated.View style={[styles.knob, { transform: [{ translateX: position.interpolate({ inputRange: [0, 1], outputRange: [2, TRACK_W - 29] }) }] }]} />
+        style={[styles.track, { backgroundColor: position.interpolate({ inputRange: [0, 1], outputRange: ['rgba(120,120,128,0.16)', glassText.green] }) }]}>
+        <Animated.View style={[styles.knob, { width: knob, left }]} />
       </Animated.View>
     </Pressable>
   );
@@ -304,17 +322,21 @@ export function GlassButton({
 }) {
   const tint = disabled ? undefined : tone === 'blue' ? glassText.blue : tone === 'red' ? glassText.red : undefined;
   const height = small ? 36 : 50;
+  const swell = useSwell({ ...rest, to: rect ? 1.03 : 1.06 });
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} style={style} {...rest}>
+    <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} style={style} {...rest} {...swell.handlers}>
       {({ pressed }) => (
-        <GlassSurface
-          radius={rect ? 16 : height / 2}
-          tint={tint}
-          interactive
-          style={[styles.button, { minHeight: height, paddingHorizontal: small ? 14 : 22 }, pressed && styles.pressedScale]}>
-          <IconTint.Provider value={tint ? '#ffffff' : glassText.primary}>{icon}</IconTint.Provider>
-          {title ? <Text style={[styles.buttonText, small && styles.buttonTextSmall, tint && styles.onTint, disabled && styles.disabledText]}>{title}</Text> : null}
-        </GlassSurface>
+        <Animated.View style={{ transform: [{ scale: swell.scale }] }}>
+          <GlassSurface
+            radius={rect ? 16 : height / 2}
+            tint={tint}
+            interactive
+            style={[styles.button, { minHeight: height, paddingHorizontal: small ? 14 : 22 }]}>
+            {pressed ? <View style={styles.lit} pointerEvents="none" /> : null}
+            <IconTint.Provider value={tint ? '#ffffff' : glassText.primary}>{icon}</IconTint.Provider>
+            {title ? <Text style={[styles.buttonText, small && styles.buttonTextSmall, tint && styles.onTint, disabled && styles.disabledText]}>{title}</Text> : null}
+          </GlassSurface>
+        </Animated.View>
       )}
     </Pressable>
   );
@@ -328,23 +350,22 @@ export function GlassOrb({
   style,
   ...rest
 }: Omit<PressableProps, 'children' | 'style'> & { children: ReactNode; active?: boolean; size?: number; style?: ViewStyle }) {
+  const swell = useSwell({ ...rest, to: 1.1 });
   return (
-    <Pressable accessibilityRole="button" style={style} {...rest}>
+    <Pressable accessibilityRole="button" style={style} {...rest} {...swell.handlers}>
       {({ pressed }) => (
-        <GlassSurface
-          radius={size / 2}
-          dark
-          tint={active ? glassText.blue : undefined}
-          interactive
-          style={[{ width: size, height: size }, styles.center, pressed && styles.pressedScale]}>
-          {children}
-        </GlassSurface>
+        <Animated.View style={{ transform: [{ scale: swell.scale }] }}>
+          <GlassSurface radius={size / 2} dark tint={active ? glassText.blue : undefined} interactive style={[{ width: size, height: size }, styles.center]}>
+            {children}
+            {pressed ? <View style={styles.lit} pointerEvents="none" /> : null}
+          </GlassSurface>
+        </Animated.View>
       )}
     </Pressable>
   );
 }
 
-/** The segmented control: a glass track with a white capsule under the choice. */
+/** The segmented control: a glass track, and a white capsule that slides to the choice. */
 export function GlassSegmented<T extends string>({
   options,
   value,
@@ -358,12 +379,28 @@ export function GlassSegmented<T extends string>({
   style?: StyleProp<ViewStyle>;
   dark?: boolean;
 }) {
+  const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const [width, setWidth] = useState(0);
+  const [x] = useState(() => new Animated.Value(index));
+  const reduce = useReduceMotion();
+  useEffect(() => {
+    if (reduce) x.setValue(index);
+    else Animated.spring(x, { toValue: index, speed: 14, bounciness: 7, useNativeDriver: true }).start();
+  }, [index, x, reduce]);
+  // The track's padding is 3 on each side; the items share the rest.
+  const item = width ? (width - 6) / options.length : 0;
   return (
-    <GlassSurface radius={20} dark={dark} style={[styles.segTrack, style]} accessibilityRole="tablist">
+    <GlassSurface radius={20} dark={dark} style={[styles.segTrack, style]} accessibilityRole="tablist" onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      {item ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.segThumb, { width: item, transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [0, item] }) }] }]}
+        />
+      ) : null}
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <Pressable key={o.value} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onChange(o.value)} style={[styles.segItem, on && styles.segOn]}>
+          <Pressable key={o.value} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onChange(o.value)} style={styles.segItem}>
             <Text style={[styles.segText, dark && !on && styles.segTextDark]}>{o.label}</Text>
           </Pressable>
         );
@@ -465,11 +502,12 @@ const styles = StyleSheet.create({
   barButtonTitled: { paddingHorizontal: 16 },
   barButtonText: { ...font, fontSize: 17, fontWeight: '500', color: glassText.primary },
   onTint: { color: '#ffffff' },
-  pressedScale: { transform: [{ scale: 0.95 }] },
+  // Touched glass brightens.
+  lit: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(255,255,255,0.18)' },
   toolbarWrap: { paddingHorizontal: 12, paddingTop: 6 },
   toolbar: { padding: 8 },
   track: { width: TRACK_W, height: TRACK_H, borderRadius: TRACK_H / 2, justifyContent: 'center' },
-  knob: { width: 27, height: 27, borderRadius: 14, backgroundColor: '#ffffff', boxShadow: '0 3px 8px rgba(0,0,0,0.15), 0 1px 1px rgba(0,0,0,0.16)' },
+  knob: { position: 'absolute', top: 2, height: KNOB, borderRadius: 14, backgroundColor: '#ffffff', boxShadow: '0 3px 8px rgba(0,0,0,0.15), 0 1px 1px rgba(0,0,0,0.16)' },
   listBackground: { flex: 1, backgroundColor: glassText.groupedBackground },
   section: { marginHorizontal: 16, marginTop: 22 },
   sectionTitle: { ...font, fontSize: 13, color: glassText.secondary, textTransform: 'uppercase', marginLeft: 16, marginBottom: 7 },
@@ -503,9 +541,9 @@ const styles = StyleSheet.create({
   buttonTextSmall: { fontSize: 15 },
   disabledText: { color: glassText.tertiary },
   center: { alignItems: 'center', justifyContent: 'center' },
-  segTrack: { flexDirection: 'row', padding: 3, gap: 2 },
+  segTrack: { flexDirection: 'row', padding: 3 },
   segItem: { flex: 1, minHeight: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  segOn: { backgroundColor: '#ffffff', boxShadow: '0 2px 6px rgba(0,0,0,0.14)' },
+  segThumb: { position: 'absolute', top: 3, bottom: 3, left: 3, borderRadius: 17, backgroundColor: '#ffffff', boxShadow: '0 2px 6px rgba(0,0,0,0.14)' },
   segText: { ...font, fontSize: 14, fontWeight: '600', color: glassText.primary },
   segTextDark: { color: '#ffffff' },
   avatar: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#8e9fb8', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.12)' },

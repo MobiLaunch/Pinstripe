@@ -1,8 +1,10 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import type { MaterialTopTabBarProps } from 'expo-router/js-top-tabs';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useSwell } from '@/components/glass-motion';
 import { Icon, type IconName } from '@/components/icon';
 import { Badge } from '@/components/ios6';
 import { GlassSurface, glassFont, glassText } from '@/components/liquid';
@@ -41,37 +43,88 @@ export function useTabBarInset(): number {
  * the current tab picked out in the accent colour on a lozenge of its own.
  * Over the videos it's dark glass.
  */
-function GlassTabBar({ state, navigation }: MaterialTopTabBarProps) {
+function GlassTabBar({ state, navigation, position }: MaterialTopTabBarProps) {
   const insets = useSafeAreaInsets();
   const unread = useUnreadNotifications();
   const overVideo = state.routes[state.index]?.name === 'index';
+  const [width, setWidth] = useState(0);
+  const count = state.routes.length;
+  const tab = width ? (width - 8) / count : 0;
+  // The pager's live position (fractional mid-swipe), so the lozenge moves with your finger.
+  const [fallback] = useState(() => new Animated.Value(state.index));
+  useEffect(() => {
+    if (!position) Animated.spring(fallback, { toValue: state.index, speed: 14, bounciness: 6, useNativeDriver: true }).start();
+  }, [position, fallback, state.index]);
+  const at: Animated.AnimatedInterpolation<number> | Animated.Value = position ?? fallback;
+  const indices = state.routes.map((_: unknown, i: number) => i);
   return (
     <View style={[styles.glassWrap, { bottom: Math.max(insets.bottom, 12) }]} pointerEvents="box-none">
-      <GlassSurface radius={GLASS_BAR / 2} dark={overVideo} style={styles.glassBar} accessibilityRole="tablist">
+      <GlassSurface
+        radius={GLASS_BAR / 2}
+        dark={overVideo}
+        style={styles.glassBar}
+        accessibilityRole="tablist"
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+        {tab ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.glassLozenge,
+              overVideo ? styles.glassTabOnDark : styles.glassTabOn,
+              { width: tab, transform: [{ translateX: at.interpolate({ inputRange: indices, outputRange: indices.map((i: number) => i * tab) }) }] },
+            ]}
+          />
+        ) : null}
         {state.routes.map((route: { key: string; name: string }, index: number) => {
-          const tab = TABS[route.name];
-          if (!tab) return null;
+          const meta = TABS[route.name];
+          if (!meta) return null;
           const focused = state.index === index;
-          const color = focused ? glassText.blue : overVideo ? '#ffffff' : glassText.primary;
           return (
-            <Pressable
+            <GlassTab
               key={route.key}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: focused }}
-              accessibilityLabel={tab.label}
+              label={meta.label}
+              icon={meta.icon}
+              focused={focused}
+              overVideo={overVideo}
+              badge={route.name === 'feed' ? unread : 0}
               onPress={() => {
                 const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
                 if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
               }}
-              style={[styles.glassTab, focused && (overVideo ? styles.glassTabOnDark : styles.glassTabOn)]}>
-              <Icon name={tab.icon} size={24} strokeWidth={2.2} color={color} filled={focused && tab.icon === 'play'} />
-              <Text style={[styles.glassLabel, { color }]}>{tab.label}</Text>
-              {route.name === 'feed' && unread ? <Badge count={unread} style={styles.glassBadge} /> : null}
-            </Pressable>
+            />
           );
         })}
       </GlassSurface>
     </View>
+  );
+}
+
+/** One tab: its symbol and name, swelling a little while pressed. */
+function GlassTab({
+  label,
+  icon,
+  focused,
+  overVideo,
+  badge,
+  onPress,
+}: {
+  label: string;
+  icon: IconName;
+  focused: boolean;
+  overVideo: boolean;
+  badge: number;
+  onPress: () => void;
+}) {
+  const swell = useSwell({ to: 1.12 });
+  const color = focused ? glassText.blue : overVideo ? '#ffffff' : glassText.primary;
+  return (
+    <Pressable accessibilityRole="tab" accessibilityState={{ selected: focused }} accessibilityLabel={label} onPress={onPress} style={styles.glassTab} {...swell.handlers}>
+      <Animated.View style={[styles.glassTabInner, { transform: [{ scale: swell.scale }] }]}>
+        <Icon name={icon} size={24} strokeWidth={2.2} color={color} filled={focused && icon === 'play'} />
+        <Text style={[styles.glassLabel, { color }]}>{label}</Text>
+      </Animated.View>
+      {badge ? <Badge count={badge} style={styles.glassBadge} /> : null}
+    </Pressable>
   );
 }
 
@@ -143,7 +196,9 @@ const styles = StyleSheet.create({
   badge: { position: 'absolute', top: 0, right: '22%' },
   glassWrap: { position: 'absolute', left: 20, right: 20 },
   glassBar: { height: GLASS_BAR, flexDirection: 'row', alignItems: 'center', padding: 4 },
-  glassTab: { flex: 1, height: GLASS_BAR - 8, borderRadius: (GLASS_BAR - 8) / 2, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  glassTab: { flex: 1, height: GLASS_BAR - 8, alignItems: 'center', justifyContent: 'center' },
+  glassTabInner: { alignItems: 'center', gap: 2 },
+  glassLozenge: { position: 'absolute', top: 4, left: 4, height: GLASS_BAR - 8, borderRadius: (GLASS_BAR - 8) / 2 },
   glassTabOn: { backgroundColor: 'rgba(120,120,128,0.16)' },
   glassTabOnDark: { backgroundColor: 'rgba(255,255,255,0.14)' },
   glassLabel: { fontFamily: glassFont, fontSize: 10, fontWeight: '600' },
