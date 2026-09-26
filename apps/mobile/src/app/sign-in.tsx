@@ -9,8 +9,11 @@ import { FormError } from '@/components/form-error';
 import { showHud } from '@/components/hud';
 import { PINSTRIPE_SERVER } from '@/config';
 import { fontFamily } from '@/theme/aqua';
+import { glassGroup } from '@/components/liquid-controls';
+import { useGlass } from '@/theme/theme';
 
 export default function SignInScreen() {
+  const glass = useGlass();
   const { signInWithPassword } = useAuth();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
@@ -40,7 +43,7 @@ export default function SignInScreen() {
             <Text style={aquaText.handle}>Short videos for the fediverse.</Text>
           </View>
           <FormError message={error} />
-          <View style={styles.table}>
+          <View style={[styles.table, glass && glassGroup]}>
             <TableField
               label="Username"
               accessibilityLabel="Username or email"

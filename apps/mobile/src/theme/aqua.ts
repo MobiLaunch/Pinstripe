@@ -2,6 +2,7 @@
  * Aqua design tokens, lifted from the "Fediverse Video App – Aqua Screens"
  * canvas. Gradients are [colors, locations] pairs for expo-linear-gradient.
  */
+import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 type Stops = readonly [string, string, ...string[]];
@@ -66,12 +67,35 @@ export const radii = { field: 5, segment: 7, card: 9, pill: 999 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
 
-/** Lucida Grande is the Aqua system face; Geneva/Verdana are its web fallbacks. */
-export const fontFamily = Platform.select({
-  ios: 'Helvetica Neue',
-  android: 'sans-serif',
-  default: '"Lucida Grande","Lucida Sans Unicode","Lucida Sans",Geneva,Verdana,sans-serif',
-});
+/**
+ * The Liquid Glass look was chosen when the app last ran. Styles are fixed
+ * when the app loads, so this is read once, straight from storage.
+ */
+function startedInGlass(): boolean {
+  // The web swaps fonts with a stylesheet rule instead (see web-fixes.ts).
+  if (Platform.OS === 'web') return false;
+  try {
+    const saved = SecureStore.getItem(THEME_KEY);
+    return !!saved && saved.includes('glass');
+  } catch {
+    return false;
+  }
+}
+
+export const THEME_KEY = 'pinstripe.theme';
+
+/**
+ * Lucida Grande is the Aqua system face (Geneva/Verdana its web fallbacks),
+ * and iOS 6 used Helvetica Neue. Liquid Glass uses the system font, from
+ * the next launch after it's chosen (on the web it switches at once).
+ */
+export const fontFamily = startedInGlass()
+  ? Platform.select({ ios: undefined, android: undefined, default: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif' })
+  : Platform.select({
+      ios: 'Helvetica Neue',
+      android: 'sans-serif',
+      default: '"Lucida Grande","Lucida Sans Unicode","Lucida Sans",Geneva,Verdana,sans-serif',
+    });
 
 export const type = {
   title: { fontSize: 17, fontWeight: '700' },

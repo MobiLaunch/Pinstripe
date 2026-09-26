@@ -12,7 +12,7 @@ import { useAuth } from '@/auth/session';
 import { getJson, setJson } from '@/auth/storage';
 import { setSystemFontOnWeb } from '@/web-fixes';
 
-import { colors, type Gradient, gradients } from './aqua';
+import { colors, type Gradient, gradients, THEME_KEY } from './aqua';
 
 export interface Accent {
   theme: Theme;
@@ -123,7 +123,6 @@ export const ACCENTS: Record<Theme, Accent> = {
   },
 };
 
-const THEME_KEY = 'pinstripe.theme';
 const ThemeContext = createContext<{ accent: Accent; setTheme: (theme: Theme) => void }>({ accent: ACCENTS.blue, setTheme: () => {} });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

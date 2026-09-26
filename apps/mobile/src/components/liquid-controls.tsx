@@ -35,7 +35,13 @@ export const glassInput = {
   borderRadius: 18,
   boxShadow: 'none',
   color: glassText.primary,
+  outlineWidth: 0,
+  // Web paints positioned layers (glass) over unpositioned ones; this keeps the field on top.
+  position: 'relative',
 } as const;
+
+/** A white rounded group in the Glass look, for screens that build their own table. */
+export const glassGroup = { borderWidth: 0, borderRadius: 26, boxShadow: 'none' } as const;
 
 // Bars
 
@@ -296,10 +302,10 @@ export function GlassButton({
   icon?: ReactNode;
   style?: ViewStyle;
 }) {
-  const tint = tone === 'blue' ? glassText.blue : tone === 'red' ? glassText.red : undefined;
+  const tint = disabled ? undefined : tone === 'blue' ? glassText.blue : tone === 'red' ? glassText.red : undefined;
   const height = small ? 36 : 50;
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} style={[{ opacity: disabled ? 0.4 : 1 }, style]} {...rest}>
+    <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} style={style} {...rest}>
       {({ pressed }) => (
         <GlassSurface
           radius={rect ? 16 : height / 2}
@@ -307,7 +313,7 @@ export function GlassButton({
           interactive
           style={[styles.button, { minHeight: height, paddingHorizontal: small ? 14 : 22 }, pressed && styles.pressedScale]}>
           <IconTint.Provider value={tint ? '#ffffff' : glassText.primary}>{icon}</IconTint.Provider>
-          {title ? <Text style={[styles.buttonText, small && styles.buttonTextSmall, tint && styles.onTint]}>{title}</Text> : null}
+          {title ? <Text style={[styles.buttonText, small && styles.buttonTextSmall, tint && styles.onTint, disabled && styles.disabledText]}>{title}</Text> : null}
         </GlassSurface>
       )}
     </Pressable>
@@ -488,12 +494,14 @@ const styles = StyleSheet.create({
   wallHeaderText: { ...font, flex: 1, fontSize: 28, fontWeight: '700', color: '#ffffff', textShadowColor: 'rgba(0,0,0,0.2)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
   searchWrap: { paddingHorizontal: 16, paddingVertical: 8 },
   search: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14 },
-  searchInput: { ...font, flex: 1, fontSize: 17, color: glassText.primary, paddingVertical: 0, outlineWidth: 0 },
+  // position: web paints positioned layers (the glass) over unpositioned ones, so the field needs it to sit on top.
+  searchInput: { ...font, flex: 1, fontSize: 17, color: glassText.primary, paddingVertical: 0, outlineWidth: 0, position: 'relative' },
   badge: { minWidth: 20, height: 20, paddingHorizontal: 6, borderRadius: 10, backgroundColor: glassText.red, alignItems: 'center', justifyContent: 'center' },
   badgeText: { ...font, fontSize: 13, fontWeight: '600', color: '#ffffff' },
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   buttonText: { ...font, fontSize: 17, fontWeight: '600', color: glassText.primary },
   buttonTextSmall: { fontSize: 15 },
+  disabledText: { color: glassText.tertiary },
   center: { alignItems: 'center', justifyContent: 'center' },
   segTrack: { flexDirection: 'row', padding: 3, gap: 2 },
   segItem: { flex: 1, minHeight: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },

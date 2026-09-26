@@ -364,25 +364,28 @@ export function Spinner({
   accessibilityLabel?: string;
 }) {
   const px = size === 'small' ? 20 : size === 'large' ? 37 : size;
+  // Today's spinner: eight thicker spokes, grey, turning the same way.
+  const glass = useGlass();
+  const spokes = glass ? 8 : SPOKES;
   const [turn] = useState(() => new Animated.Value(0));
   useEffect(() => {
     const loop = Animated.loop(
       // Stepped, one spoke per tick, as the original did.
-      Animated.timing(turn, { toValue: 1, duration: 1000, easing: (t) => Math.floor(t * SPOKES) / SPOKES, useNativeDriver: true }),
+      Animated.timing(turn, { toValue: 1, duration: 1000, easing: (t) => Math.floor(t * spokes) / spokes, useNativeDriver: true }),
     );
     loop.start();
     return () => loop.stop();
-  }, [turn]);
+  }, [turn, spokes]);
   const rotate = turn.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const c = px / 2;
-  const w = px * 0.09;
+  const w = px * (glass ? 0.13 : 0.09);
   return (
     <View accessibilityRole="progressbar" accessibilityLabel={accessibilityLabel} style={[{ width: px, height: px, alignSelf: 'center' }, style]}>
       <Animated.View style={{ width: px, height: px, transform: [{ rotate }] }}>
         <Svg width={px} height={px}>
-          {Array.from({ length: SPOKES }, (_, i) => (
-            <G key={i} transform={`rotate(${-i * (360 / SPOKES)} ${c} ${c})`}>
-              <Rect x={c - w / 2} y={px * 0.02} width={w} height={px * 0.27} rx={w / 2} fill={color} opacity={1 - (i / SPOKES) * 0.8} />
+          {Array.from({ length: spokes }, (_, i) => (
+            <G key={i} transform={`rotate(${-i * (360 / spokes)} ${c} ${c})`}>
+              <Rect x={c - w / 2} y={px * 0.04} width={w} height={px * 0.26} rx={w / 2} fill={glass && color === '#8a8a8a' ? '#8e8e93' : color} opacity={1 - (i / spokes) * 0.75} />
             </G>
           ))}
         </Svg>

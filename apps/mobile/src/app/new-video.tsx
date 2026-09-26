@@ -11,7 +11,7 @@ import { useAuth, useSource } from '@/auth/session';
 import { aquaText, Card, GelButton } from '@/components/aqua';
 import { FormError } from '@/components/form-error';
 import { BarButton, TableBackground, TableRow } from '@/components/ios6';
-import { glassInput } from '@/components/liquid-controls';
+import { glassGroup, glassInput } from '@/components/liquid-controls';
 import { PickerSheet } from '@/components/picker';
 import { ProgressBar } from '@/components/progress-bar';
 import { ScreenHeader } from '@/components/screen-header';
@@ -167,7 +167,7 @@ export default function NewVideoScreen() {
             />
             <Text style={[aquaText.handle, styles.count, remaining < 0 && styles.over]}>{remaining}</Text>
           </Card>
-          <View style={styles.group}>
+          <View style={[styles.group, glass && glassGroup]}>
             <TableRow
               title="Who Can See It"
               detail={VISIBILITIES.find((v) => v.value === visibility)?.label ?? 'Public'}

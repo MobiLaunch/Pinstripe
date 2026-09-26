@@ -1,7 +1,7 @@
 import { type AccountSettings, DEFAULT_SETTINGS, type Theme } from '@pinstripe/core';
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAccount, useAuth, useSource } from '@/auth/session';
 import { AquaSwitch, GelButton } from '@/components/aqua';
@@ -161,7 +161,9 @@ export default function SettingsScreen() {
         <TableGroup title="Sounds" footer="Sent posts, refreshing and the camera. Silent when your phone is.">
           <TableRow title="Sound Effects" right={<AquaSwitch value={sounds} onValueChange={setSounds} accessibilityLabel="Sound Effects" />} />
         </TableGroup>
-        <TableGroup title="Appearance">
+        <TableGroup
+          title="Appearance"
+          footer={Platform.OS === 'web' ? undefined : 'Switching to or from Liquid Glass changes the font the next time Pinstripe opens.'}>
           {THEMES.map((t) => (
             <TableRow
               key={t.value}
