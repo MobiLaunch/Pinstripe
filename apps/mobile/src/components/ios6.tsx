@@ -51,6 +51,8 @@ export function NavBar({ title, left, right, children }: { title?: string; left?
   return (
     <View style={[styles.navBar, { paddingTop: insets.top, borderBottomColor: accent.navBarEdge }]}>
       <Fill gradient={accent.navBar} />
+      {/* Glass: a soft sheen over the upper half of the bar. */}
+      <LinearGradient colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.06)']} style={[styles.navGloss, { top: insets.top }]} pointerEvents="none" />
       <View style={styles.navHighlight} pointerEvents="none" />
       <View style={styles.navRow}>
         {title ? (
@@ -459,7 +461,9 @@ export function Badge({ count, style }: { count: number; style?: StyleProp<ViewS
 const BADGE: Gradient = { colors: ['#f7968e', '#e2352a', '#cc1a0f', '#b8120a'], locations: [0, 0.49, 0.5, 1] };
 
 const styles = StyleSheet.create({
-  navBar: { overflow: 'hidden', borderBottomWidth: 1 },
+  // The bar casts a soft shadow down onto the page, as iOS 6's did.
+  navBar: { overflow: 'hidden', borderBottomWidth: 1, zIndex: 2, boxShadow: '0 1px 4px rgba(0,0,0,0.45)' },
+  navGloss: { position: 'absolute', left: 0, right: 0, height: 22 },
   navHighlight: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.45)' },
   navRow: { height: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6 },
   navTitleWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 96 },

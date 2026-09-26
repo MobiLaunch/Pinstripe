@@ -25,7 +25,9 @@ export function AquaTabBar({ state, navigation }: MaterialTopTabBarProps) {
   const unread = useUnreadNotifications();
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 4) }]} accessibilityRole="tablist">
-      <LinearGradient colors={['#3f3f3f', '#262626', '#131313', '#070707']} locations={[0, 0.5, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      {/* Black glass: a lit upper half over a deep lower one. */}
+      <LinearGradient colors={['#4a4a4a', '#2a2a2a', '#111111', '#030303']} locations={[0, 0.5, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['rgba(255,255,255,0.14)', 'rgba(255,255,255,0.03)']} style={styles.gloss} pointerEvents="none" />
       <View style={styles.shine} pointerEvents="none" />
       {state.routes.map((route: { key: string; name: string }, index: number) => {
         const tab = TABS[route.name];
@@ -42,7 +44,11 @@ export function AquaTabBar({ state, navigation }: MaterialTopTabBarProps) {
               if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
             }}
             style={styles.tab}>
-            {focused ? <View style={styles.selected} pointerEvents="none" /> : null}
+            {focused ? (
+              <View style={styles.selected} pointerEvents="none">
+                <LinearGradient colors={['rgba(255,255,255,0.26)', 'rgba(255,255,255,0.1)', 'rgba(255,255,255,0.04)', 'rgba(255,255,255,0.09)']} locations={[0, 0.5, 0.5, 1]} style={StyleSheet.absoluteFill} />
+              </View>
+            ) : null}
             <View style={focused ? [styles.glow, { boxShadow: `0 0 8px ${accent.tabIcon}` }] : undefined}>
               <Icon name={tab.icon} size={28} strokeWidth={2.4} color={focused ? accent.tabIcon : '#8f8f8f'} filled={focused && tab.icon === 'play'} />
             </View>
@@ -65,14 +71,15 @@ const styles = StyleSheet.create({
     borderTopColor: '#000000',
     overflow: 'hidden',
   },
-  shine: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.22)' },
+  shine: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.28)' },
+  gloss: { position: 'absolute', top: 0, left: 0, right: 0, height: '50%' },
   tab: { flex: 1, minHeight: 50, alignItems: 'center', justifyContent: 'center', gap: 1 },
   selected: {
     ...StyleSheet.absoluteFill,
     margin: 2,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.13)',
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18), 0 0 0 1px rgba(0,0,0,0.5)',
+    overflow: 'hidden',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(255,255,255,0.06), 0 0 0 1px rgba(0,0,0,0.6)',
   },
   glow: { borderRadius: 14 },
   label: { fontFamily, fontSize: 10, fontWeight: '700', color: '#9a9a9a' },

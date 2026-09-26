@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { type ReactNode, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Line } from 'react-native-svg';
 
 import { aquaText, Avatar, Group, Pinstripes, Segmented } from '@/components/aqua';
 import { confirm } from '@/components/confirm';
@@ -15,7 +16,6 @@ import { usePullToRefresh } from '@/components/pull-refresh';
 import { Texture } from '@/components/texture';
 import { usePostList } from '@/hooks/use-post-list';
 import { colors, fontFamily } from '@/theme/aqua';
-import { useAccent } from '@/theme/theme';
 
 const TABS = [
   { value: 'videos', label: 'Videos' },
@@ -52,7 +52,6 @@ export function ProfileView({
   /** Changing it reloads the posts (after blocking, say). */
   postsKey?: string;
 }) {
-  const accent = useAccent();
   const [tab, setTab] = useState<(typeof TABS)[number]['value']>('posts');
   // One list of the account's posts and boosts; each tab shows its share.
   const list = usePostList((client, maxId) => client.accountStatuses(account.id, { maxId }), `${account.id}:${postsKey}`, {
@@ -69,7 +68,7 @@ export function ProfileView({
 
   const header = (
     <>
-      <LinearGradient colors={accent.banner.colors} locations={accent.banner.locations} style={[styles.banner, { borderBottomColor: accent.bannerEdge }]} />
+      <Banner uri={account.bannerUrl} />
       <View style={styles.identity}>
         <Avatar framed initials={initials(account.displayName)} size={92} uri={account.avatarUrl} />
         {action}
@@ -161,6 +160,44 @@ export function ProfileView({
 }
 
 const WOOD = require('../../assets/textures/wood.png');
+const LEATHER = require('../../assets/textures/leather.png');
+
+/**
+ * The profile header: the person's banner photo, or, without one, stitched
+ * leather like iOS 6's Find My Friends.
+ */
+function Banner({ uri }: { uri: string | null }) {
+  if (uri) {
+    return (
+      <View style={styles.banner}>
+        <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
+        <LinearGradient colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.2)']} locations={[0, 0.3, 1]} style={StyleSheet.absoluteFill} />
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.banner, styles.leather]}>
+      <Texture source={LEATHER} tile={{ width: 256, height: 256 }} />
+      {/* Worn darker at the edges. */}
+      <LinearGradient colors={['rgba(30,12,0,0.55)', 'rgba(30,12,0,0)', 'rgba(30,12,0,0)', 'rgba(30,12,0,0.6)']} locations={[0, 0.25, 0.7, 1]} style={StyleSheet.absoluteFill} />
+      <Stitches y={11} />
+      <Stitches y={BANNER_HEIGHT - 12} />
+    </View>
+  );
+}
+
+const BANNER_HEIGHT = 110;
+
+/** A row of thread stitches pressed into the leather, with the dent each one makes. */
+function Stitches({ y }: { y: number }) {
+  return (
+    <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Line x1="0" x2="100%" y1={y + 1.5} y2={y + 1.5} stroke="rgba(0,0,0,0.55)" strokeWidth={3} strokeDasharray="8 5" />
+      <Line x1="0" x2="100%" y1={y} y2={y} stroke="#f1dcb4" strokeWidth={2} strokeDasharray="8 5" strokeLinecap="round" />
+      <Line x1="0" x2="100%" y1={y - 0.6} y2={y - 0.6} stroke="rgba(255,255,255,0.45)" strokeWidth={0.6} strokeDasharray="8 5" />
+    </Svg>
+  );
+}
 const PER_SHELF = 3;
 
 function shelves(posts: Post[]): Post[][] {
@@ -238,7 +275,8 @@ function Stat({ n, label, divider = false }: { n: number; label: string; divider
 }
 
 const styles = StyleSheet.create({
-  banner: { height: 110, borderBottomWidth: 1, borderBottomColor: '#0e3f86' },
+  banner: { height: BANNER_HEIGHT, overflow: 'hidden', borderBottomWidth: 1, borderBottomColor: '#1c1c1c' },
+  leather: { backgroundColor: '#7a4a24', borderBottomColor: '#2a1204' },
   identity: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 16, marginTop: -48 },
   body: { paddingHorizontal: 16, paddingTop: 10, gap: 2 },
   name: { fontFamily, fontSize: 20, fontWeight: '700', color: colors.text },

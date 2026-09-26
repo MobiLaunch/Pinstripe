@@ -1,6 +1,7 @@
 import { formatHandle, type Post } from '@pinstripe/core';
 import { useEvent } from 'expo';
 import { Image } from 'expo-image';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NetworkStateType, useNetworkState } from 'expo-network';
 import { router } from 'expo-router';
@@ -207,7 +208,11 @@ export function VideoPage({
         onSaveVideo={canSave ? save : undefined}
         onClose={() => setSharing(false)}
       />
+      {/* Frosted glass behind the caption: the video blurs and darkens through it. */}
       <View style={styles.caption}>
+        <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFill} />
+        <View style={styles.captionTint} pointerEvents="none" />
+        <LinearGradient colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0)']} style={styles.captionSheen} pointerEvents="none" />
         {post.reblog ? <Text style={styles.boosted}>Boosted by {post.account.displayName}</Text> : null}
         <Text style={styles.name} onPress={() => router.push(`/profile/${shown.account.id}`)}>
           {shown.account.displayName} <Text style={styles.handle}>{formatHandle(shown.account)}</Text>
@@ -215,7 +220,9 @@ export function VideoPage({
         {shown.content ? <RichText post={shown} style={styles.body} linkStyle={styles.captionLink} numberOfLines={4} /> : null}
       </View>
       <View style={styles.progress} accessibilityRole="progressbar" accessibilityLabel="Playback" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
-        <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+        <View style={[styles.progressFill, { width: `${progress * 100}%` }]}>
+          <LinearGradient colors={['#bfe0ff', '#5aa3f2', '#1f6fd4', '#3b8cea']} locations={[0, 0.5, 0.5, 1]} style={StyleSheet.absoluteFill} />
+        </View>
       </View>
     </View>
   );
@@ -257,12 +264,39 @@ const styles = StyleSheet.create({
   author: { marginBottom: 6 },
   action: { alignItems: 'center' },
   count: { fontFamily, fontSize: 12, fontWeight: '700', color: colors.onVideo, marginTop: 4, ...shadow },
-  caption: { position: 'absolute', left: 16, right: 84, bottom: 34, gap: 6 },
+  caption: {
+    position: 'absolute',
+    left: 10,
+    right: 80,
+    bottom: 30,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
+  },
+  captionTint: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(10,14,22,0.35)' },
+  captionSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: 18 },
   boosted: { fontFamily, fontSize: 12, color: colors.onVideoMuted, ...shadow },
   name: { fontFamily, fontSize: 16, fontWeight: '700', color: colors.onVideo, ...shadow },
   handle: { fontSize: 12, fontWeight: '400', color: colors.onVideoMuted },
   body: { fontFamily, fontSize: 14, lineHeight: 20, color: colors.onVideo, ...shadow },
   captionLink: { color: '#ffffff' },
-  progress: { position: 'absolute', left: 16, right: 16, bottom: 14, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#8ac3ff' },
+  progress: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 12,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.6)',
+    overflow: 'hidden',
+    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.15)',
+  },
+  progressFill: { height: '100%', borderRadius: 3, overflow: 'hidden' },
 });

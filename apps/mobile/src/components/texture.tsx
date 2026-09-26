@@ -1,16 +1,32 @@
 /**
  * A repeating material texture filling its parent (linen, brushed metal,
- * wood). Phones repeat an image natively; react-native-web draws it once,
- * so there the tiles are laid out by hand.
+ * wood, leather), drawn at `tile` size so a 2x image stays crisp. On the
+ * web it's a CSS background, which always fills the space however it
+ * grows; on phones the tiles are laid out to cover the measured area.
  */
-import { useState } from 'react';
-import { Image, type ImageSourcePropType, Platform, StyleSheet, View } from 'react-native';
+import { Asset } from 'expo-asset';
+import { useState, useSyncExternalStore } from 'react';
+import { Image, type ImageSourcePropType, Platform, StyleSheet, View, type ViewStyle } from 'react-native';
 
 export function Texture({ source, tile }: { source: ImageSourcePropType; tile: { width: number; height: number } }) {
+  return Platform.OS === 'web' ? <WebTexture source={source} tile={tile} /> : <TiledTexture source={source} tile={tile} />;
+}
+
+const noop = () => () => {};
+
+function WebTexture({ source, tile }: { source: ImageSourcePropType; tile: { width: number; height: number } }) {
+  // Only once running in the browser: the statically rendered HTML has no texture to disagree with.
+  const hydrated = useSyncExternalStore(noop, () => true, () => false);
+  const uri = hydrated ? Asset.fromModule(source as number).uri : null;
+  // react-native-web passes these CSS properties through to the element.
+  const background = uri
+    ? ({ backgroundImage: `url("${uri}")`, backgroundRepeat: 'repeat', backgroundSize: `${tile.width}px ${tile.height}px` } as unknown as ViewStyle)
+    : null;
+  return <View style={[StyleSheet.absoluteFill, background]} pointerEvents="none" />;
+}
+
+function TiledTexture({ source, tile }: { source: ImageSourcePropType; tile: { width: number; height: number } }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
-  if (Platform.OS !== 'web') {
-    return <Image source={source} resizeMode="repeat" style={StyleSheet.absoluteFill} />;
-  }
   const cols = Math.ceil(size.width / tile.width);
   const rows = Math.ceil(size.height / tile.height);
   return (
