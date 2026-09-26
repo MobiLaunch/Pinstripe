@@ -1,0 +1,78 @@
+import { readFileSync } from "node:fs";
+import type { S3Options } from "./media/storage.ts";
+
+export type StorageConfig = { kind: "local"; dir: string } | ({ kind: "s3" } & S3Options);
+
+export interface Config {
+  port: number;
+  /** Public origin other servers see, e.g. `https://pinstripe.social`. */
+  origin: string;
+  version: string;
+  databaseUrl: string;
+  /** Development only: lets two local servers federate over localhost. Never in production (SSRF). */
+  allowPrivateAddress: boolean;
+  storage: StorageConfig;
+  /** SMTP_URL (e.g. smtp://user:pass@smtp.example.com:587); unset prints mail to the console. */
+  smtpUrl: string | null;
+  /** MAIL_FROM, e.g. `Pinstripe <noreply@pinstripe.social>`. */
+  mailFrom: string;
+  /** EXPO_ACCESS_TOKEN: only needed if the Expo project requires authenticated pushes. */
+  expoAccessToken: string | null;
+  /** REGISTRATIONS=open (default) or closed. */
+  registrationsOpen: boolean;
+  /** TRUST_PROXY=true behind a reverse proxy: take the client's address from X-Forwarded-For. */
+  trustProxy: boolean;
+}
+
+/**
+ * MEDIA_STORAGE=local (default): files under MEDIA_DIR, served by this server.
+ * MEDIA_STORAGE=s3: any S3-compatible bucket (AWS S3, Cloudflare R2, Backblaze B2…).
+ */
+function loadStorage(env: Record<string, string | undefined>): StorageConfig {
+  if ((env.MEDIA_STORAGE ?? "local") === "local") return { kind: "local", dir: env.MEDIA_DIR ?? "./media-data" };
+  if (env.MEDIA_STORAGE !== "s3") throw new Error(`MEDIA_STORAGE must be "local" or "s3", not ${env.MEDIA_STORAGE}`);
+  const required = ["S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "S3_PUBLIC_URL"] as const;
+  const missing = required.filter((k) => !env[k]);
+  if (missing.length) throw new Error(`MEDIA_STORAGE=s3 needs ${missing.join(", ")}`);
+  return {
+    kind: "s3",
+    bucket: env.S3_BUCKET!,
+    region: env.S3_REGION ?? "auto",
+    endpoint: env.S3_ENDPOINT || undefined,
+    accessKeyId: env.S3_ACCESS_KEY_ID!,
+    secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
+    publicUrl: env.S3_PUBLIC_URL!,
+    forcePathStyle: env.S3_FORCE_PATH_STYLE === "true",
+  };
+}
+
+/** The server's version, from its package.json (npm/pnpm set npm_package_version; plain node doesn't). */
+function packageVersion(): string {
+  try {
+    return (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version?: string }).version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+export function loadConfig(env: Record<string, string | undefined>): Config {
+  const port = Number(env.PORT ?? 8000);
+  if (!Number.isInteger(port) || port <= 0) throw new Error(`Invalid PORT: ${env.PORT}`);
+  const origin = new URL(env.PINSTRIPE_ORIGIN ?? `http://localhost:${port}`).origin;
+  if (!env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is required. For local development: docker compose up -d (see README).");
+  }
+  return {
+    port,
+    origin,
+    version: env.npm_package_version ?? packageVersion(),
+    databaseUrl: env.DATABASE_URL,
+    allowPrivateAddress: env.PINSTRIPE_ALLOW_PRIVATE_ADDRESS === "true",
+    storage: loadStorage(env),
+    smtpUrl: env.SMTP_URL || null,
+    mailFrom: env.MAIL_FROM || `Pinstripe <noreply@${new URL(origin).hostname}>`,
+    expoAccessToken: env.EXPO_ACCESS_TOKEN || null,
+    registrationsOpen: (env.REGISTRATIONS ?? "open") !== "closed",
+    trustProxy: env.TRUST_PROXY === "true",
+  };
+}

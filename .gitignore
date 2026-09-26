@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.expo/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+coverage/
+expo-env.d.ts
+media-data/
+deploy/.env

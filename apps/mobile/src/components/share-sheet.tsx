@@ -1,0 +1,172 @@
+/**
+ * The iOS 6 share sheet (UIActivityViewController): the action sheet's
+ * dark glass with a grid of glossy, rounded app-style icons: Message,
+ * Mail, Copy Link, Save Video, Open in Browser and More (the system's own
+ * sheet), then a dark Cancel.
+ */
+import * as Clipboard from 'expo-clipboard';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Linking, Modal, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+
+import { SheetButton, SheetGlass, sheetStyles, useSheetFrame } from '@/components/action-menu';
+import { Gloss } from '@/components/glass';
+import { flashHud } from '@/components/hud';
+import { Icon, type IconName } from '@/components/icon';
+import { glassFont, glassText } from '@/components/liquid';
+import { M3Sheet, M3ShareTargets } from '@/components/m3/overlays';
+import type { SymbolName } from '@/components/m3/symbol';
+import { fontFamily } from '@/theme/aqua';
+import { material } from '@/theme/startup';
+import { useGlass } from '@/theme/theme';
+
+interface Activity {
+  label: string;
+  icon: IconName;
+  colors: [string, string];
+  run: () => unknown;
+}
+
+export function ShareSheet(props: Parameters<typeof Ios6ShareSheet>[0]) {
+  return material ? <M3ShareSheet {...props} /> : <Ios6ShareSheet {...props} />;
+}
+
+/** The Android share sheet: the link, a row of round targets, then everything else (the system's own sheet). */
+function M3ShareSheet({ visible, url, text, onSaveVideo, onClose }: Parameters<typeof Ios6ShareSheet>[0]) {
+  const body = text ? `${text}\n${url}` : url;
+  const run = (action: () => unknown) => () => {
+    onClose();
+    action();
+  };
+  const targets: { label: string; icon: SymbolName; run: () => void }[] = [
+    ...(Platform.OS === 'web' ? [] : [{ label: 'Messages', icon: 'chat_bubble' as const, run: run(() => Linking.openURL(`sms:?body=${encodeURIComponent(body)}`)) }]),
+    { label: 'Gmail', icon: 'mail', run: run(() => Linking.openURL(`mailto:?body=${encodeURIComponent(body)}`)) },
+    {
+      label: 'Copy link',
+      icon: 'content_copy',
+      run: run(async () => {
+        await Clipboard.setStringAsync(url);
+        flashHud('Link copied');
+      }),
+    },
+    ...(onSaveVideo ? [{ label: 'Save video', icon: 'download' as const, run: run(onSaveVideo) }] : []),
+    { label: 'Open in Chrome', icon: 'public', run: run(() => Linking.openURL(url)) },
+    { label: 'More', icon: 'share', run: run(() => Share.share({ message: body, url }).catch(() => {})) },
+  ];
+  return (
+    <M3Sheet visible={visible} onClose={onClose} title={text ?? url.replace(/^https?:\/\//, '')}>
+      <M3ShareTargets targets={targets} />
+    </M3Sheet>
+  );
+}
+
+function Ios6ShareSheet({
+  visible,
+  url,
+  text,
+  onSaveVideo,
+  onClose,
+}: {
+  visible: boolean;
+  url: string;
+  /** Goes before the link in messages and mail. */
+  text?: string;
+  onSaveVideo?: () => void;
+  onClose: () => void;
+}) {
+  const frame = useSheetFrame();
+  const glass = useGlass();
+  const body = text ? `${text}\n${url}` : url;
+  const encoded = encodeURIComponent(body);
+
+  const activities: Activity[] = [
+    ...(Platform.OS === 'web'
+      ? []
+      : [
+          {
+            label: 'Message',
+            icon: 'bubble' as const,
+            colors: ['#8ef27a', '#1fa31a'] as [string, string],
+            run: () => Linking.openURL(`sms:${Platform.OS === 'ios' ? '&' : '?'}body=${encoded}`),
+          },
+        ]),
+    { label: 'Mail', icon: 'mail', colors: ['#8fd0ff', '#1567d3'], run: () => Linking.openURL(`mailto:?body=${encoded}`) },
+    {
+      label: 'Copy Link',
+      icon: 'copy',
+      colors: ['#c9ced6', '#6d7684'],
+      run: async () => {
+        await Clipboard.setStringAsync(url);
+        flashHud('Copied');
+      },
+    },
+    ...(onSaveVideo ? [{ label: 'Save Video', icon: 'download' as const, colors: ['#ffc56b', '#e2780c'] as [string, string], run: onSaveVideo }] : []),
+    { label: 'Open in Browser', icon: 'compass', colors: ['#9ad8ff', '#2d7fd8'], run: () => Linking.openURL(url) },
+    { label: 'More', icon: 'more', colors: ['#a3a8b0', '#4d535c'], run: () => Share.share({ message: body, url }).catch(() => {}) },
+  ];
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={sheetStyles.backdrop} onPress={onClose} accessibilityLabel="Close" accessibilityRole="button" />
+      <View style={frame} accessibilityViewIsModal>
+        <SheetGlass />
+        <View style={styles.grid}>
+          {activities.map((a) => (
+            <Pressable
+              key={a.label}
+              accessibilityRole="button"
+              accessibilityLabel={a.label}
+              onPress={() => {
+                onClose();
+                Promise.resolve(a.run()).catch(() => {});
+              }}
+              style={styles.activity}>
+              {({ pressed }) => (
+                <>
+                  <View style={[styles.icon, glass && styles.iconGlass, pressed && styles.pressed]}>
+                    <LinearGradient colors={a.colors} style={StyleSheet.absoluteFill} />
+                    <Icon name={a.icon} size={32} color="#ffffff" strokeWidth={2.2} />
+                    {/* The iOS 6 icon gloss, following the rounded corners. */}
+                    {glass ? null : <Gloss width={57} height={57} radius={11} strength={0.6} depth={0.48} />}
+                  </View>
+                  <Text style={[styles.label, glass && styles.labelGlass]} numberOfLines={2}>
+                    {a.label}
+                  </Text>
+                </>
+              )}
+            </Pressable>
+          ))}
+        </View>
+        <SheetButton label="Cancel" kind="cancel" onPress={onClose} style={sheetStyles.cancel} />
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', rowGap: 14, paddingTop: 6, paddingBottom: 4 },
+  activity: { width: '25%', minWidth: 76, alignItems: 'center', gap: 6 },
+  icon: {
+    width: 57,
+    height: 57,
+    borderRadius: 11,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.5)',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.6)',
+  },
+  pressed: { opacity: 0.6 },
+  iconGlass: { borderRadius: 16, borderWidth: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' },
+  labelGlass: { fontFamily: glassFont, fontWeight: '500', color: glassText.primary, textShadowColor: 'transparent' },
+  label: {
+    fontFamily,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ffffff',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: -1 },
+    textShadowRadius: 0,
+  },
+});

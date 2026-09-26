@@ -1,0 +1,86 @@
+# Pinstripe in production: the server, Postgres, and a way in from the
+# internet (COMPOSE_PROFILES in .env picks one):
+#
+#   direct  Caddy on ports 80/443 with automatic HTTPS (ports forwarded
+#           to this machine, DNS pointing at it)
+#   tunnel  a Cloudflare Tunnel: no open ports, works behind CGNAT
+#   ddns    (with direct) keeps the DNS record on a changing home IP
+#
+#   cp .env.example .env   # then fill it in
+#   docker compose up -d --build
+#
+# See docs/deploy.md, and docs/home-hosting.md for running it at home.
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pinstripe
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: pinstripe
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "pinstripe"]
+      interval: 5s
+      retries: 10
+
+  server:
+    build: ..
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://pinstripe:${POSTGRES_PASSWORD}@postgres:5432/pinstripe
+      PINSTRIPE_ORIGIN: https://${PINSTRIPE_HOST:?set PINSTRIPE_HOST in .env}
+      # Caddy sits in front, so client addresses come from X-Forwarded-For.
+      TRUST_PROXY: "true"
+    volumes:
+      # Uploads, when MEDIA_STORAGE=local. With S3 this stays empty.
+      - media:/data/media
+
+  caddy:
+    image: caddy:2
+    profiles: [direct]
+    restart: unless-stopped
+    depends_on: [server]
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      PINSTRIPE_HOST: ${PINSTRIPE_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: [tunnel]
+    restart: unless-stopped
+    depends_on: [server]
+    # In the Cloudflare dashboard, route the tunnel's public hostname
+    # (PINSTRIPE_HOST) to http://server:8000.
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+
+  ddns:
+    image: favonia/cloudflare-ddns:latest
+    profiles: [ddns]
+    restart: unless-stopped
+    network_mode: host
+    read_only: true
+    cap_drop: [all]
+    security_opt: [no-new-privileges:true]
+    environment:
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      DOMAINS: ${PINSTRIPE_HOST}
+      # Straight to this machine: Cloudflare's proxy would cap uploads at 100 MB.
+      PROXIED: "false"
+
+volumes:
+  pgdata:
+  media:
+  caddy_data:
+  caddy_config:

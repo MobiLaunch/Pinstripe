@@ -1,0 +1,100 @@
+{
+  "expo": {
+    "name": "Pinstripe",
+    "slug": "pinstripe",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "pinstripe",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "social.pinstripe.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#2a74d6",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "social.pinstripe.app"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#2a74d6",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Pinstripe uses your photos and videos so you can post them.",
+          "cameraPermission": "Pinstripe uses the camera so you can record videos.",
+          "microphonePermission": "Pinstripe records sound with your videos."
+        }
+      ],
+      "expo-video",
+      [
+        "expo-notifications",
+        {
+          "color": "#2a74d6"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Pinstripe uses the camera so you can record videos.",
+          "microphonePermission": "Pinstripe records sound with your videos.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "Google Sans Flex",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/GoogleSansFlex_400Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/GoogleSansFlex_500Medium.ttf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/GoogleSansFlex_600SemiBold.ttf",
+                    "weight": 600
+                  },
+                  {
+                    "path": "./assets/fonts/GoogleSansFlex_700Bold.ttf",
+                    "weight": 700
+                  },
+                  {
+                    "path": "./assets/fonts/GoogleSansFlex_800ExtraBold.ttf",
+                    "weight": 800
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

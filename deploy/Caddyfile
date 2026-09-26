@@ -1,0 +1,8 @@
+{$PINSTRIPE_HOST} {
+	encode zstd gzip
+	# Uploads can be up to 200 MB (a minute of 1080p video).
+	request_body {
+		max_size 210MB
+	}
+	reverse_proxy server:8000
+}

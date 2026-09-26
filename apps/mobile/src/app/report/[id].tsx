@@ -1,0 +1,208 @@
+import { type Account, formatHandle, type Post } from '@pinstripe/core';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { type ReportCategory, toAccount, toPost } from '@/api/mastodon';
+import { useAuth } from '@/auth/session';
+import { AquaSwitch, aquaText, Card, GelButton, Segmented } from '@/components/aqua';
+import { FormError } from '@/components/form-error';
+import { Icon } from '@/components/icon';
+import { BarButton, Spinner, TableBackground } from '@/components/ios6';
+import { glassInput } from '@/components/liquid-controls';
+import { useM3Surfaces } from '@/components/m3/kit';
+import { ScreenHeader } from '@/components/screen-header';
+import { PINSTRIPE_DOMAIN } from '@/config';
+import { colors, fontFamily } from '@/theme/aqua';
+import { useAccent, useGlass } from '@/theme/theme';
+
+const CATEGORIES: { value: ReportCategory; label: string }[] = [
+  { value: 'spam', label: 'Spam' },
+  { value: 'violation', label: 'Rules' },
+  { value: 'legal', label: 'Illegal' },
+  { value: 'other', label: 'Other' },
+];
+
+const HINTS: Record<ReportCategory, string> = {
+  spam: 'Ads, scams, or the same thing posted over and over.',
+  violation: 'Harassment, hate, or something else against the server rules.',
+  legal: 'Something you think is illegal where you or the server are.',
+  other: 'Something else the moderators should look at.',
+};
+
+const COMMENT_MAX = 1000;
+
+/** Reporting an account (and some of its posts) to the moderators. */
+export default function ReportScreen() {
+  const glass = useGlass();
+  const m3 = useM3Surfaces();
+  const accent = useAccent();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { state } = useAuth();
+  const client = state.status === 'signedIn' ? state.client : null;
+  const server = state.status === 'signedIn' ? state.server : '';
+  const [account, setAccount] = useState<Account | null>(null);
+  const [posts, setPosts] = useState<Post[] | null>(null);
+  const [category, setCategory] = useState<ReportCategory>('spam');
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [comment, setComment] = useState('');
+  const [forward, setForward] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!client || !id) return;
+    Promise.all([client.account(id), client.accountStatuses(id, { excludeReblogs: true, limit: 20 })])
+      .then(([a, statuses]) => {
+        setAccount(toAccount(a, server));
+        setPosts(statuses.map((s) => toPost(s, server)));
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Couldn’t load this account.'));
+  }, [client, server, id]);
+
+  const remote = !!account?.domain && account.domain !== PINSTRIPE_DOMAIN;
+
+  const toggle = (postId: string) =>
+    setPicked((current) => {
+      const next = new Set(current);
+      if (next.has(postId)) next.delete(postId);
+      else next.add(postId);
+      return next;
+    });
+
+  const send = async () => {
+    if (!client || !account) return;
+    setSending(true);
+    setError(null);
+    try {
+      await client.report({ account_id: account.id, status_ids: [...picked], comment: comment.trim(), category, forward: remote && forward });
+      setSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Couldn’t send the report.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (sent && account) {
+    return (
+      <TableBackground>
+        <ScreenHeader title="Report" />
+        <View style={styles.done}>
+          <Icon name="check" size={40} color={colors.verified} strokeWidth={3} />
+          <Text style={[aquaText.title, styles.center]}>Thanks for telling us</Text>
+          <Text style={[aquaText.body, styles.center]}>
+            The moderators will look at it. You can also mute or block {account.displayName} from their profile so you don’t see them in the
+            meantime.
+          </Text>
+          <GelButton title="Done" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
+        </View>
+      </TableBackground>
+    );
+  }
+
+  return (
+    <TableBackground>
+      <ScreenHeader
+        title="Report"
+        back="Cancel"
+        right={<BarButton done title={sending ? 'Sending…' : 'Send'} disabled={!account || sending || [...comment].length > COMMENT_MAX} onPress={send} />}
+      />
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <FormError message={error} />
+        {!account ? (
+          error ? null : <Spinner />
+        ) : (
+          <>
+            <Text style={aquaText.body}>
+              Reporting <Text style={styles.bold}>{account.displayName}</Text> {formatHandle(account)}. The report goes to this server’s moderators; they won’t know who sent it.
+            </Text>
+
+            <Text style={[aquaText.body, styles.bold]}>What’s wrong?</Text>
+            <Segmented options={CATEGORIES} value={category} onChange={setCategory} />
+            <Text style={aquaText.handle}>{HINTS[category]}</Text>
+
+            <Text style={[aquaText.body, styles.bold]}>Which posts? (optional)</Text>
+            {posts === null ? (
+              <Spinner />
+            ) : posts.length === 0 ? (
+              <Text style={aquaText.handle}>No recent posts.</Text>
+            ) : (
+              posts.map((p) => {
+                const on = picked.has(p.id);
+                return (
+                  <Pressable
+                    key={p.id}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on }}
+                    accessibilityLabel={p.content || 'Post with media'}
+                    onPress={() => toggle(p.id)}>
+                    <Card style={[styles.post, on && [styles.postOn, { borderColor: accent.color }]]}>
+                      <View style={[styles.box, on && { backgroundColor: accent.color, borderColor: accent.color }]}>{on ? <Icon name="check" size={14} color="#fff" strokeWidth={3} /> : null}</View>
+                      <Text style={[aquaText.body, styles.flex]} numberOfLines={3}>
+                        {p.content || (p.media.length ? `[${p.media[0]!.kind === 'video' ? 'Video' : 'Photo'}]` : '')}
+                      </Text>
+                    </Card>
+                  </Pressable>
+                );
+              })
+            )}
+
+            <Text style={[aquaText.body, styles.bold]}>Anything else? (optional)</Text>
+            <TextInput
+              accessibilityLabel="Details for the moderators"
+              placeholder="Details that would help the moderators"
+              placeholderTextColor="#767676"
+              multiline
+              value={comment}
+              onChangeText={setComment}
+              style={[styles.input, glass && glassInput, m3.input]}
+            />
+            <Text style={[aquaText.handle, styles.right, [...comment].length > COMMENT_MAX && styles.over]}>
+              {[...comment].length} / {COMMENT_MAX}
+            </Text>
+
+            {remote ? (
+              <View style={styles.forward}>
+                <View style={styles.flex}>
+                  <Text style={aquaText.body}>Also tell {account.domain}</Text>
+                  <Text style={aquaText.handle}>A copy goes to their moderators, from this server rather than from you.</Text>
+                </View>
+                <AquaSwitch value={forward} onValueChange={setForward} accessibilityLabel={`Also tell ${account.domain}`} />
+              </View>
+            ) : null}
+
+          </>
+        )}
+      </ScrollView>
+    </TableBackground>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { padding: 16, gap: 12, paddingBottom: 40 },
+  bold: { fontWeight: '700' },
+  flex: { flex: 1 },
+  post: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
+  postOn: { borderWidth: 2 },
+  box: { width: 22, height: 22, borderRadius: 4, borderWidth: 1, borderColor: '#8c8c8c', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  input: {
+    minHeight: 96,
+    fontFamily,
+    fontSize: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#a2a2a2',
+    borderTopColor: '#7b7b7b',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    boxShadow: 'inset 0 2px 3px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.8)',
+    textAlignVertical: 'top',
+  },
+  right: { textAlign: 'right' },
+  forward: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  over: { color: colors.danger, fontWeight: '700' },
+  done: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16 },
+  center: { textAlign: 'center' },
+});
